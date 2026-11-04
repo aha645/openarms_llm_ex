@@ -12,3 +12,4 @@ src/mobile_openarm_sim/tools/selftest_camera.png
 tron1_openarm/src/tron1_openarm_sim/mjcf/meshes/
 tron1_openarm/runs/*
 !tron1_openarm/runs/COLCON_IGNORE
+MUJOCO_LOG.TXT
