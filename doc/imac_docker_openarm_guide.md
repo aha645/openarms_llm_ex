@@ -24,21 +24,26 @@ Nov 4, 2026
 
 ## 화면을 보여주는 구조
 
-```text
- ┌──────────────── iMac (macOS) ────────────────┐
- │  브라우저 http://localhost:6080  ← noVNC 화면   │
- │  화면 공유 vnc://localhost:5901 ← VNC 화면     │
- │  브라우저 http://localhost:8080  ← 웹 대시보드  │
- └───────────────▲──────────────────────────────┘
-                 │ 포트 6080 / 5901 / 8080 (127.0.0.1 만)
- ┌───────────────┴─ Docker 컨테이너 (Ubuntu 24.04) ─┐
- │  ROS 2 Jazzy · MuJoCo · Nav2 · MoveIt 2 · RViz2  │
- │        │ OpenGL (Mesa llvmpipe, CPU 렌더링)       │
- │        ▼                                          │
- │  Xvfb 가상 화면 :1 ─ fluxbox(창 관리자)            │
- │        │                                          │
- │  x11vnc :5901 ──► websockify/noVNC :6080          │
- └───────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+  subgraph MAC["iMac (macOS)"]
+    B1["브라우저 localhost:6080<br/>noVNC 화면 (권장)"]
+    B2["화면 공유 vnc://localhost:5901<br/>VNC 화면"]
+    B3["브라우저 localhost:8080<br/>웹 대시보드"]
+  end
+  subgraph C["Docker 컨테이너 (Ubuntu 24.04, GPU 없음)"]
+    APP["ROS 2 Jazzy · MuJoCo · Nav2 · MoveIt 2 · RViz2"]
+    GL["Mesa llvmpipe<br/>(CPU OpenGL 4.5)"]
+    X["Xvfb 가상 화면 :1 + fluxbox"]
+    V["x11vnc :5901"]
+    N["websockify / noVNC :6080"]
+    D["Flask 대시보드 :8080"]
+    APP --> GL --> X --> V --> N
+    APP --> D
+  end
+  N -- "127.0.0.1:6080" --> B1
+  V -- "127.0.0.1:5901" --> B2
+  D -- "127.0.0.1:8080" --> B3
 ```
 
 컨테이너 안 프로그램은 가상 화면 `:1` 에 그리고, Mac은 포트 3개(6080·5901·8080)로 그 화면과 대시보드를 봅니다. X11 소켓 공유(`-v /tmp/.X11-unix`)는 리눅스 호스트에서만 되는 방식이라 쓰지 않습니다.

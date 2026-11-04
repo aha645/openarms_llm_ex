@@ -46,19 +46,24 @@ Nov 4, 2026
 
 ## 구성
 
-```text
- ┌─ 4. 응용 ─────────────────────────────────────────────────────┐
- │  웹 대시보드(Flask·SSE·MJPEG) → task_manager → llm_planner     │
- │  (OpenAI Structured Outputs / 오프라인 규칙) → validate_plan   │
- ├─ 3. 스킬 (robot_skills) ──────────────────────────────────────┤
- │  navigate · dock · pick · place · home_arms · ArUco 인식       │
- ├─ 2. ROS 2 표준 스택 ──────────────────────────────────────────┤
- │  Nav2(AMCL·MPPI) · slam_toolbox · MoveIt 2(KDL·OMPL) · TF2     │
- ├─ 1. 브리지 (교체 지점) ───────────────────────────────────────┤
- │  시뮬레이션: bridge_node.py (MuJoCo ↔ ROS 2)                   │
- │  실로봇:     openarm_bringup(CAN-FD) + 베이스 드라이버 + LiDAR │
- │             + RGB-D 카메라 + aruco_detector                    │
- └───────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+  subgraph L4["4. 응용"]
+    UI["웹 대시보드<br/>Flask · SSE · MJPEG"] --> TM["task_manager"] --> LP["llm_planner<br/>OpenAI Structured Outputs / 오프라인"] --> VP["validate_plan<br/>안전 검사"]
+  end
+  subgraph L3["3. 스킬 (robot_skills)"]
+    SK["navigate · dock · pick · place · home_arms · ArUco 인식"]
+  end
+  subgraph L2["2. ROS 2 표준 스택"]
+    ST["Nav2 (AMCL · MPPI) · slam_toolbox · MoveIt 2 (KDL · OMPL) · TF2"]
+  end
+  subgraph L1["1. 브리지 — 시뮬 ↔ 실로봇 교체 지점"]
+    SIM["시뮬레이션: bridge_node.py<br/>(MuJoCo ↔ ROS 2)"]
+    REAL["실로봇: openarm_bringup (CAN-FD)<br/>+ 베이스 드라이버 + LiDAR + RGB-D + aruco_detector"]
+  end
+  VP --> SK --> ST
+  ST --> SIM
+  ST -.-> REAL
 ```
 
 위 세 층은 시뮬과 실로봇에서 그대로 쓰고, 강조한 브리지 층만 교체합니다.
