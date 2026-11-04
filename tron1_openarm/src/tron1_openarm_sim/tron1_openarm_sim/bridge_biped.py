@@ -36,15 +36,19 @@ class BipedBridge(B.MujocoBridge):
         # 바퀴형은 linear.x·angular.z 만 쓴다. 이족은 linear.y(옆걸음)도 받는다
         self.sim.set_cmd_vel(msg.linear.x, msg.angular.z, msg.linear.y)
 
+    def _tcp_world(self, side):
+        d, m = self.sim.d, self.sim.m
+        h = m.body(f"openarm_{side}_hand").id
+        return d.xpos[h] + d.xmat[h].reshape(3, 3) @ [0.0, 0.0, 0.09]
+
     def publish_status(self):
         h, tilt = self.sim.base_height_and_tilt()
         msg = String()
         msg.data = json.dumps({"base_height": round(h, 3), "tilt_deg": round(tilt, 1), "fallen": self.sim.fallen,
                                "cmd": [round(float(x), 3) for x in self.sim.cmd_eff],
                                "est_vel": [round(float(x), 3) for x in self.sim.policy.estimated_velocity],
-                               # 디버그·채점용 정답값(시뮬에서만): 손끝(TCP) 세계 위치
-                               "tcp_world": {s: [round(float(v), 4) for v in self.sim.d.site_xpos[self.sim.m.site(f"{s}_ee_control_point").id]]
-                                             for s in ("left", "right")}})
+                               # 디버그·채점용 정답값(시뮬에서만): 손끝(TCP) 세계 위치 = 손 + 손 z축으로 0.09 m (URDF hand_tcp 와 같음)
+                               "tcp_world": {s: [round(float(v), 4) for v in self._tcp_world(s)] for s in ("left", "right")}})
         self.pub_status.publish(msg)
         if self.sim.fallen:
             self.get_logger().error("로봇이 넘어졌습니다 → ros2 service call /sim/reset std_srvs/srv/Trigger",
