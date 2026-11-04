@@ -82,6 +82,9 @@ class RobotSkills(Node):
             # 직선 접근이 40~90% 에서 끊겼다. 작업대에 8 cm 더 붙어 서서(앞 여유 8 cm) 상자를 0.44 m 앞에 둔다.
             self.DOCK_GAP = float(os.environ.get("OPENARM_DOCK_GAP", 0.32))
             self.IDEAL_REACH = float(os.environ.get("OPENARM_IDEAL_REACH", 0.44))
+            # 시뮬 정답 기록: 손끝(TCP)이 목표보다 접근 방향으로 3.5 cm 덜 들어가 상자 앞 모서리만 잡고 미끄러졌다
+            # (팔 처짐 약 1.5 cm + 팔을 뻗을 때 몸통 반동). 그만큼 더 깊이 넣는다.
+            self.GRASP_DEPTH = float(os.environ.get("OPENARM_GRASP_DEPTH", 0.045))
 
         cb = ReentrantCallbackGroup()
         self.cb = cb
