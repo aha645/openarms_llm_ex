@@ -8,6 +8,8 @@ PinkLAB "MuJoCo + ROS2 2일 워크샵" 커리큘럼(14개 모듈)을 **OpenArm v
 ## 문서
 - [MuJoCo + ROS 2 주행형 OpenArm 실습 가이드](doc/mujoco_ros2_mobile_openarm_guide.md) — Ubuntu 24.04 노트북 설치부터 DAY1·DAY2 실습, 실로봇 전환까지
 - [iMac Docker로 OpenArm 실습 환경 만들기](doc/imac_docker_openarm_guide.md) — Intel Mac + Docker, 컨테이너 화면(noVNC/VNC) 보기
+- [챕터별 실습서 (DAY1·DAY2 12개 장)](doc/labs/README.md) — 장마다 미션·개념·실행되는 소스·단계별 명령 설명
+- [용어집](doc/labs/glossary.md) — SLAM, TF, MJCF, AMCL 같은 약어의 원래 이름과 뜻
 
 ## 빠른 시작
 ```bash

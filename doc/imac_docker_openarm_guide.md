@@ -170,6 +170,8 @@ rviz2      # 실패하면 LIBGL_ALWAYS_INDIRECT=1 을 붙여 보고, 그래도 �
 
 ## 컨테이너 안에서 실습하기
 
+> 챕터별 상세 실습은 [실습서 목록](labs/README.md)을 따라 하세요. 컨테이너에서는 새 터미널을 Mac에서 `docker compose exec openarm bash` 로 열고, launch 명령 끝에 `world:=world_light.xml camera_hz:=5.0` 을 붙이면 됩니다. 약어 풀이는 [용어집](labs/glossary.md).
+
 설치 단계는 노트북 가이드와 다릅니다. `scripts/01`(NVIDIA 드라이버)·`02`(CUDA/PyTorch)·`03`(ROS 설치)은 **건너뜁니다**. 03은 이미 이미지에 들어 있고, 04만 처음 한 번 실행합니다. DAY1·DAY2 실습 명령은 노트북 가이드와 같고, 아래처럼 CPU 부하를 줄이는 인자를 붙이면 됩니다.
 
 ```bash

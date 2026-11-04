@@ -19,6 +19,8 @@ Nov 4, 2026
 
 만든 것: 워크스페이스 `openarm_mobile_ws.zip` (ROS 2 패키지 3개 + 설치 스크립트 5개). OpenArm 메시(48MB)는 설치 스크립트가 enactic/openarm\_mujoco에서 받습니다.
 
+> 문서에 나오는 약어(SLAM, TF, MJCF, AMCL, CUDA …)의 원래 이름과 뜻은 [용어집](labs/glossary.md)에 정리되어 있습니다.
+
 ## 문제점과 제약 (먼저 읽기)
 
 대상 노트북은 Samsung Notebook Odyssey NP800G5M(2017): i7-7700HQ 4코어/8스레드, GTX 1050(Pascal, 2GB 또는 4GB), RAM 8GB 또는 16GB, 128GB NVMe SSD + 1TB 5400rpm HDD입니다. 교육과정 권장 사양은 i5급, RAM 16GB, **GTX 1650 이상**이므로 GPU 한 등급이 모자랍니다.
@@ -135,167 +137,27 @@ source ~/openarm_mobile_ws/install/setup.bash
 - **numpy를 2.x로 올리면 안 됩니다.** ROS Jazzy apt 패키지(cv\_bridge 등)와 Ubuntu의 python3-opencv 4.6은 numpy 1.26에 맞춰 빌드되어 `numpy.core.multiarray failed to import` 가 납니다. 다른 pip 설치 시에도 `-c` 제약파일(`numpy<2`)을 함께 쓰세요.
 - selftest 끝에 `총 14개 중 실패 0개` 가 나오면 시뮬레이션은 정상입니다. 카메라 항목만 실패하면 OpenGL(드라이버) 문제입니다.
 
-## DAY 1 — MuJoCo + ROS 2 자율주행
+## 챕터별 실습 (DAY 1 · DAY 2)
 
-모든 터미널에서 먼저 `source ~/openarm_mobile_ws/install/setup.bash` 를 실행합니다. 메모리가 8GB이거나 뷰어가 끊기면 모든 launch에 `world:=world_light.xml` 을 붙입니다(시각 메시 제거, 모델 메모리 1.9GB → 0.2GB).
+설치가 끝났으면 챕터별 실습서를 순서대로 따라 하세요. 각 문서는 같은 순서로 되어 있습니다: **미션 → 이 장에 나오는 용어(약어 풀이) → 개념 → 전체 구조 그림 → 실제로 실행되는 소스 → 단계별 따라하기(어느 터미널에서, 언제, 무슨 뜻, 화면에서 확인할 것) → 체크리스트 → 확인 질문 → 문제 해결.**
 
-### 01 Gazebo와 MuJoCo 이해
+- 시작 전에 읽기: [실습서 안내 — 터미널 쓰는 법, 공통 규칙, 월드 지도](labs/README.md)
+- 모르는 약어가 나오면: [용어집](labs/glossary.md)
 
-|  | Gazebo (gz-sim) | MuJoCo |
-| --- | --- | --- |
-| 모델 형식 | SDF / URDF | MJCF (XML) |
-| 강점 | ROS 연동 생태계, 센서 플러그인, 대규모 환경 | 접촉·마찰 물리가 정확하고 빠름, 강화학습·매니퓰레이션 표준 |
-| ROS 연결 | ros\_gz\_bridge | 직접 작성한 브리지 또는 mujoco\_ros2\_control |
-
-```bash
-# ROS 없이 월드만 열어 보기 (더블클릭=물체 선택, Ctrl+우클릭 드래그=힘 가하기)
-python3 -m mujoco.viewer --mjcf=$(ros2 pkg prefix --share mobile_openarm_sim)/mjcf/world.xml
-```
-
-로봇 구조: 차동구동 베이스(바퀴 반지름 0.08m, 간격 0.44m, 섬시 0.50×0.36m) 위에 OpenArm v1 몸통 기둥과 7자유도 팔 2개, 평행 그리퍼 2개. 총 44.5kg. 월드는 10×8m 방 2개(문 2m), 작업대 2개, ArUco 상자 3개(빨강 id0, 초록 id1, 파랑 id2), 복도를 왕복하는 사람 1명입니다.
-
-### 02 MuJoCo–ROS 2 브리지
-
-```bash
-ros2 launch mobile_openarm_sim sim.launch.py          # MuJoCo 뷰어 + RViz2
-ros2 topic list                                        # /clock /joint_states /odom /scan /imu /aruco/* ...
-ros2 topic hz /scan                                    # 약 10Hz
-ros2 run teleop_twist_keyboard teleop_twist_keyboard   # i/j/l/, 키로 주행
-ros2 action list                                       # *_joint_trajectory_controller/follow_joint_trajectory
-```
-
-브리지(`mobile_openarm_sim/bridge_node.py`)는 물리 스레드에서 2ms 스텝을 돌리며 시뮬레이션 시간을 `/clock` 으로 내보냅니다. 다른 모든 노드는 `use_sim_time:=true` 로 동작합니다. 팔 제어는 실로봇 `openarm_bringup` 과 같은 이름의 FollowJointTrajectory 액션으로 받습니다.
-
-```bash
-# 오른팔을 관절 목표로 직접 움직이기 (MoveIt 없이)
-ros2 action send_goal /right_joint_trajectory_controller/follow_joint_trajectory control_msgs/action/FollowJointTrajectory \
- "{trajectory: {joint_names: [openarm_right_joint1, openarm_right_joint2, openarm_right_joint3, openarm_right_joint4, openarm_right_joint5, openarm_right_joint6, openarm_right_joint7], points: [{positions: [0.0, 0.0, 0.0, 1.57, 0.0, 0.0, 0.0], time_from_start: {sec: 3}}]}}"
-```
-
-### 03 Launch·Description·센서·TF
-
-MJCF를 정본으로 두고 URDF를 자동 생성합니다. 그래서 시뮬과 RViz·MoveIt의 기구학이 항상 같습니다(무작위 자세 20개 FK 비교 최대 오차 7×10⁻⁶ m).
-
-```bash
-cd ~/openarm_mobile_ws/src/mobile_openarm_sim
-python3 tools/mjcf_to_urdf.py --mjcf mjcf/mobile_openarm.xml --out urdf/mobile_openarm.urdf
-check_urdf urdf/mobile_openarm.urdf | head          # sudo apt install liburdfdom-tools
-ros2 run tf2_tools view_frames                       # frames.pdf: map→odom→base_footprint→base_link→...
-ros2 run tf2_ros tf2_echo base_footprint head_camera_optical_frame
-```
-
-TF 트리: `map → odom`(AMCL/SLAM) → `base_footprint`(브리지 휠 오도메트리) → `base_link` → `lidar_link`, `imu_link`, `openarm_body_link0` → `head_camera_link` → `head_camera_optical_frame`, `openarm_{left,right}_link0..7` → `hand` → `hand_tcp`.
-
-### 04 SLAM과 RViz2
-
-```bash
-ros2 launch mobile_openarm_sim slam.launch.py                 # slam_toolbox online_async
-ros2 run teleop_twist_keyboard teleop_twist_keyboard          # 방 두 개를 천천히 한 바퀴
-mkdir -p ~/maps && ros2 run nav2_map_server map_saver_cli -f ~/maps/my_map --ros-args -p use_sim_time:=true
-# AMCL 위치추정: 저장한 지도로 Nav2 실행 → RViz '2D Pose Estimate' 로 초기 위치 보정
-ros2 launch mobile_openarm_sim nav.launch.py map:=$HOME/maps/my_map.yaml
-```
-
-- **반드시 `home`(월드 원점)에서 매핑을 시작합니다.** SLAM 지도 원점 = 시작 위치이고, `config/locations.yaml` 의 작업장 좌표가 이 원점 기준이기 때문입니다.
-- SLAM을 건너뛰려면 월드에서 바로 만든 정답 지도 `maps/world_map.yaml` 을 씁니다(nav.launch 기본값).
-
-### 05 Nav2 자율주행
-
-```bash
-ros2 launch mobile_openarm_sim nav.launch.py      # RViz 상단 '2D Goal Pose' 로 목표 클릭
-# CLI 로 목표 주기
-ros2 action send_goal /navigate_to_pose nav2_msgs/action/NavigateToPose \
- "{pose: {header: {frame_id: map}, pose: {position: {x: 2.5, y: 2.45}, orientation: {z: 0.7071, w: 0.7071}}}}"
-# 사람 장애물 켜기/끄기
-ros2 service call /sim/set_person_motion std_srvs/srv/SetBool "{data: true}"
-```
-
-주요 파라미터(`config/nav2_params.yaml`, Nav2 Jazzy 기본값에서 변경): footprint 0.55×0.52m, inflation 0.55m, MPPI batch 1000·time\_steps 48·vx\_max 0.4m/s, goal tolerance 0.08m/0.10rad. `tools/make_nav2_params.py` 를 고쳐 다시 생성하며 실험합니다.
-
-### 06 통합 데모: 순찰
-
-```bash
-ros2 launch mobile_openarm_sim nav.launch.py
-ros2 run mobile_openarm_apps patrol --ros-args -p loops:=2 -p mode:=waypoints   # patrol_1→2→3→4 → home
-```
-
-## DAY 2 — 양팔 매니퓰레이션 + LLM 작업 자동화
-
-### 01 MoveIt 2 양팔 제어
-
-Planning Group은 `left_arm`, `right_arm`(체인 `openarm_*_link0` → `openarm_*_hand_tcp`, KDL IK), `both_arms`(두 그룹의 합), `left_gripper`, `right_gripper` 입니다. 이름 자세는 `home`, `ready`, `carry`(손이 footprint 안으로 들어오는 운반 자세), `hands_up` 입니다. SRDF의 자기충돌 비활성 쌍 233개는 MuJoCo에서 무작위 자세 3,000개를 샘플링해 만들었습니다(Setup Assistant의 Self-Collisions 단계와 같은 원리).
-
-```bash
-ros2 launch mobile_openarm_sim sim.launch.py rviz:=false
-ros2 launch mobile_openarm_moveit_config move_group.launch.py         # RViz MotionPlanning 패널 포함
-ros2 run mobile_openarm_apps arm_demo   # 이름자세 → 관절목표 → 말단 자세목표(IK) → 직선(Cartesian) 경로
-```
-
-### 02 ArUco 기반 Pick & Place
-
-카메라 영상은 브리지 안에서 직접 처리하고 검출 결과만 `/aruco/detections`(base\_footprint 기준 JSON)로 발행합니다. 교육과정의 "Python 직접 수신, 검출 결과만 ROS 2 발행" 구조와 같습니다.
-
-```bash
-# 로봇을 작업대 A 앞에서 시작 (Nav2 없이 조작만 연습)
-ros2 launch mobile_openarm_sim sim.launch.py start_x:=2.5 start_y:=2.45 start_yaw:=1.5708
-ros2 launch mobile_openarm_moveit_config move_group.launch.py
-ros2 topic echo /aruco/detections --once
-ros2 run mobile_openarm_apps pick_place --ros-args -p object:=box_0
-```
-
-동작 순서(`robot_skills.py` 의 `pick()` / `place()`):
-
-1. **도킹** — 작업대와 정면이 되도록 제자리 회전(odom 폐루프) 후, 작업대 앞 모서리까지 0.40m가 되도록 직진. Nav2는 작업대 0.70m 앞까지만 보냅니다(팽창 영역 안에서는 MPPI가 제자리걸음을 반복했음).
-2. **인식** — 정지 1초 뒤 마커 5프레임 중앙값, 상자 중심 = 마커 − 2.5cm. 상자까지 전방 거리가 0.52m에서 3cm 이상 벗어나면 베이스를 그만큼 움직이고 다시 인식(AMCL 오차 대신 카메라 거리 기준).
-3. **접근 자세** — 45° 숙인 접근에서 접근축 회전(roll)을 70·−70·±90·±50·0° 순으로 `compute_ik` 시도. roll 0은 손가락이 위아래로 닫혀 모서리를 집고, ±70이 옆면을 가장 안정적으로 잡습니다(MuJoCo 실험: ±70은 상자 밀림 1\~2cm, ±20은 놓침).
-4. **집기** — 10cm 뒤 접근점까지 OMPL 계획 → 상자 중심보다 1cm 더 깊이 직선 접근 → 닫기 → **손가락 간격으로 파지 확인**(끝까지 닫히면 실패, 다시 인식해 1회 재시도) → 직선 10cm 들기 → `carry`.
-5. **놓기** — 도킹 → 작업대 모서리 12cm 안쪽 위로 접근 → 내려놓고 열기 → 뒤·위로 빼기 → `carry` → `home`(손이 방금 놓은 상자 위를 지나는 `ready` 는 거치지 않음).
-
-작업대는 도착 후 현재 TF 기준으로 MoveIt 충돌 객체에 넣고, 주행 전에 지웁니다.
-
-### 03 Nav + Pick & Place (이동 조작)
-
-```bash
-ros2 launch mobile_openarm_sim nav.launch.py
-ros2 launch mobile_openarm_moveit_config move_group.launch.py rviz:=false
-ros2 run mobile_openarm_apps nav_pick_place --ros-args -p object:=box_0
-#   home 자세 → pick_station 주행 → 집기 → carry 자세로 place_station 주행 → 놓기 → home
-```
-
-주행↔조작 전환 규칙: 주행 중에는 팔을 footprint 안(`home`/`carry`)에 두고, 작업대 충돌 객체는 주행 전에 지우고 도착 후 현재 TF(map→base\_footprint)로 다시 넣습니다. 마커 좌표는 항상 base\_footprint 기준이라 지도 오차와 무관합니다.
-
-### 04 LLM과 OpenAI API
-
-```bash
-export OPENAI_API_KEY=sk-...            # 본인 키
-export OPENAI_MODEL=gpt-4o-mini         # 계정에서 쓸 수 있는 모델명으로
-ros2 run mobile_openarm_apps llm_planner "빨간 상자를 왼쪽 작업대로 옮기고 돌아와"
-ros2 run mobile_openarm_apps llm_planner --offline "파란 상자랑 초록 상자 옮겨줘"   # 키 없이 규칙 기반
-# 다른 PC의 로컬 LLM (LM Studio / Ollama / vLLM, OpenAI 호환)
-export OPENAI_BASE_URL=http://<서버IP>:1234/v1 OPENAI_API_KEY=local OPENAI_MODEL=<모델명>
-```
-
-`RobotPlan` 스키마(pydantic)가 안전 범위의 핵심입니다. 행동은 `navigate / pick / place / home_arms / say / wait` 6개, 위치와 물체는 Enum으로만 고를 수 있어 LLM이 임의 좌표나 명령을 만들 수 없습니다. OpenAI Structured Outputs(Responses API `text_format=`)를 먼저 쓰고, 지원하지 않는 로컬 서버는 Chat Completions json\_schema로 자동 전환합니다.
-
-### 05 LLM → ROS 2 작업 실행
-
-`validate_plan()` 이 상태를 따라가며 전제조건을 검사합니다. 이미 든 채 또 집기, 빈손으로 놓기, 작업대 없는 곳에 놓기, 12단계 초과는 거부합니다. 빠진 이동 단계는 자동으로 넣고 경고로 남깁니다.
-
-```bash
-ros2 run mobile_openarm_apps task_manager --ros-args -p planner:=llm    # 또는 planner:=offline
-ros2 topic pub --once /task/command std_msgs/String "{data: '빨간 상자를 왼쪽 작업대로 옮기고 돌아와'}"
-ros2 topic echo /task/status            # planning → running(단계별 pending/running/done) → done
-ros2 service call /task/cancel std_srvs/srv/Trigger
-```
-
-### 06 웹 대시보드 & Final
-
-```bash
-ros2 launch mobile_openarm_apps full_system.launch.py planner:=offline   # 또는 planner:=llm
-# 브라우저: http://localhost:8080  (같은 네트워크의 휴대폰에서도 http://<노트북IP>:8080)
-```
-
-화면 구성: 지도(/map PNG + 로봇 위치·작업장 표시), 머리 카메라 MJPEG(`/camera.mjpg`), 자연어 명령 입력과 빠른 버튼, 미션 단계별 상태, 로그. 상태는 SSE(`/events`)로 0.5초마다 푸시됩니다. 최종 미션은 "빨간 상자를 왼쪽 작업대로 옮기고 돌아와" (5단계: 이동 → 집기 → 이동 → 놓기 → 복귀)입니다.
+| DAY | 챕터 | 미션 | 실습서 |
+|---|---|---|---|
+| 1 | 01 Gazebo vs MuJoCo | MuJoCo 뷰어로 로봇·월드를 만져 보고 selftest 통과 | [day1-01-mujoco-basics.md](labs/day1-01-mujoco-basics.md) |
+| 1 | 02 MuJoCo–ROS 2 브리지 | 토픽으로 센서 읽기, 키보드 운전, 액션으로 팔 움직이기 | [day1-02-bridge.md](labs/day1-02-bridge.md) |
+| 1 | 03 Launch · Description · 센서 · TF | URDF 만들기, TF 트리 PDF, 카메라·LiDAR 높이 구하기 | [day1-03-description-tf.md](labs/day1-03-description-tf.md) |
+| 1 | 04 SLAM과 RViz2 | 키보드로 운전하며 지도 만들고 저장, AMCL로 위치 추정 | [day1-04-slam-rviz.md](labs/day1-04-slam-rviz.md) |
+| 1 | 05 Nav2 자율주행 | RViz·명령어로 목표 보내기, 사람 장애물 회피 | [day1-05-nav2.md](labs/day1-05-nav2.md) |
+| 1 | 06 통합 데모: 순찰 | 경유지 4곳 2바퀴 순찰, 순찰 경로 바꾸기 | [day1-06-patrol.md](labs/day1-06-patrol.md) |
+| 2 | 01 MoveIt 2 양팔 제어 | RViz에서 Plan → Execute, arm_demo로 4가지 동작 방법 | [day2-01-moveit.md](labs/day2-01-moveit.md) |
+| 2 | 02 ArUco 기반 Pick & Place | 마커로 상자 위치 인식 → 집어서 옮기기 | [day2-02-aruco-pick-place.md](labs/day2-02-aruco-pick-place.md) |
+| 2 | 03 Nav + Pick & Place | 작업대 A → B 상자 운반 후 복귀 | [day2-03-nav-pick-place.md](labs/day2-03-nav-pick-place.md) |
+| 2 | 04 LLM과 OpenAI API | 자연어 → 작업 계획(JSON), 불가능한 명령 거절 | [day2-04-llm-planner.md](labs/day2-04-llm-planner.md) |
+| 2 | 05 LLM → ROS 2 작업 실행 | Task Manager로 명령 실행·상태 확인·취소 | [day2-05-task-manager.md](labs/day2-05-task-manager.md) |
+| 2 | 06 웹 대시보드 & Final | 명령 하나로 전체 시스템, 브라우저에서 최종 미션 | [day2-06-dashboard.md](labs/day2-06-dashboard.md) |
 
 ## 실로봇 제어로 넘어가기
 
