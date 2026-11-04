@@ -682,9 +682,12 @@ class RobotSkills(Node):
                 try:
                     c2 = self.find_marker(mid, samples=3) - np.array([0, 0, self.box_size / 2])
                     if np.linalg.norm(c2 - center) < 0.06:
+                        self.log(f"[pick] 팔을 뻗은 뒤 다시 잰 상자 {np.round(c2, 3)} (차이 {np.round((c2 - center) * 100, 1)} cm)")
                         center = c2
+                    else:
+                        self.log(f"[pick] 팔을 뻗은 뒤 측정 {np.round(c2, 3)} 은 너무 달라 버림")
                 except SkillError:
-                    pass                                       # 팔이 마커를 가리면 이전 측정값 사용
+                    self.log("[pick] 팔을 뻗은 뒤 마커가 안 보임 → 이전 측정값 사용")
             self.set_boxes(exclude_id=mid)                     # 직선 접근 전에 목표 상자만 제거
             self.cartesian(side, [center + R[:, 2] * self.GRASP_DEPTH], R,   # 더 깊이: 상자가 손가락 안쪽에 오도록
                            min_fraction=self._need_fraction(float(np.linalg.norm(center - pre))))
