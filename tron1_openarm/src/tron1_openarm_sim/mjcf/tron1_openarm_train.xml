@@ -103,7 +103,7 @@
           </body>
         </body>
       </body>
-      <body name="openarm_mount_link" pos="0 0 0.03">
+      <body name="openarm_mount_link" pos="0.08 0 0.03">
         <inertial pos="0 0 0" quat="0.5 0.5 -0.5 0.5" mass="0.6" diaginertia="0.00488 0.0028898 0.0020098" />
         <body name="openarm_body_link0" pos="0 0 -0.408" quat="1.0 0.0 0.0 0.0">
           <site name="arm_origin" pos="0 0 0.697" size="0.02" rgba="1 0.8 0 1" group="4" />

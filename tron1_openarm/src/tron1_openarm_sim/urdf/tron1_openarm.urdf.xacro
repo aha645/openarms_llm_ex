@@ -11,13 +11,14 @@
 -->
 <robot name="tron1_openarm" xmlns:xacro="http://www.ros.org/wiki/xacro">
   <xacro:arg name="tron1_dir" default=""/>
+  <xacro:arg name="mount_x" default="0.08"/>
   <xacro:include filename="$(arg tron1_dir)/xacro/robot.xacro"/>
 
   <!-- ===== 상반신 장착 치수 (근거는 doc/tron1/02-model.md) =====
        mount_z     : TRON1 몸통 윗면 높이. base_Link 원점 기준 base 충돌상자 윗면(+0.023 m) + 판 두께 7 mm
-       mount_x     : 상반신 무게중심을 서 있을 때의 두 발 중간(base 기준 x ≈ -0.017 m) 위에 두기 위한 앞뒤 위치
+       mount_x     : 상반신 앞뒤 위치. 0 이면 무게중심이 두 발 위에 오지만 내린 손이 엉덩이 모터(abad)에 닿는다 → 0.08 (손과 2.1 cm 틈, 무게중심 3.4 cm 앞)
        plate_*     : 알루미늄 어댑터 판 (0.20 x 0.24 x 0.014 m, 0.6 kg 가정) -->
-  <xacro:property name="mount_x" value="0.0"/>
+  <xacro:property name="mount_x" value="$(arg mount_x)"/>
   <xacro:property name="mount_z" value="0.030"/>
   <xacro:property name="plate_mass" value="0.6"/>
 

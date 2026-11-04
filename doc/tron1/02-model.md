@@ -48,7 +48,7 @@ git clone --depth 1 https://github.com/limxdynamics/tron1-robot-description.git 
 <robot name="tron1_openarm" xmlns:xacro="http://www.ros.org/wiki/xacro">
   <xacro:arg name="tron1_dir" default=""/>
   <xacro:include filename="$(arg tron1_dir)/xacro/robot.xacro"/>     <!-- LimX 원본 그대로 -->
-  <xacro:property name="mount_x" value="0.0"/>                          <!-- 상반신 앞뒤 위치 -->
+  <xacro:arg name="mount_x" default="0.08"/>                            <!-- 상반신 앞뒤 위치 (인자로 바꿀 수 있음) -->
   <xacro:property name="mount_z" value="0.030"/>                        <!-- TRON1 몸통 윗면 -->
   <joint name="base_Link_to_openarm_mount_link" type="fixed"> ... </joint>
   <link name="openarm_mount_link"> 0.20×0.24×0.014 m 알루미늄 판, 0.6 kg </link>
@@ -130,15 +130,32 @@ OpenArm 원점(body_link0)은 기둥 밑동에 있습니다. 어깨를 0.999 m �
 
 실제 기구를 만들 때는 기둥을 실측해 이 두 숫자(`BRACKET_MASS`, `ORIG_COLUMN_LEN`)를 고치면 됩니다.
 
-### 4-3. 앞뒤 위치: 무게중심을 두 발 위에
+### 4-3. 앞뒤 위치: 무게중심 vs 내린 손의 틈 (`mount_x = 0.08 m`)
 
-TRON1 만 세워 두고 측정한 값입니다 (LimX 사전학습 정책, 명령 0):
+처음에는 무게중심만 보고 정했습니다. TRON1 만 세워 두고 측정한 값입니다 (LimX 사전학습 정책, 명령 0):
 
 ```
 두 발 평균 위치 (base_link 기준) x = -0.017 m,  TRON1 무게중심 x = -0.003 m
 ```
 
-상반신 무게중심은 기둥 축에서 x = −0.005 m 이므로, 기둥을 `mount_x = 0.0` 에 두면 전체 무게중심이 두 발 사이(x ≈ −0.004 m)에 옵니다. 바퀴형은 팔 도달거리를 위해 몸통을 앞으로 12 cm 뺐지만(`TORSO_X 0.12`), 이족에서 그렇게 하면 무게중심이 발보다 12 cm 앞에 와서 앞으로 넘어지려 합니다. 대신 Nav2 도착 후 **도킹**(작업대 앞 0.40 m 까지 직진)이 그 12 cm 를 메웁니다.
+상반신 무게중심은 기둥 축에서 x = −0.005 m 이므로, `mount_x = 0.0` 이면 전체 무게중심이 두 발 사이에 옵니다. **그런데 통합 시험에서 문제가 드러났습니다.** 팔을 내린 `home` 자세에서 **손가락이 TRON1 엉덩이 모터(abad 링크)에 닿았습니다.**
+
+- MoveIt 이 시작 자세를 충돌로 판정해 모든 팔 계획을 거부했습니다 (`START_STATE_IN_COLLISION: abad_L_Link - openarm_left_left_finger`).
+- 시뮬레이터에서도 손이 엉덩이를 눌러 몸통이 8° 기울었습니다.
+- 학습 모델은 상반신 충돌을 꺼 두었기 때문에 학습 중에는 드러나지 않았습니다.
+
+그래서 걷는 동안 팔–다리 최소 거리를 재며 `mount_x` 를 바꿔 봤습니다 (`--mount-x` 인자):
+
+| mount_x | 손–엉덩이 최소 거리 | 몸통 기울기 | 판단 |
+|---|---|---|---|
+| 0.00 m | 0 (닿음) | 8.1° | ✗ |
+| 0.05 m | 0 (닿음) | 6.6° | ✗ |
+| **0.08 m** | **2.1 cm** | 4.6° | **채택** |
+| 0.10 m | 0 (기울어진 채 다시 닿음) | 3.3° | ✗ |
+
+0.08 m 에서는 전체 무게중심이 발보다 약 3.4 cm 앞에 옵니다 (14.4 kg × 0.08 / 33.6 kg). 정책은 몸을 약간 뒤로 기울여 균형을 잡고, 이 모델로 다시 미세조정했습니다 (03장). 바퀴형도 팔 도달거리를 위해 몸통을 12 cm 앞에 두었으므로(`TORSO_X 0.12`), 팔과 작업대의 관계는 오히려 바퀴형에 가까워집니다.
+
+**교훈:** 장착 위치는 무게중심만이 아니라 **팔의 기본 자세가 다리와 부딪히지 않는지**도 함께 봐야 합니다. 학습용 모델에서 충돌을 끄더라도 배포 모델로 반드시 다시 확인하세요.
 
 ### 4-4. 센서 위치
 

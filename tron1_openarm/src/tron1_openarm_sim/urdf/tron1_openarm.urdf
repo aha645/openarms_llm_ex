@@ -309,7 +309,7 @@
   <joint name="base_link_to_openarm_mount_link" type="fixed">
     <parent link="base_link" />
     <child link="openarm_mount_link" />
-    <origin xyz="0 0 0.03" rpy="0 0 0" />
+    <origin xyz="0.08 0 0.03" rpy="0 0 0" />
   </joint>
   <link name="openarm_body_link0">
     <inertial>

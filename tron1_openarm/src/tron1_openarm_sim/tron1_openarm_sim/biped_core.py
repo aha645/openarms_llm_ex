@@ -32,7 +32,8 @@ PUBLISHED_JOINTS = (ARM_JOINTS["left"] + [GRIPPER_JOINT["left"], MIMIC_JOINT["le
 CMD_LIMIT = (0.5, 1.0)          # 정책이 학습한 범위 안으로 (vx m/s, wz rad/s)
 CMD_ACCEL = (0.8, 2.0)          # 명령 변화율 제한 (m/s², rad/s²) — 이족은 급가속에 약함
 HOLD_KP, HOLD_KW, HOLD_V = 1.0, 1.5, 0.15   # 제자리 유지 이득 (m/s per m, rad/s per rad), 최대 보정 속도
-HOLD_DEADBAND = (0.03, 0.05)                 # 이보다 작은 명령(m/s, rad/s)은 정지로 보고 제자리 유지
+VEL_KP, VEL_KI = np.array([0.3, 0.5, 0.3]), np.array([0.8, 1.0, 0.8])   # 속도 외곽 루프 이득 (vx, vy, wz)
+VEL_I_MAX = np.array([0.15, 0.15, 0.3])
 
 
 def default_policy_path():
@@ -87,6 +88,9 @@ class BipedOpenArmSim(W.MobileOpenArmSim):
         self.fallen = False
         self.hold_position = True      # 명령 0 일 때 제자리 유지 (False: 정책 그대로)
         self._hold = None
+        self.cmd_ramp = np.zeros(2)
+        self._vi = np.zeros(3)
+        self.odom_vy = 0.0
 
         self._init_arms()
         self.cmd = (0.0, 0.0)
@@ -148,6 +152,8 @@ class BipedOpenArmSim(W.MobileOpenArmSim):
             self.fallen = False
             self.cmd_eff[:] = 0
             self._hold = None
+            self.cmd_ramp = np.zeros(2)
+            self._vi = np.zeros(3)
             self._odom_reset()
 
     def reset(self, x=0.0, y=0.0, yaw=0.0):
@@ -174,13 +180,15 @@ class BipedOpenArmSim(W.MobileOpenArmSim):
                 v, w = 0.0, 0.0
             v = float(np.clip(v, -CMD_LIMIT[0] * 0.7, CMD_LIMIT[0]))
             w = float(np.clip(w, -CMD_LIMIT[1], CMD_LIMIT[1]))
-            dv = np.clip(np.array([v, w]) - self.cmd_eff, -np.array(CMD_ACCEL) * POLICY_DT,
+            dv = np.clip(np.array([v, w]) - self.cmd_ramp, -np.array(CMD_ACCEL) * POLICY_DT,
                          np.array(CMD_ACCEL) * POLICY_DT)
-            self.cmd_eff += dv
+            self.cmd_ramp += dv
             d = self.d
             vy = 0.0
-            # Nav2 는 멈춰 있을 때도 0.01~0.03 같은 아주 작은 속도를 보낸다. 정책은 그런 속도를 낼 수 없으므로(학습 때 0.05 미만은 0) 정지로 본다
-            if abs(v) < HOLD_DEADBAND[0] and abs(w) < HOLD_DEADBAND[1] and self.hold_position:
+            # 명령이 정확히 0 (또는 0.5 s 동안 명령 없음) 일 때만 제자리 유지.
+            # 주의: Nav2 MPPI 는 '측정 속도 + 가속 한계×0.05 s' 만큼씩만 명령을 키운다. 작은 명령(0.04 m/s)을 정지로 무시하면
+            # 로봇이 안 움직이고 → 측정 속도 0 → 명령도 0.04 에 머무는 교착이 생긴다 (실제로 겪음).
+            if abs(v) < 1e-3 and abs(w) < 1e-3 and self.hold_position:
                 # 제자리 유지: Point-foot 은 명령 0 이어도 제자리 걸음을 하며 조금씩 흐른다.
                 # 명령이 0 이 된 순간의 오도메트리 자세를 기억했다가 그 자리로 되돌아가는 작은 속도를 정책에 준다.
                 if self._hold is None:
@@ -191,8 +199,17 @@ class BipedOpenArmSim(W.MobileOpenArmSim):
                 eyaw = math.atan2(math.sin(self.odom[2] - self._hold[2]), math.cos(self.odom[2] - self._hold[2]))
                 self.cmd_eff[:] = [float(np.clip(-HOLD_KP * bx, -HOLD_V, HOLD_V)), float(np.clip(-HOLD_KW * eyaw, -0.3, 0.3))]
                 vy = float(np.clip(-HOLD_KP * by, -HOLD_V, HOLD_V))
+                self._vi[:] = 0
             else:
+                # 속도 외곽 루프(PI): 정책의 속도 추종 오차(느림·옆 흐름·회전 흐름)를 측정 속도(다리 오도메트리)로 보정
                 self._hold = None
+                want = np.array([self.cmd_ramp[0], 0.0, self.cmd_ramp[1]])
+                meas = np.array([self.odom_vel[0], self.odom_vy, self.odom_vel[1]])
+                err = want - meas
+                self._vi = np.clip(self._vi + VEL_KI * err * POLICY_DT, -VEL_I_MAX, VEL_I_MAX)
+                out = want + VEL_KP * err + self._vi
+                self.cmd_eff[:] = [float(np.clip(out[0], -0.4, 0.6)), float(np.clip(out[2], -1.2, 1.2))]
+                vy = float(np.clip(out[1], -0.15, 0.15))
             gyro = d.sensordata[self.gyro_adr:self.gyro_adr + 3]
             quat = d.sensordata[self.quat_adr:self.quat_adr + 4]
             target = self.policy.act(gyro, quat, d.qpos[self.leg_qadr], d.qvel[self.leg_dadr],
@@ -214,6 +231,7 @@ class BipedOpenArmSim(W.MobileOpenArmSim):
         self._last_yaw = 0.0
         self.odom[:] = 0
         self.odom_vel[:] = 0
+        self._vel_hist = None
 
     def _update_odom(self):
         """디딤발(접지력이 큰 발)은 땅에 고정돼 있다고 보고, 다리 기구학으로 몸통 위치를 거꾸로 계산.
@@ -244,15 +262,21 @@ class BipedOpenArmSim(W.MobileOpenArmSim):
         self.odom[0] = c * dxy[0] - s * dxy[1]
         self.odom[1] = s * dxy[0] + c * dxy[1]
         self.odom[2] = math.atan2(math.sin(yaw), math.cos(yaw))
-        dt = max(d.time - getattr(self, "_last_odom_t", d.time - 0.01), 1e-4)
-        if dt >= 0.05:
-            dv = (self._est_xy - self._last_est) / dt
-            wy = math.atan2(math.sin(self.odom[2] - self._last_yaw), math.cos(self.odom[2] - self._last_yaw)) / dt
-            ch, sh = math.cos(self.odom[2] + self._origin_yaw), math.sin(self.odom[2] + self._origin_yaw)
-            self.odom_vel[:] = [0.7 * self.odom_vel[0] + 0.3 * (ch * dv[0] + sh * dv[1]), 0.7 * self.odom_vel[1] + 0.3 * wy]
-            self._last_est = self._est_xy.copy()
-            self._last_yaw = self.odom[2]
-            self._last_odom_t = d.time
+        # 속도: 보행 한 주기(0.5 s) 동안의 평균. 디딜 때마다 몸통이 앞뒤·좌우로 흔들려 짧은 구간 미분은
+        # ±0.2 m/s·±0.5 rad/s 로 출렁이고, Nav2 MPPI 는 이 값을 현재 속도로 써서 제어를 거의 0 으로 낸다.
+        hist = getattr(self, "_vel_hist", None)
+        if hist is None or d.time < hist[-1][0]:
+            hist = self._vel_hist = []
+        hist.append((d.time, self.odom[0], self.odom[1], self.odom[2]))
+        while len(hist) > 2 and d.time - hist[0][0] > 0.5:
+            hist.pop(0)
+        T = hist[-1][0] - hist[0][0]
+        if T > 0.1:
+            dx, dy = hist[-1][1] - hist[0][1], hist[-1][2] - hist[0][2]
+            dyaw = math.atan2(math.sin(hist[-1][3] - hist[0][3]), math.cos(hist[-1][3] - hist[0][3]))
+            c, s = math.cos(self.odom[2]), math.sin(self.odom[2])
+            self.odom_vel[:] = [(c * dx + s * dy) / T, dyaw / T]
+            self.odom_vy = (-s * dx + c * dy) / T
 
     # ------------------------------------------------------------------ 상태
     def joint_state(self):

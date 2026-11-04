@@ -39,6 +39,7 @@ NOMINAL_BASE_HEIGHT = 0.68      # 상반신을 얹고 서 있을 때 base_link �
 SHOULDER_HEIGHT = 0.999         # 바퀴형(mobile_openarm)과 같은 어깨(openarm_*_link0) 높이 [m]
 ARM_ORIGIN_Z = 0.697            # OpenArm: body_link0 원점 → 어깨 높이 (openarm_bimanual.xml 의 site arm_origin)
 MOUNT_Z = 0.030                 # urdf/tron1_openarm.urdf.xacro 의 mount_z
+MOUNT_X = 0.08                  # 상반신 앞뒤 위치 [m]. 0 이면 내린 손이 TRON1 엉덩이 모터(abad)에 닿음 → 0.08 에서 2.1 cm 틈 (doc/tron1/02-model.md 4-3)
 COLUMN_TOP_ABOVE_SHOULDER = 0.065   # 원본 기둥 꼭대기(브래킷 윗면)는 어깨보다 6.5 cm 위
 ORIG_COLUMN_LEN = 0.75          # 원본 OpenArm 기둥 길이 [m]
 ORIG_BODY_MASS = 3.74           # 원본 openarm_body_link0 질량 [kg] (기둥 + 어깨 브래킷)
@@ -63,7 +64,7 @@ def sub(parent, tag, **attrs):
 
 
 # ------------------------------------------------------------------ 1. xacro → URDF
-def run_xacro(xacro_file, tron1_dir, tmp):
+def run_xacro(xacro_file, tron1_dir, tmp, mount_x):
     """LimX xacro 는 $(find robot_description) 를 쓴다. ROS 패키지로 빌드하지 않아도 되도록
     임시 복사본에서 실제 경로로 바꾼 뒤 처리한다 (ROS 워크스페이스에 넣어 빌드했다면 그대로 써도 된다)."""
     import xacro
@@ -77,7 +78,7 @@ def run_xacro(xacro_file, tron1_dir, tmp):
             s = s.replace("$(find robot_description)/pointfoot/PF_TRON1A", tdir)
             s = s.replace("$(find robot_description)", desc_root)
             open(p, "w", encoding="utf-8").write(s)
-    doc = xacro.process_file(xacro_file, mappings={"tron1_dir": tdir})
+    doc = xacro.process_file(xacro_file, mappings={"tron1_dir": tdir, "mount_x": str(mount_x)})
     return doc.toprettyxml(indent="  "), tdir
 
 
@@ -120,7 +121,8 @@ def limx_collisions(limx_xml):
     return out
 
 
-def build(tron1_dir, openarm_xml, out_dir, xacro_file):
+def build(tron1_dir, openarm_xml, out_dir, xacro_file, mount_x=None):
+    mount_x = MOUNT_X if mount_x is None else mount_x
     os.makedirs(out_dir, exist_ok=True)
     mesh_root = os.path.join(out_dir, "meshes")
     tron_mesh = os.path.join(mesh_root, "tron1")
@@ -138,7 +140,7 @@ def build(tron1_dir, openarm_xml, out_dir, xacro_file):
             shutil.copy(src, dst)
 
     with tempfile.TemporaryDirectory() as tmp:
-        urdf_xml, _ = run_xacro(xacro_file, tron1_dir, tmp)
+        urdf_xml, _ = run_xacro(xacro_file, tron1_dir, tmp, mount_x)
         with open(os.path.join(out_dir, "tron1_openarm.urdf.generated"), "w", encoding="utf-8") as fp:
             fp.write(urdf_xml)
         troot, tm = urdf_to_mjcf(urdf_xml, tron_mesh, tmp)
@@ -351,5 +353,6 @@ if __name__ == "__main__":
     ap.add_argument("--openarm", required=True, help=".../openarm_mujoco/v1/openarm_bimanual.xml")
     ap.add_argument("--out", default=os.path.join(here, "..", "mjcf"))
     ap.add_argument("--xacro", default=os.path.join(here, "..", "urdf", "tron1_openarm.urdf.xacro"))
+    ap.add_argument("--mount-x", type=float, default=None, help="상반신 앞뒤 위치 [m] (기본 MOUNT_X)")
     a = ap.parse_args()
-    build(os.path.abspath(a.tron1), os.path.abspath(a.openarm), os.path.abspath(a.out), os.path.abspath(a.xacro))
+    build(os.path.abspath(a.tron1), os.path.abspath(a.openarm), os.path.abspath(a.out), os.path.abspath(a.xacro), a.mount_x)
