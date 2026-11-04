@@ -27,8 +27,8 @@ from tron1_openarm_sim.locomotion_policy import LocomotionPolicy  # noqa: E402
 XML = {"pf": os.path.join(ROOT, "src/tron1_openarm_sim/mjcf/world_light.xml"),
        "sf": os.path.join(ROOT, "src/tron1_openarm_sim/mjcf/sf/world_light.xml")}
 SPAWN = {"pf": 0.71, "sf": 0.76}
-POSES = {"home": [0, -0.2, 0, 0, 0, 0, 0], "ready": [0, 0, 0, 1.57, 0, 0, 0], "carry": [-0.3, 0, 1.2, 2.0, 0, 0, 0],
-         "hands_up": [0, 0, 0, 2.0, 0, 0, 0]}
+from tron1_openarm_sim.arm_poses import POSES as _P  # noqa: E402
+POSES = {k: v[0] for k, v in _P.items()}            # 왼팔 기준 (arm_to 가 오른팔은 거울상으로)
 
 
 class Runner:
@@ -60,12 +60,8 @@ class Runner:
         self.fell = False
 
     def arm_to(self, name_l, name_r=None):
-        L = POSES[name_l]
-        R = list(POSES[name_r or name_l])
-        if (name_r or name_l) == "carry":
-            R = [0.3, 0, -1.2, 2.0, 0, 0, 0]
-        elif (name_r or name_l) == "home":
-            R = [0, 0.2, 0, 0, 0, 0, 0]
+        L = _P[name_l][0]
+        R = _P[name_r or name_l][1]
         self.d.ctrl[self.arm["left"]] = L
         self.d.ctrl[self.arm["right"]] = R
 

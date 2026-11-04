@@ -93,10 +93,9 @@ if dets:
     check("ArUco 위치 오차 < 2 cm (정답 대비)", max(errs) < 0.02, f"최대 {max(errs) * 100:.1f} cm")
 # 팔 동작 중 균형
 ok = True
-for q in ([0, 0, 0, 1.57, 0, 0, 0], [-0.3, 0, 1.2, 2.0, 0, 0, 0], [0, 0, 0, 2.0, 0, 0, 0], [0] * 7):
-    qr = list(q)
-    if q[2] == 1.2:
-        qr = [0.3, 0, -1.2, 2.0, 0, 0, 0]
+from tron1_openarm_sim.arm_poses import POSES  # noqa: E402  SRDF 와 같은 이족용 이름 자세
+for name in ("ready", "carry", "hands_up", "home"):
+    q, qr = POSES[name]
     sim.start_arm_trajectory("left", [f"openarm_left_joint{i}" for i in range(1, 8)], [(2.0, q, None)])
     sim.start_arm_trajectory("right", [f"openarm_right_joint{i}" for i in range(1, 8)], [(2.0, qr, None)])
     ok &= run(sim, 2.5)

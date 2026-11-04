@@ -23,124 +23,124 @@
     <joint name="openarm_right_finger_joint1" />
   </group>
   <group_state name="home" group="left_arm">
-    <joint name="openarm_left_joint1" value="0.0000" />
+    <joint name="openarm_left_joint1" value="-0" />
     <joint name="openarm_left_joint2" value="-0.2" />
-    <joint name="openarm_left_joint3" value="0.0000" />
-    <joint name="openarm_left_joint4" value="0.0000" />
-    <joint name="openarm_left_joint5" value="0.0000" />
-    <joint name="openarm_left_joint6" value="0.0000" />
-    <joint name="openarm_left_joint7" value="0.0000" />
+    <joint name="openarm_left_joint3" value="-0" />
+    <joint name="openarm_left_joint4" value="0" />
+    <joint name="openarm_left_joint5" value="-0" />
+    <joint name="openarm_left_joint6" value="0" />
+    <joint name="openarm_left_joint7" value="-0" />
   </group_state>
   <group_state name="ready" group="left_arm">
-    <joint name="openarm_left_joint1" value="-0.0000" />
-    <joint name="openarm_left_joint2" value="0.0000" />
-    <joint name="openarm_left_joint3" value="-0.0000" />
-    <joint name="openarm_left_joint4" value="1.5700" />
-    <joint name="openarm_left_joint5" value="0.0000" />
-    <joint name="openarm_left_joint6" value="0.0000" />
-    <joint name="openarm_left_joint7" value="0.0000" />
+    <joint name="openarm_left_joint1" value="-0.2" />
+    <joint name="openarm_left_joint2" value="-0.2" />
+    <joint name="openarm_left_joint3" value="-0" />
+    <joint name="openarm_left_joint4" value="2" />
+    <joint name="openarm_left_joint5" value="-0" />
+    <joint name="openarm_left_joint6" value="0" />
+    <joint name="openarm_left_joint7" value="-0" />
   </group_state>
   <group_state name="carry" group="left_arm">
-    <joint name="openarm_left_joint1" value="-0.3000" />
-    <joint name="openarm_left_joint2" value="0.0000" />
-    <joint name="openarm_left_joint3" value="1.2000" />
-    <joint name="openarm_left_joint4" value="2.0000" />
-    <joint name="openarm_left_joint5" value="0.0000" />
-    <joint name="openarm_left_joint6" value="0.0000" />
-    <joint name="openarm_left_joint7" value="0.0000" />
+    <joint name="openarm_left_joint1" value="-0.3" />
+    <joint name="openarm_left_joint2" value="-0.35" />
+    <joint name="openarm_left_joint3" value="0.1" />
+    <joint name="openarm_left_joint4" value="2.4" />
+    <joint name="openarm_left_joint5" value="-0" />
+    <joint name="openarm_left_joint6" value="0" />
+    <joint name="openarm_left_joint7" value="-0" />
   </group_state>
   <group_state name="hands_up" group="left_arm">
-    <joint name="openarm_left_joint1" value="0.0000" />
-    <joint name="openarm_left_joint2" value="0.0000" />
-    <joint name="openarm_left_joint3" value="0.0000" />
-    <joint name="openarm_left_joint4" value="2.0000" />
-    <joint name="openarm_left_joint5" value="0.0000" />
-    <joint name="openarm_left_joint6" value="0.0000" />
-    <joint name="openarm_left_joint7" value="0.0000" />
+    <joint name="openarm_left_joint1" value="-0" />
+    <joint name="openarm_left_joint2" value="-0.3" />
+    <joint name="openarm_left_joint3" value="-0" />
+    <joint name="openarm_left_joint4" value="2.3" />
+    <joint name="openarm_left_joint5" value="-0" />
+    <joint name="openarm_left_joint6" value="0" />
+    <joint name="openarm_left_joint7" value="-0" />
   </group_state>
   <group_state name="home" group="right_arm">
-    <joint name="openarm_right_joint1" value="0.0000" />
+    <joint name="openarm_right_joint1" value="0" />
     <joint name="openarm_right_joint2" value="0.2" />
-    <joint name="openarm_right_joint3" value="0.0000" />
-    <joint name="openarm_right_joint4" value="0.0000" />
-    <joint name="openarm_right_joint5" value="0.0000" />
-    <joint name="openarm_right_joint6" value="0.0000" />
-    <joint name="openarm_right_joint7" value="0.0000" />
+    <joint name="openarm_right_joint3" value="0" />
+    <joint name="openarm_right_joint4" value="0" />
+    <joint name="openarm_right_joint5" value="0" />
+    <joint name="openarm_right_joint6" value="0" />
+    <joint name="openarm_right_joint7" value="0" />
   </group_state>
   <group_state name="ready" group="right_arm">
-    <joint name="openarm_right_joint1" value="0.0000" />
-    <joint name="openarm_right_joint2" value="0.0000" />
-    <joint name="openarm_right_joint3" value="0.0000" />
-    <joint name="openarm_right_joint4" value="1.5700" />
-    <joint name="openarm_right_joint5" value="0.0000" />
-    <joint name="openarm_right_joint6" value="0.0000" />
-    <joint name="openarm_right_joint7" value="0.0000" />
+    <joint name="openarm_right_joint1" value="0.2" />
+    <joint name="openarm_right_joint2" value="0.2" />
+    <joint name="openarm_right_joint3" value="0" />
+    <joint name="openarm_right_joint4" value="2" />
+    <joint name="openarm_right_joint5" value="0" />
+    <joint name="openarm_right_joint6" value="0" />
+    <joint name="openarm_right_joint7" value="0" />
   </group_state>
   <group_state name="carry" group="right_arm">
-    <joint name="openarm_right_joint1" value="0.3000" />
-    <joint name="openarm_right_joint2" value="0.0000" />
-    <joint name="openarm_right_joint3" value="-1.2000" />
-    <joint name="openarm_right_joint4" value="2.0000" />
-    <joint name="openarm_right_joint5" value="0.0000" />
-    <joint name="openarm_right_joint6" value="0.0000" />
-    <joint name="openarm_right_joint7" value="0.0000" />
+    <joint name="openarm_right_joint1" value="0.3" />
+    <joint name="openarm_right_joint2" value="0.35" />
+    <joint name="openarm_right_joint3" value="-0.1" />
+    <joint name="openarm_right_joint4" value="2.4" />
+    <joint name="openarm_right_joint5" value="0" />
+    <joint name="openarm_right_joint6" value="0" />
+    <joint name="openarm_right_joint7" value="0" />
   </group_state>
   <group_state name="hands_up" group="right_arm">
-    <joint name="openarm_right_joint1" value="0.0000" />
-    <joint name="openarm_right_joint2" value="0.0000" />
-    <joint name="openarm_right_joint3" value="0.0000" />
-    <joint name="openarm_right_joint4" value="2.0000" />
-    <joint name="openarm_right_joint5" value="0.0000" />
-    <joint name="openarm_right_joint6" value="0.0000" />
-    <joint name="openarm_right_joint7" value="0.0000" />
+    <joint name="openarm_right_joint1" value="0" />
+    <joint name="openarm_right_joint2" value="0.3" />
+    <joint name="openarm_right_joint3" value="0" />
+    <joint name="openarm_right_joint4" value="2.3" />
+    <joint name="openarm_right_joint5" value="0" />
+    <joint name="openarm_right_joint6" value="0" />
+    <joint name="openarm_right_joint7" value="0" />
   </group_state>
   <group_state name="home" group="both_arms">
-    <joint name="openarm_left_joint1" value="0.0000" />
+    <joint name="openarm_left_joint1" value="-0" />
     <joint name="openarm_left_joint2" value="-0.2" />
-    <joint name="openarm_left_joint3" value="0.0000" />
-    <joint name="openarm_left_joint4" value="0.0000" />
-    <joint name="openarm_left_joint5" value="0.0000" />
-    <joint name="openarm_left_joint6" value="0.0000" />
-    <joint name="openarm_left_joint7" value="0.0000" />
-    <joint name="openarm_right_joint1" value="0.0000" />
+    <joint name="openarm_left_joint3" value="-0" />
+    <joint name="openarm_left_joint4" value="0" />
+    <joint name="openarm_left_joint5" value="-0" />
+    <joint name="openarm_left_joint6" value="0" />
+    <joint name="openarm_left_joint7" value="-0" />
+    <joint name="openarm_right_joint1" value="0" />
     <joint name="openarm_right_joint2" value="0.2" />
-    <joint name="openarm_right_joint3" value="0.0000" />
-    <joint name="openarm_right_joint4" value="0.0000" />
-    <joint name="openarm_right_joint5" value="0.0000" />
-    <joint name="openarm_right_joint6" value="0.0000" />
-    <joint name="openarm_right_joint7" value="0.0000" />
+    <joint name="openarm_right_joint3" value="0" />
+    <joint name="openarm_right_joint4" value="0" />
+    <joint name="openarm_right_joint5" value="0" />
+    <joint name="openarm_right_joint6" value="0" />
+    <joint name="openarm_right_joint7" value="0" />
   </group_state>
   <group_state name="ready" group="both_arms">
-    <joint name="openarm_left_joint1" value="-0.0000" />
-    <joint name="openarm_left_joint2" value="0.0000" />
-    <joint name="openarm_left_joint3" value="-0.0000" />
-    <joint name="openarm_left_joint4" value="1.5700" />
-    <joint name="openarm_left_joint5" value="0.0000" />
-    <joint name="openarm_left_joint6" value="0.0000" />
-    <joint name="openarm_left_joint7" value="0.0000" />
-    <joint name="openarm_right_joint1" value="0.0000" />
-    <joint name="openarm_right_joint2" value="0.0000" />
-    <joint name="openarm_right_joint3" value="0.0000" />
-    <joint name="openarm_right_joint4" value="1.5700" />
-    <joint name="openarm_right_joint5" value="0.0000" />
-    <joint name="openarm_right_joint6" value="0.0000" />
-    <joint name="openarm_right_joint7" value="0.0000" />
+    <joint name="openarm_left_joint1" value="-0.2" />
+    <joint name="openarm_left_joint2" value="-0.2" />
+    <joint name="openarm_left_joint3" value="-0" />
+    <joint name="openarm_left_joint4" value="2" />
+    <joint name="openarm_left_joint5" value="-0" />
+    <joint name="openarm_left_joint6" value="0" />
+    <joint name="openarm_left_joint7" value="-0" />
+    <joint name="openarm_right_joint1" value="0.2" />
+    <joint name="openarm_right_joint2" value="0.2" />
+    <joint name="openarm_right_joint3" value="0" />
+    <joint name="openarm_right_joint4" value="2" />
+    <joint name="openarm_right_joint5" value="0" />
+    <joint name="openarm_right_joint6" value="0" />
+    <joint name="openarm_right_joint7" value="0" />
   </group_state>
   <group_state name="hands_up" group="both_arms">
-    <joint name="openarm_left_joint1" value="0.0000" />
-    <joint name="openarm_left_joint2" value="0.0000" />
-    <joint name="openarm_left_joint3" value="0.0000" />
-    <joint name="openarm_left_joint4" value="2.0000" />
-    <joint name="openarm_left_joint5" value="0.0000" />
-    <joint name="openarm_left_joint6" value="0.0000" />
-    <joint name="openarm_left_joint7" value="0.0000" />
-    <joint name="openarm_right_joint1" value="0.0000" />
-    <joint name="openarm_right_joint2" value="0.0000" />
-    <joint name="openarm_right_joint3" value="0.0000" />
-    <joint name="openarm_right_joint4" value="2.0000" />
-    <joint name="openarm_right_joint5" value="0.0000" />
-    <joint name="openarm_right_joint6" value="0.0000" />
-    <joint name="openarm_right_joint7" value="0.0000" />
+    <joint name="openarm_left_joint1" value="-0" />
+    <joint name="openarm_left_joint2" value="-0.3" />
+    <joint name="openarm_left_joint3" value="-0" />
+    <joint name="openarm_left_joint4" value="2.3" />
+    <joint name="openarm_left_joint5" value="-0" />
+    <joint name="openarm_left_joint6" value="0" />
+    <joint name="openarm_left_joint7" value="-0" />
+    <joint name="openarm_right_joint1" value="0" />
+    <joint name="openarm_right_joint2" value="0.3" />
+    <joint name="openarm_right_joint3" value="0" />
+    <joint name="openarm_right_joint4" value="2.3" />
+    <joint name="openarm_right_joint5" value="0" />
+    <joint name="openarm_right_joint6" value="0" />
+    <joint name="openarm_right_joint7" value="0" />
   </group_state>
   <group_state name="open" group="left_gripper">
     <joint name="openarm_left_finger_joint1" value="0.044" />
@@ -165,17 +165,10 @@
   <disable_collisions link1="abad_L_Link" link2="knee_L_Link" reason="Never" />
   <disable_collisions link1="abad_L_Link" link2="knee_R_Link" reason="Never" />
   <disable_collisions link1="abad_L_Link" link2="openarm_body_link0" reason="Never" />
-  <disable_collisions link1="abad_L_Link" link2="openarm_left_hand" reason="Never" />
   <disable_collisions link1="abad_L_Link" link2="openarm_left_link0" reason="Never" />
   <disable_collisions link1="abad_L_Link" link2="openarm_left_link1" reason="Never" />
   <disable_collisions link1="abad_L_Link" link2="openarm_left_link2" reason="Never" />
   <disable_collisions link1="abad_L_Link" link2="openarm_left_link3" reason="Never" />
-  <disable_collisions link1="abad_L_Link" link2="openarm_left_link4" reason="Never" />
-  <disable_collisions link1="abad_L_Link" link2="openarm_left_link5" reason="Never" />
-  <disable_collisions link1="abad_L_Link" link2="openarm_left_link6" reason="Never" />
-  <disable_collisions link1="abad_L_Link" link2="openarm_left_link7" reason="Never" />
-  <disable_collisions link1="abad_L_Link" link2="openarm_right_hand" reason="Never" />
-  <disable_collisions link1="abad_L_Link" link2="openarm_right_left_finger" reason="Never" />
   <disable_collisions link1="abad_L_Link" link2="openarm_right_link0" reason="Never" />
   <disable_collisions link1="abad_L_Link" link2="openarm_right_link1" reason="Never" />
   <disable_collisions link1="abad_L_Link" link2="openarm_right_link2" reason="Never" />
@@ -184,7 +177,6 @@
   <disable_collisions link1="abad_L_Link" link2="openarm_right_link5" reason="Never" />
   <disable_collisions link1="abad_L_Link" link2="openarm_right_link6" reason="Never" />
   <disable_collisions link1="abad_L_Link" link2="openarm_right_link7" reason="Never" />
-  <disable_collisions link1="abad_L_Link" link2="openarm_right_right_finger" reason="Never" />
   <disable_collisions link1="abad_R_Link" link2="ankle_L_Link" reason="Never" />
   <disable_collisions link1="abad_R_Link" link2="ankle_R_Link" reason="Never" />
   <disable_collisions link1="abad_R_Link" link2="base_link" reason="Adjacent" />
@@ -194,25 +186,17 @@
   <disable_collisions link1="abad_R_Link" link2="knee_R_Link" reason="Never" />
   <disable_collisions link1="abad_R_Link" link2="openarm_body_link0" reason="Never" />
   <disable_collisions link1="abad_R_Link" link2="openarm_left_hand" reason="Never" />
-  <disable_collisions link1="abad_R_Link" link2="openarm_left_left_finger" reason="Never" />
   <disable_collisions link1="abad_R_Link" link2="openarm_left_link0" reason="Never" />
   <disable_collisions link1="abad_R_Link" link2="openarm_left_link1" reason="Never" />
   <disable_collisions link1="abad_R_Link" link2="openarm_left_link2" reason="Never" />
   <disable_collisions link1="abad_R_Link" link2="openarm_left_link3" reason="Never" />
   <disable_collisions link1="abad_R_Link" link2="openarm_left_link4" reason="Never" />
   <disable_collisions link1="abad_R_Link" link2="openarm_left_link5" reason="Never" />
-  <disable_collisions link1="abad_R_Link" link2="openarm_left_link6" reason="Never" />
-  <disable_collisions link1="abad_R_Link" link2="openarm_left_link7" reason="Never" />
   <disable_collisions link1="abad_R_Link" link2="openarm_left_right_finger" reason="Never" />
-  <disable_collisions link1="abad_R_Link" link2="openarm_right_hand" reason="Never" />
   <disable_collisions link1="abad_R_Link" link2="openarm_right_link0" reason="Never" />
   <disable_collisions link1="abad_R_Link" link2="openarm_right_link1" reason="Never" />
   <disable_collisions link1="abad_R_Link" link2="openarm_right_link2" reason="Never" />
   <disable_collisions link1="abad_R_Link" link2="openarm_right_link3" reason="Never" />
-  <disable_collisions link1="abad_R_Link" link2="openarm_right_link4" reason="Never" />
-  <disable_collisions link1="abad_R_Link" link2="openarm_right_link5" reason="Never" />
-  <disable_collisions link1="abad_R_Link" link2="openarm_right_link6" reason="Never" />
-  <disable_collisions link1="abad_R_Link" link2="openarm_right_link7" reason="Never" />
   <disable_collisions link1="ankle_L_Link" link2="ankle_R_Link" reason="Never" />
   <disable_collisions link1="ankle_L_Link" link2="base_link" reason="Never" />
   <disable_collisions link1="ankle_L_Link" link2="hip_L_Link" reason="Never" />
@@ -279,21 +263,13 @@
   <disable_collisions link1="base_link" link2="openarm_body_link0" reason="Adjacent" />
   <disable_collisions link1="base_link" link2="openarm_left_link0" reason="Adjacent" />
   <disable_collisions link1="base_link" link2="openarm_left_link1" reason="Never" />
-  <disable_collisions link1="base_link" link2="openarm_left_link2" reason="Never" />
-  <disable_collisions link1="base_link" link2="openarm_left_link3" reason="Never" />
-  <disable_collisions link1="base_link" link2="openarm_left_link4" reason="Never" />
   <disable_collisions link1="base_link" link2="openarm_mount_link" reason="Adjacent" />
   <disable_collisions link1="base_link" link2="openarm_right_link0" reason="Adjacent" />
   <disable_collisions link1="base_link" link2="openarm_right_link1" reason="Never" />
-  <disable_collisions link1="base_link" link2="openarm_right_link2" reason="Never" />
-  <disable_collisions link1="base_link" link2="openarm_right_link3" reason="Never" />
-  <disable_collisions link1="base_link" link2="openarm_right_link4" reason="Never" />
   <disable_collisions link1="hip_L_Link" link2="hip_R_Link" reason="Never" />
   <disable_collisions link1="hip_L_Link" link2="knee_L_Link" reason="Adjacent" />
   <disable_collisions link1="hip_L_Link" link2="knee_R_Link" reason="Never" />
   <disable_collisions link1="hip_L_Link" link2="openarm_body_link0" reason="Never" />
-  <disable_collisions link1="hip_L_Link" link2="openarm_left_hand" reason="Never" />
-  <disable_collisions link1="hip_L_Link" link2="openarm_left_left_finger" reason="Never" />
   <disable_collisions link1="hip_L_Link" link2="openarm_left_link0" reason="Never" />
   <disable_collisions link1="hip_L_Link" link2="openarm_left_link1" reason="Never" />
   <disable_collisions link1="hip_L_Link" link2="openarm_left_link2" reason="Never" />
@@ -301,10 +277,7 @@
   <disable_collisions link1="hip_L_Link" link2="openarm_left_link4" reason="Never" />
   <disable_collisions link1="hip_L_Link" link2="openarm_left_link5" reason="Never" />
   <disable_collisions link1="hip_L_Link" link2="openarm_left_link6" reason="Never" />
-  <disable_collisions link1="hip_L_Link" link2="openarm_left_link7" reason="Never" />
-  <disable_collisions link1="hip_L_Link" link2="openarm_left_right_finger" reason="Never" />
   <disable_collisions link1="hip_L_Link" link2="openarm_right_hand" reason="Never" />
-  <disable_collisions link1="hip_L_Link" link2="openarm_right_left_finger" reason="Never" />
   <disable_collisions link1="hip_L_Link" link2="openarm_right_link0" reason="Never" />
   <disable_collisions link1="hip_L_Link" link2="openarm_right_link1" reason="Never" />
   <disable_collisions link1="hip_L_Link" link2="openarm_right_link2" reason="Never" />
@@ -313,7 +286,6 @@
   <disable_collisions link1="hip_L_Link" link2="openarm_right_link5" reason="Never" />
   <disable_collisions link1="hip_L_Link" link2="openarm_right_link6" reason="Never" />
   <disable_collisions link1="hip_L_Link" link2="openarm_right_link7" reason="Never" />
-  <disable_collisions link1="hip_L_Link" link2="openarm_right_right_finger" reason="Never" />
   <disable_collisions link1="hip_R_Link" link2="knee_L_Link" reason="Never" />
   <disable_collisions link1="hip_R_Link" link2="knee_R_Link" reason="Adjacent" />
   <disable_collisions link1="hip_R_Link" link2="openarm_body_link0" reason="Never" />
@@ -328,8 +300,6 @@
   <disable_collisions link1="hip_R_Link" link2="openarm_left_link6" reason="Never" />
   <disable_collisions link1="hip_R_Link" link2="openarm_left_link7" reason="Never" />
   <disable_collisions link1="hip_R_Link" link2="openarm_left_right_finger" reason="Never" />
-  <disable_collisions link1="hip_R_Link" link2="openarm_right_hand" reason="Never" />
-  <disable_collisions link1="hip_R_Link" link2="openarm_right_left_finger" reason="Never" />
   <disable_collisions link1="hip_R_Link" link2="openarm_right_link0" reason="Never" />
   <disable_collisions link1="hip_R_Link" link2="openarm_right_link1" reason="Never" />
   <disable_collisions link1="hip_R_Link" link2="openarm_right_link2" reason="Never" />
@@ -337,8 +307,6 @@
   <disable_collisions link1="hip_R_Link" link2="openarm_right_link4" reason="Never" />
   <disable_collisions link1="hip_R_Link" link2="openarm_right_link5" reason="Never" />
   <disable_collisions link1="hip_R_Link" link2="openarm_right_link6" reason="Never" />
-  <disable_collisions link1="hip_R_Link" link2="openarm_right_link7" reason="Never" />
-  <disable_collisions link1="hip_R_Link" link2="openarm_right_right_finger" reason="Never" />
   <disable_collisions link1="knee_L_Link" link2="knee_R_Link" reason="Never" />
   <disable_collisions link1="knee_L_Link" link2="openarm_body_link0" reason="Never" />
   <disable_collisions link1="knee_L_Link" link2="openarm_left_hand" reason="Never" />
@@ -390,11 +358,13 @@
   <disable_collisions link1="openarm_body_link0" link2="openarm_left_link1" reason="Never" />
   <disable_collisions link1="openarm_body_link0" link2="openarm_left_link2" reason="Never" />
   <disable_collisions link1="openarm_body_link0" link2="openarm_left_link3" reason="Never" />
+  <disable_collisions link1="openarm_body_link0" link2="openarm_left_link4" reason="Never" />
   <disable_collisions link1="openarm_body_link0" link2="openarm_mount_link" reason="Adjacent" />
   <disable_collisions link1="openarm_body_link0" link2="openarm_right_link0" reason="Adjacent" />
   <disable_collisions link1="openarm_body_link0" link2="openarm_right_link1" reason="Never" />
   <disable_collisions link1="openarm_body_link0" link2="openarm_right_link2" reason="Never" />
   <disable_collisions link1="openarm_body_link0" link2="openarm_right_link3" reason="Never" />
+  <disable_collisions link1="openarm_body_link0" link2="openarm_right_link4" reason="Never" />
   <disable_collisions link1="openarm_left_hand" link2="openarm_left_hand_tcp" reason="Adjacent" />
   <disable_collisions link1="openarm_left_hand" link2="openarm_left_left_finger" reason="Adjacent" />
   <disable_collisions link1="openarm_left_hand" link2="openarm_left_link2" reason="Never" />
@@ -407,7 +377,6 @@
   <disable_collisions link1="openarm_left_hand" link2="openarm_right_hand" reason="Never" />
   <disable_collisions link1="openarm_left_hand" link2="openarm_right_left_finger" reason="Never" />
   <disable_collisions link1="openarm_left_hand" link2="openarm_right_link2" reason="Never" />
-  <disable_collisions link1="openarm_left_hand" link2="openarm_right_link3" reason="Never" />
   <disable_collisions link1="openarm_left_hand" link2="openarm_right_link4" reason="Never" />
   <disable_collisions link1="openarm_left_hand" link2="openarm_right_link7" reason="Never" />
   <disable_collisions link1="openarm_left_hand" link2="openarm_right_right_finger" reason="Never" />
@@ -499,8 +468,6 @@
   <disable_collisions link1="openarm_left_link5" link2="openarm_right_link1" reason="Never" />
   <disable_collisions link1="openarm_left_link5" link2="openarm_right_link2" reason="Never" />
   <disable_collisions link1="openarm_left_link5" link2="openarm_right_link3" reason="Never" />
-  <disable_collisions link1="openarm_left_link5" link2="openarm_right_link4" reason="Never" />
-  <disable_collisions link1="openarm_left_link5" link2="openarm_right_link5" reason="Never" />
   <disable_collisions link1="openarm_left_link5" link2="openarm_right_link6" reason="Never" />
   <disable_collisions link1="openarm_left_link5" link2="openarm_right_link7" reason="Never" />
   <disable_collisions link1="openarm_left_link5" link2="openarm_right_right_finger" reason="Never" />
@@ -510,15 +477,10 @@
   <disable_collisions link1="openarm_left_link6" link2="openarm_right_link1" reason="Never" />
   <disable_collisions link1="openarm_left_link6" link2="openarm_right_link2" reason="Never" />
   <disable_collisions link1="openarm_left_link6" link2="openarm_right_link3" reason="Never" />
-  <disable_collisions link1="openarm_left_link6" link2="openarm_right_link4" reason="Never" />
-  <disable_collisions link1="openarm_left_link6" link2="openarm_right_link5" reason="Never" />
   <disable_collisions link1="openarm_left_link6" link2="openarm_right_link6" reason="Never" />
   <disable_collisions link1="openarm_left_link6" link2="openarm_right_link7" reason="Never" />
   <disable_collisions link1="openarm_left_link7" link2="openarm_left_right_finger" reason="Adjacent" />
   <disable_collisions link1="openarm_left_link7" link2="openarm_right_link2" reason="Never" />
-  <disable_collisions link1="openarm_left_link7" link2="openarm_right_link3" reason="Never" />
-  <disable_collisions link1="openarm_left_link7" link2="openarm_right_link4" reason="Never" />
-  <disable_collisions link1="openarm_left_right_finger" link2="openarm_right_hand" reason="Never" />
   <disable_collisions link1="openarm_left_right_finger" link2="openarm_right_left_finger" reason="Never" />
   <disable_collisions link1="openarm_left_right_finger" link2="openarm_right_link6" reason="Never" />
   <disable_collisions link1="openarm_left_right_finger" link2="openarm_right_right_finger" reason="Never" />
@@ -541,8 +503,6 @@
   <disable_collisions link1="openarm_right_link0" link2="openarm_right_link2" reason="Adjacent" />
   <disable_collisions link1="openarm_right_link0" link2="openarm_right_link3" reason="Adjacent" />
   <disable_collisions link1="openarm_right_link0" link2="openarm_right_link4" reason="Never" />
-  <disable_collisions link1="openarm_right_link0" link2="openarm_right_link5" reason="Never" />
-  <disable_collisions link1="openarm_right_link0" link2="openarm_right_link6" reason="Never" />
   <disable_collisions link1="openarm_right_link1" link2="openarm_right_link2" reason="Adjacent" />
   <disable_collisions link1="openarm_right_link1" link2="openarm_right_link3" reason="Adjacent" />
   <disable_collisions link1="openarm_right_link1" link2="openarm_right_link4" reason="Never" />

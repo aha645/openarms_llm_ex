@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<!-- 자동 생성: tron1_openarm_sim/tools/make_urdf_tron1.py (원본 MJCF: mjcf/tron1_openarm.xml, 하반신 xacro: LimX PF_TRON1A) -->
+<!-- 자동 생성: tron1_openarm_sim/tools/make_urdf_tron1.py (원본 MJCF: mjcf/tron1_openarm.xml, 하반신 xacro: LimX TRON1) -->
 <robot name="tron1_openarm">
   <material name="black">
     <color rgba="0.25 0.25 0.25 1" />
@@ -313,29 +313,29 @@
   </joint>
   <link name="openarm_body_link0">
     <inertial>
-      <origin xyz="-0.005 0 0.611911" rpy="0 0 0" />
-      <mass value="2.5207" />
-      <inertia ixx="0.0484792" iyy="0.0484792" izz="0.006" ixy="0" ixz="0" iyz="0" />
+      <origin xyz="-0.005 0 0.716849" rpy="0 0 0" />
+      <mass value="1.3847" />
+      <inertia ixx="0.0118906" iyy="0.0118906" izz="0.006" ixy="0" ixz="0" iyz="0" />
     </inertial>
     <visual>
-      <origin xyz="0 0 0.548" rpy="0 0 0" />
+      <origin xyz="0 0 0.698" rpy="0 0 0" />
       <geometry>
-        <box size="0.06 0.06 0.428" />
+        <box size="0.06 0.06 0.128" />
       </geometry>
       <material name="openarm_column_collision_mat">
         <color rgba="0 0 0 0" />
       </material>
     </visual>
     <collision>
-      <origin xyz="0 0 0.548" rpy="0 0 0" />
+      <origin xyz="0 0 0.698" rpy="0 0 0" />
       <geometry>
-        <box size="0.06 0.06 0.428" />
+        <box size="0.06 0.06 0.128" />
       </geometry>
     </collision>
     <visual>
-      <origin xyz="0 0 0.548" rpy="0 0 0" />
+      <origin xyz="0 0 0.698" rpy="0 0 0" />
       <geometry>
-        <box size="0.06 0.06 0.428" />
+        <box size="0.06 0.06 0.128" />
       </geometry>
       <material name="openarm_column_vis_mat">
         <color rgba="0.247059 0.247059 0.247059 1" />
@@ -351,7 +351,7 @@
       </material>
     </visual>
     <visual>
-      <origin xyz="0.08 0 0.86" rpy="0 0 0" />
+      <origin xyz="0.08 0 1.16" rpy="0 0 0" />
       <geometry>
         <box size="0.04 0.1 0.04" />
       </geometry>
@@ -360,9 +360,9 @@
       </material>
     </visual>
     <visual>
-      <origin xyz="0.05 0 0.8" rpy="0 0 0" />
+      <origin xyz="0.05 0 0.961" rpy="0 0 0" />
       <geometry>
-        <cylinder radius="0.012" length="0.12" />
+        <cylinder radius="0.012" length="0.398" />
       </geometry>
       <material name="head_mast_vis_mat">
         <color rgba="0.3 0.3 0.3 1" />
@@ -372,7 +372,7 @@
   <joint name="openarm_mount_link_to_openarm_body_link0" type="fixed">
     <parent link="openarm_mount_link" />
     <child link="openarm_body_link0" />
-    <origin xyz="0 0 -0.327" rpy="0 0 0" />
+    <origin xyz="0 0 -0.627" rpy="0 0 0" />
   </joint>
   <link name="openarm_left_link0">
     <inertial>
@@ -1322,7 +1322,7 @@
   <joint name="openarm_body_link0_to_head_camera_link" type="fixed">
     <parent link="openarm_body_link0" />
     <child link="head_camera_link" />
-    <origin xyz="0.1 0 0.86" rpy="-9.21794e-17 0.872664 9.21794e-17" />
+    <origin xyz="0.1 0 1.16" rpy="-9.21794e-17 0.872664 9.21794e-17" />
   </joint>
   <link name="head_camera_optical_frame" />
   <joint name="head_camera_link_to_head_camera_optical_frame" type="fixed">

@@ -25,12 +25,7 @@ POLICY_DT = 0.02
 CMD_SCALE = np.array([2.0, 2.0, 0.25], np.float32)
 BASE_HEIGHT_TARGET = {"pf": 0.68, "sf": SF_BASE_HEIGHT_CMD}
 
-ARM_POSES = {   # SRDF(mobile_openarm_moveit_config) 의 이름 자세 — DAY2 앱이 실제로 쓰는 자세들
-    "home": ([0, -0.2, 0, 0, 0, 0, 0], [0, 0.2, 0, 0, 0, 0, 0]),   # 이족용 home (팔 벌림)
-    "ready": ([0, 0, 0, 1.57, 0, 0, 0], [0, 0, 0, 1.57, 0, 0, 0]),
-    "carry": ([-0.3, 0, 1.2, 2.0, 0, 0, 0], [0.3, 0, -1.2, 2.0, 0, 0, 0]),
-    "hands_up": ([0, 0, 0, 2.0, 0, 0, 0], [0, 0, 0, 2.0, 0, 0, 0]),
-}
+from tron1_openarm_sim.arm_poses import POSES as ARM_POSES  # noqa: E402  SRDF 이름 자세와 같은 값 (어깨를 낮춘 설계용)
 REWARD_SCALES = dict(
     keep_balance=1.0, tracking_lin_vel=3.0, tracking_ang_vel=1.5, base_height=-20.0, lin_vel_z=-0.5,
     ang_vel_xy=-0.05, torques=-8e-5, action_rate=-0.01, action_smooth=-0.01, orientation=-60.0,

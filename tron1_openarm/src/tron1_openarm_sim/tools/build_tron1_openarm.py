@@ -36,7 +36,12 @@ import numpy as np
 
 # ------------------------------------------------------------------ 치수 (근거: doc/tron1/02-model.md)
 NOMINAL_BASE_HEIGHT = 0.68      # 상반신을 얹고 서 있을 때 base_link 높이 [m] (LimX 학습 목표 base_height_target 0.68 과 같게, 시험 측정값 0.677)
-SHOULDER_HEIGHT = 1.08          # 어깨(openarm_*_link0) 높이 [m]. 바퀴형 0.999 보다 8 cm 높게: 내린 손이 엉덩이 모터 위로 지나가도록 (02-model.md 4-1)
+SHOULDER_ABOVE_BASE = 0.10      # 어깨 = 서 있는 base_link 높이 + 0.10 m → TRON1 몸통 윗면(base+0.037) 바로 위 (기둥 0.13 m)
+                                # 예전 설계는 어깨 1.08 m(기둥 0.43 m). 높은 어깨는 팔을 움직일 때 무게중심을 크게 흔들어
+                                # 이족이 계속 발로 받아내야 했다 → 06-sway-analysis.md 6절. 예전 모델: --shoulder 1.08
+SHOULDER_HEIGHT = None          # None = base 높이 + SHOULDER_ABOVE_BASE
+CAMERA_HEIGHT = 1.243           # 머리 카메라 지면 높이 [m] — 어깨를 낮춰도 카메라는 기둥(마스트) 위 같은 높이에 둔다
+                                # (팔이 몸 앞에 있어도 위에서 작업대를 내려다보도록, 예전 설계와 같은 시야)
 ARM_ORIGIN_Z = 0.697            # OpenArm: body_link0 원점 → 어깨 높이 (openarm_bimanual.xml 의 site arm_origin)
 MOUNT_Z = 0.030                 # urdf/tron1_openarm.urdf.xacro 의 mount_z
 MOUNT_X = 0.08                  # 상반신 앞뒤 위치 [m]. 0 이면 내린 손이 TRON1 엉덩이 모터(abad)에 닿음 → 0.08 에서 2.1 cm 틈 (doc/tron1/02-model.md 4-3)
@@ -45,7 +50,7 @@ ORIG_COLUMN_LEN = 0.75          # 원본 OpenArm 기둥 길이 [m]
 ORIG_BODY_MASS = 3.74           # 원본 openarm_body_link0 질량 [kg] (기둥 + 어깨 브래킷)
 BRACKET_MASS = 0.9              # 그중 어깨 브래킷·배선 몫으로 남기는 질량 [kg] (가정)
 LIDAR_POS = (0.17, 0.0, -0.13)  # base_link 기준. 상자 더미(높이 0.6 m)를 볼 수 있게 지면 0.57 m
-CAMERA_POS = (0.10, 0.0, 0.86)  # openarm_body_link0 기준 (바퀴형과 동일 → 지면 기준 높이도 동일)
+CAMERA_POS = (0.10, 0.0, 0.86)  # openarm_body_link0 기준 (어깨 1.08 m 일 때 지면 1.243 m). z 는 build() 에서 CAMERA_HEIGHT 로 다시 계산
 CAMERA_PITCH_DEG = 50.0
 CAMERA_FOVY = 70.0
 LEG_JOINTS = ["abad_L_joint", "hip_L_joint", "knee_L_joint", "abad_R_joint", "hip_R_joint", "knee_R_joint"]
@@ -141,7 +146,8 @@ def build(tron1_dir, openarm_xml, out_dir, xacro_file, mount_x=None, shoulder=No
     elif F["base_height"] is not None:
         NOMINAL_BASE_HEIGHT = F["base_height"]
     mount_x = MOUNT_X if mount_x is None else mount_x
-    SH = SHOULDER_HEIGHT if shoulder is None else shoulder
+    SH = shoulder if shoulder is not None else (SHOULDER_HEIGHT or NOMINAL_BASE_HEIGHT + SHOULDER_ABOVE_BASE)
+    cam_pos = (CAMERA_POS[0], CAMERA_POS[1], CAMERA_HEIGHT - (SH - ARM_ORIGIN_Z))   # body_link0 기준
     os.makedirs(out_dir, exist_ok=True)
     mesh_root = os.path.join(out_dir, "meshes")
     tron_mesh = os.path.join(mesh_root, "tron1")
@@ -260,13 +266,15 @@ def build(tron1_dir, openarm_xml, out_dir, xacro_file, mount_x=None, shoulder=No
         pos=f(0, 0, ARM_ORIGIN_Z + 0.03), material="metal_silver", contype="0", conaffinity="0",
         group="2", mass="0")
     a = math.radians(CAMERA_PITCH_DEG)
-    sub(torso, "camera", name="head_camera", pos=f(*CAMERA_POS), fovy=f(CAMERA_FOVY),
+    sub(torso, "camera", name="head_camera", pos=f(*cam_pos), fovy=f(CAMERA_FOVY),
         xyaxes=f(0, -1, 0, math.sin(a), 0, math.cos(a)))
     sub(torso, "geom", name="head_camera_vis", type="box", size="0.02 0.05 0.02",
-        pos=f(CAMERA_POS[0] - 0.02, 0, CAMERA_POS[2]), rgba="0.1 0.1 0.1 1",
+        pos=f(cam_pos[0] - 0.02, 0, cam_pos[2]), rgba="0.1 0.1 0.1 1",
         contype="0", conaffinity="0", group="2", mass="0")
-    sub(torso, "geom", name="head_mast_vis", type="cylinder", size="0.012 0.06",
-        pos=f(CAMERA_POS[0] - 0.05, 0, CAMERA_POS[2] - 0.06), rgba="0.3 0.3 0.3 1",
+    mast_bot = ARM_ORIGIN_Z + 0.065                     # 어깨 브래킷 윗면에서 카메라까지 가는 마스트 (시각용, 질량은 기둥에 포함)
+    mast_len = max(0.06, cam_pos[2] - mast_bot)
+    sub(torso, "geom", name="head_mast_vis", type="cylinder", size=f(0.012, mast_len / 2),
+        pos=f(cam_pos[0] - 0.05, 0, mast_bot + mast_len / 2), rgba="0.3 0.3 0.3 1",
         contype="0", conaffinity="0", group="2", mass="0")
     mount.append(torso)
 

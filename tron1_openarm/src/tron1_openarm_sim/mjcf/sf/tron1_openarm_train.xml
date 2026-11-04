@@ -112,9 +112,9 @@
       </body>
       <body name="openarm_mount_link" pos="0.08 0 0.03">
         <inertial pos="0 0 0" quat="0.5 0.5 -0.5 0.5" mass="0.6" diaginertia="0.00488 0.0028898 0.0020098" />
-        <body name="openarm_body_link0" pos="0 0 -0.377" quat="1.0 0.0 0.0 0.0">
+        <body name="openarm_body_link0" pos="0 0 -0.627" quat="1.0 0.0 0.0 0.0">
           <site name="arm_origin" pos="0 0 0.697" size="0.02" rgba="1 0.8 0 1" group="4" />
-          <inertial pos="-0.005 0 0.63245" quat="1.0 0.0 0.0 0.0" mass="2.3314" diaginertia="0.0377595 0.0377595 0.006" />
+          <inertial pos="-0.005 0 0.716849" quat="1.0 0.0 0.0 0.0" mass="1.3847" diaginertia="0.0118906 0.0118906 0.006" />
           <body name="openarm_left_link0" pos="0.0 0.030 0.697" quat="0.7071054825112363 -0.7071080798594735 0.0 0.0">
             <inertial pos="-0.0009483362816297526 -0.0001580207020448382 0.03076860287587199" mass="1.1432284943239561" fullinertia="0.001128 0.000962 0.00147 4e-06 -3.3e-05 7e-06" />
             <geom name="openarm_left_link0_collision" pos="0.0 0.0 0.0" quat="1.0 0.0 0.0 0.0" type="mesh" mesh="link0_collision_left" class="collision" contype="0" conaffinity="0" />
@@ -225,12 +225,12 @@
               </body>
             </body>
           </body>
-          <geom name="openarm_column_collision" type="box" size="0.03 0.03 0.189" pos="0 0 0.573" group="2" rgba="0.75 0.78 0.9 1" contype="0" conaffinity="0" />
-          <geom name="openarm_column_vis" type="box" size="0.03 0.03 0.189" pos="0 0 0.573" material="matte_black" contype="0" conaffinity="0" group="2" mass="0" />
+          <geom name="openarm_column_collision" type="box" size="0.03 0.03 0.064" pos="0 0 0.698" group="2" rgba="0.75 0.78 0.9 1" contype="0" conaffinity="0" />
+          <geom name="openarm_column_vis" type="box" size="0.03 0.03 0.064" pos="0 0 0.698" material="matte_black" contype="0" conaffinity="0" group="2" mass="0" />
           <geom name="openarm_shoulder_bracket_vis" type="box" size="0.05 0.11 0.035" pos="0 0 0.727" material="metal_silver" contype="0" conaffinity="0" group="2" mass="0" />
-          <camera name="head_camera" pos="0.1 0 0.86" fovy="70" xyaxes="0 -1 0 0.766044 0 0.642788" />
-          <geom name="head_camera_vis" type="box" size="0.02 0.05 0.02" pos="0.08 0 0.86" rgba="0.1 0.1 0.1 1" contype="0" conaffinity="0" group="2" mass="0" />
-          <geom name="head_mast_vis" type="cylinder" size="0.012 0.06" pos="0.05 0 0.8" rgba="0.3 0.3 0.3 1" contype="0" conaffinity="0" group="2" mass="0" />
+          <camera name="head_camera" pos="0.1 0 1.11" fovy="70" xyaxes="0 -1 0 0.766044 0 0.642788" />
+          <geom name="head_camera_vis" type="box" size="0.02 0.05 0.02" pos="0.08 0 1.11" rgba="0.1 0.1 0.1 1" contype="0" conaffinity="0" group="2" mass="0" />
+          <geom name="head_mast_vis" type="cylinder" size="0.012 0.174" pos="0.05 0 0.936" rgba="0.3 0.3 0.3 1" contype="0" conaffinity="0" group="2" mass="0" />
         </body>
       </body>
       <site name="imu_site" pos="0 0 0" size="0.01" group="4" />
