@@ -42,6 +42,18 @@ class BipedBridge(B.MujocoBridge):
         h = m.body(f"openarm_{side}_hand").id
         return d.xpos[h] + d.xmat[h].reshape(3, 3) @ [0.0, 0.0, 0.09]
 
+    def _arm_contacts(self):
+        """디버그: 팔·손이 로봇 밖의 물체(작업대·상자·벽)와 닿아 있는 접촉 목록."""
+        m, d = self.sim.m, self.sim.d
+        out = set()
+        for i in range(d.ncon):
+            c = d.contact[i]
+            b1, b2 = m.body(m.geom_bodyid[c.geom1]).name, m.body(m.geom_bodyid[c.geom2]).name
+            for a, b in ((b1, b2), (b2, b1)):
+                if a.startswith("openarm_") and not b.startswith(("openarm_", "base", "abad", "hip", "knee", "ankle", "foot")):
+                    out.add(f"{a}-{b or 'world'}")
+        return sorted(out)
+
     def publish_status(self):
         h, tilt = self.sim.base_height_and_tilt()
         msg = String()
@@ -50,7 +62,8 @@ class BipedBridge(B.MujocoBridge):
                                "cmd": [round(float(x), 3) for x in self.sim.cmd_eff],
                                "est_vel": [round(float(x), 3) for x in self.sim.policy.estimated_velocity],
                                # 디버그·채점용 정답값(시뮬에서만): 손끝(TCP) 세계 위치 = 손 + 손 z축으로 0.09 m (URDF hand_tcp 와 같음)
-                               "tcp_world": {s: [round(float(v), 4) for v in self._tcp_world(s)] for s in ("left", "right")}})
+                               "tcp_world": {s: [round(float(v), 4) for v in self._tcp_world(s)] for s in ("left", "right")},
+                               "arm_contacts": self._arm_contacts()})
         self.pub_status.publish(msg)
         if self.sim.fallen:
             self.get_logger().error("로봇이 넘어졌습니다 → ros2 service call /sim/reset std_srvs/srv/Trigger",
