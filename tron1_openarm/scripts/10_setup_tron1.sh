@@ -28,6 +28,7 @@ python3 tools/make_urdf_tron1.py --wheeled-tools "$WS/src/mobile_openarm_sim/too
 python3 "$WS/src/mobile_openarm_moveit_config/tools/make_srdf.py" --mjcf mjcf/tron1_openarm.xml \
         --out "$T1/src/tron1_openarm_moveit_config/config/tron1_openarm.srdf" --samples 2000
 sed -i 's/<robot name="mobile_openarm">/<robot name="tron1_openarm">/' "$T1/src/tron1_openarm_moveit_config/config/tron1_openarm.srdf"
+python3 tools/patch_srdf_home.py "$T1/src/tron1_openarm_moveit_config/config/tron1_openarm.srdf"   # 이족용 home (팔 벌림)
 python3 tools/make_nav2_params_tron1.py --src "$WS/src/mobile_openarm_sim/config/nav2_params.yaml" --out config/nav2_params_tron1.yaml
 cp -n "$WS/src/mobile_openarm_sim/maps/"world_map.* maps/ 2>/dev/null || true
 
@@ -42,3 +43,4 @@ cd "$WS"
 colcon build --symlink-install --base-paths src tron1_openarm/src
 echo "빌드 완료: source $WS/install/setup.bash"
 echo "실행 예: ros2 launch tron1_openarm_sim sim.launch.py"
+echo "DAY2 앱을 ros2 run 으로 따로 실행할 때: export OPENARM_SRDF=\$(ros2 pkg prefix --share tron1_openarm_moveit_config)/config/tron1_openarm.srdf"

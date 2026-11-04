@@ -11,7 +11,7 @@ import os
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, TimerAction
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, SetEnvironmentVariable, TimerAction
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
@@ -22,6 +22,8 @@ def generate_launch_description():
     mv = get_package_share_directory("tron1_openarm_moveit_config")
     lc = LaunchConfiguration
     return LaunchDescription([
+        # robot_skills(DAY2 앱)가 이족용 이름 자세(팔을 벌린 home)를 쓰도록
+        SetEnvironmentVariable("OPENARM_SRDF", os.path.join(mv, "config", "tron1_openarm.srdf")),
         DeclareLaunchArgument("planner", default_value="offline"),
         DeclareLaunchArgument("viewer", default_value="true"),
         DeclareLaunchArgument("rviz", default_value="false"),

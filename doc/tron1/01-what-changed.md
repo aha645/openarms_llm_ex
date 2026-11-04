@@ -18,7 +18,7 @@
 
 ```mermaid
 flowchart TB
-  subgraph SAME["그대로 사용 (수정 없음)"]
+  subgraph SAME["그대로 사용 (robot_skills 에 SRDF 경로 환경변수 1줄만 추가)"]
     APPS["mobile_openarm_apps<br/>robot_skills · task_manager · llm_planner · dashboard"]
     WBR["mobile_openarm_sim<br/>bridge_node.py · sim_core.py(팔·LiDAR·카메라·ArUco·파지)"]
     WORLD["월드: 방·작업대·ArUco 상자·사람<br/>locations.yaml · 정답 지도"]
@@ -60,13 +60,16 @@ flowchart TB
 | ⑩ Nav2 파라미터 | `config/nav2_params_tron1.yaml` (`tools/make_nav2_params_tron1.py`) | 속도·가속 한계, 도착 허용오차, footprint, AMCL 잡음 변경 | 보행은 바퀴보다 느리고, 급가속을 못 하고, 제자리에서도 몸이 흔들린다 |
 | ⑪ ROS 용 URDF·SRDF | `urdf/tron1_openarm.urdf`, `tron1_openarm_moveit_config/` | 다리 링크가 들어간 URDF, 다리–팔 충돌 쌍을 새로 계산한 SRDF | MoveIt 이 팔 경로를 짤 때 다리·TRON1 몸통과 부딪히는지 검사해야 한다. 팔 그룹·이름 자세·컨트롤러 이름은 바퀴형과 같다 |
 | ⑫ launch | `launch/sim·slam·nav·full_system.launch.py` | 바퀴형 launch 와 같은 인자, 패키지 이름만 다름 + `policy:=` 인자 | 실습 명령이 `mobile_openarm_sim` → `tron1_openarm_sim` 으로만 바뀌도록 |
+| ⑬ 이족용 팔 `home` 자세 | `tools/patch_srdf_home.py`, `biped_core.py` `HOME_ARM` | 팔을 내린 `home` 에서 joint2 를 왼쪽 −0.2, 오른쪽 +0.2 rad 벌림 (손이 몸통 바깥으로 4.5 cm) | TRON1 몸통 상자(base_link)가 바퀴형 기둥보다 넓어, 팔을 그냥 내리면 손이 몸통과 겹쳐 MoveIt 이 `START_STATE_IN_COLLISION` 으로 계획을 거부했다 |
+| ⑭ 앱의 SRDF 경로 (기존 코드 유일한 수정) | `src/mobile_openarm_apps/.../robot_skills.py` | 이름 자세를 읽을 SRDF 를 환경변수 `OPENARM_SRDF` 로 바꿀 수 있게 함. 없으면 예전과 같은 바퀴형 SRDF | 이족 `home` 자세가 바퀴형과 달라졌기 때문. TRON1 `full_system.launch.py` 가 이 변수를 자동으로 넣는다. 바퀴형 동작은 그대로 |
+| ⑮ 머리 카메라 해상도 | `launch/sim.launch.py` | 640×480 → **960×720** | 어깨를 1.08 m 로 올리며 카메라도 높아져 작업대 상자의 ArUco 마커가 작게 보였고, 검출이 실패했다 |
 
 ## 그대로 쓰는 부분과 이유
 
 | 그대로 쓰는 것 | 왜 바꾸지 않아도 되나 |
 |---|---|
 | OpenArm 양팔·그리퍼 모델, 관절 이름, 팔 컨트롤러 이름 | 상반신은 같은 로봇. MoveIt 설정(kinematics·joint_limits·controllers·OMPL)도 복사해서 그대로 씀 |
-| `mobile_openarm_apps` 전체 (robot_skills, pick/place, task_manager, llm_planner, dashboard) | 앱은 `/cmd_vel`, `/odom`, TF `map→base_footprint`, `/aruco/detections`(base_footprint 기준), MoveIt 액션만 쓴다. 이 인터페이스를 이족 브리지가 똑같이 제공한다. 어깨 높이를 맞췄으므로 작업대 접근 수치(`DOCK_GAP 0.40`, `IDEAL_REACH 0.52`)도 그대로 유효 |
+| `mobile_openarm_apps` 전체 (robot_skills, pick/place, task_manager, llm_planner, dashboard) — ⑭ 의 환경변수 1줄 제외 | 앱은 `/cmd_vel`, `/odom`, TF `map→base_footprint`, `/aruco/detections`(base_footprint 기준), MoveIt 액션만 쓴다. 이 인터페이스를 이족 브리지가 똑같이 제공한다. 어깨 높이를 맞췄으므로 작업대 접근 수치(`DOCK_GAP 0.40`, `IDEAL_REACH 0.52`)도 그대로 유효 |
 | 월드 (방·작업대·상자·사람), `locations.yaml`, 정답 지도 | `build_world_tron1.py` 가 바퀴형 `build_world.py` 를 그대로 불러 같은 월드를 만들고 로봇만 바꿈 |
 | slam_toolbox 설정 | LiDAR 토픽·프레임 이름이 같고, 2D 스캔 성질도 같음 |
 | LLM 계획기·안전 검증 | 행동(navigate/pick/place…)과 위치 이름이 같으므로 |

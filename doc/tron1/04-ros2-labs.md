@@ -69,7 +69,7 @@ map → odom → base_footprint → base_link → abad/hip/knee/foot_L,R
   - MoveIt 은 팔 경로를 base_footprint 기준 로봇 모델로 계산합니다. 이 관절이 움직이면 MoveIt 이 그 값을 알 방법이 없습니다(관절 상태에 없음).
   - 대신 브리지는 ArUco 위치를 **실제 base_link 기준으로 잰 뒤 고정 0.68 m 를 더해** base_footprint 기준으로 냅니다. 팔·카메라가 모두 base_link 에 붙어 있으므로, 몸통이 출렁여도 "카메라가 본 상자 ↔ 손" 의 상대 위치는 정확합니다.
   - 오도메트리 TF(`odom → base_footprint`)의 x, y, yaw 는 실제 움직임을 따릅니다.
-- 확인: `ros2 run tf2_ros tf2_echo base_footprint head_camera_link` → z ≈ 1.16 m (바퀴형과 같음)
+- 확인: `ros2 run tf2_ros tf2_echo base_footprint head_camera_link` → z ≈ 1.24 m (바퀴형 1.16 m. 어깨를 8 cm 올린 만큼 높음)
 
 ### DAY 1-04 SLAM
 
@@ -91,13 +91,15 @@ ros2 launch tron1_openarm_sim nav.launch.py map:=$HOME/maps/tron1_map.yaml
 | 최대 속도 vx / wz | 0.40 m/s / 1.2 rad/s | 0.35 m/s / 0.8 rad/s |
 | 가속 ax / az | 2.0 / 2.5 | 0.8 / 1.5 |
 | 도착 허용 xy / yaw | 0.12 m / 0.15 rad | 0.15 m / 0.20 rad |
-| footprint | 0.55 × 0.52 m | 0.46 × 0.44 m |
+| footprint | 0.55 × 0.52 m | 0.46 × 0.64 m (내린 팔·손까지 포함) |
 | AMCL alpha1~4 | 0.2 | 0.4 |
 
 - 도착한 뒤에도 로봇이 제자리 걸음을 하므로 RViz 에서 몸이 조금씩 움찔합니다. 정상입니다.
 - `Failed to make progress` 가 바퀴형보다 잘 나면 `config/nav2_params_tron1.yaml` 의 `movement_time_allowance` 를 늘리세요.
 
 ### DAY 2-01 MoveIt
+
+- `home` 자세가 바퀴형과 조금 다릅니다: 팔을 내릴 때 어깨 joint2 를 ±0.2 rad 벌려 손이 TRON1 몸통 상자 바깥으로 나옵니다. 그대로 내리면 손이 몸통과 겹쳐 MoveIt 이 `START_STATE_IN_COLLISION` 으로 거부합니다. TRON1 SRDF 에 반영되어 있고, 앱은 `OPENARM_SRDF` 환경변수로 이 SRDF 를 읽습니다 (`full_system.launch.py` 가 자동 설정. 따로 실행할 때는 `export OPENARM_SRDF=$(ros2 pkg prefix --share tron1_openarm_moveit_config)/config/tron1_openarm.srdf`).
 
 ```bash
 ros2 launch tron1_openarm_sim sim.launch.py rviz:=false
@@ -113,8 +115,11 @@ ros2 run mobile_openarm_apps arm_demo
 ```bash
 ros2 launch tron1_openarm_sim sim.launch.py start_x:=2.5 start_y:=2.45 start_yaw:=1.5708
 ros2 launch tron1_openarm_moveit_config move_group.launch.py rviz:=false
+export OPENARM_SRDF=$(ros2 pkg prefix --share tron1_openarm_moveit_config)/config/tron1_openarm.srdf
 ros2 run mobile_openarm_apps pick_place --ros-args -p object:=box_0
 ```
+
+- 머리 카메라는 960×720 입니다 (바퀴형 640×480). 카메라가 높아져 마커가 작게 보이기 때문입니다.
 
 - 이족은 조작 중에도 제자리 걸음을 하므로 몸통이 조금씩 흐릅니다. `robot_skills.pick()` 은 그래서 원래부터 **집기 직전에 카메라로 다시 재고(find_marker 5회 평균), 상자가 0.52 m 앞에 오도록 미세 이동**합니다. 이족에서 이 단계가 더 중요해집니다.
 - 실패해도 `파지 실패 → 다시 인식해서 재시도` 가 한 번 더 돕니다.

@@ -41,7 +41,7 @@ def run(sim, sec, v=0.0, w=0.0):
 
 
 t0 = time.time()
-sim = BipedOpenArmSim(WORLD, enable_camera=True, move_person=False, policy_path=POLICY)
+sim = BipedOpenArmSim(WORLD, enable_camera=True, move_person=False, policy_path=POLICY, camera_width=960, camera_height=720)
 m = sim.m
 check("모델 로드", True, f"질량 {m.body_subtreemass[sim.base_id]:.1f} kg, 물리 dt {m.opt.timestep * 1000:.0f} ms, 정책 {os.path.basename(POLICY)}")
 sim.set_base_pose(0.0, -0.6, 0.0)
@@ -72,7 +72,7 @@ r = scan[2]
 check("LiDAR 360 빔", np.isfinite(r).sum() > 300, f"유효 {np.isfinite(r).sum()} / {len(r)}, 높이 {sim.d.site_xpos[sim.lidar_site][2]:.2f} m")
 # 작업대 A 앞에서 카메라·ArUco
 sim.reset(2.5, 2.45, math.pi / 2)
-run(sim, 3.0)
+run(sim, 2.0)
 dets = []
 for _ in range(60):
     sim.step(5)

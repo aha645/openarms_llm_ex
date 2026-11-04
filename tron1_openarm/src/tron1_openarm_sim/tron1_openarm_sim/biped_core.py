@@ -29,11 +29,14 @@ SPAWN_HEIGHT = NOMINAL_BASE_HEIGHT + 0.03
 FOOT_RADIUS = 0.032            # LimX const.xacro foot_radius
 PUBLISHED_JOINTS = (ARM_JOINTS["left"] + [GRIPPER_JOINT["left"], MIMIC_JOINT["left"]]
                     + ARM_JOINTS["right"] + [GRIPPER_JOINT["right"], MIMIC_JOINT["right"]] + LEG_JOINTS)
+# 이족용 home: 팔을 바깥으로 0.2 rad 벌림 (곧게 내리면 손이 TRON1 몸통 옆면에 닿음). SRDF 의 home 과 같은 값
+HOME_ARM = {"left": [0.0, -0.20, 0.0, 0.0, 0.0, 0.0, 0.0], "right": [0.0, 0.20, 0.0, 0.0, 0.0, 0.0, 0.0]}
 CMD_LIMIT = (0.5, 1.0)          # 정책이 학습한 범위 안으로 (vx m/s, wz rad/s)
 CMD_ACCEL = (0.8, 2.0)          # 명령 변화율 제한 (m/s², rad/s²) — 이족은 급가속에 약함
 HOLD_KP, HOLD_KW, HOLD_V = 1.0, 1.5, 0.15   # 제자리 유지 이득 (m/s per m, rad/s per rad), 최대 보정 속도
 VEL_KP, VEL_KI = np.array([0.3, 0.5, 0.3]), np.array([0.8, 1.0, 0.8])   # 속도 외곽 루프 이득 (vx, vy, wz)
-VEL_I_MAX = np.array([0.15, 0.15, 0.3])
+VEL_I_MAX = np.array([0.25, 0.25, 0.4])
+CORR_MAX = np.array([0.2, 0.2, 0.4])                    # 외곽 루프가 정책 명령에 더할 수 있는 최대 보정
 
 
 def default_policy_path():
@@ -137,6 +140,14 @@ class BipedOpenArmSim(W.MobileOpenArmSim):
         self.wall_t0 = None
         self.set_base_pose(0.0, 0.0, 0.0)
 
+    def _init_arms(self):
+        for s in ARM_JOINTS:
+            for qa, a, v in zip(self.arm_qadr[s], self.arm_act[s], HOME_ARM[s]):
+                self.d.qpos[qa] = v
+                self.d.ctrl[a] = v
+            self.d.ctrl[self.grip_act[s]] = 0.044
+        mujoco.mj_forward(self.m, self.d)
+
     # ------------------------------------------------------------------ 자세 / 초기화
     def set_base_pose(self, x, y, yaw):
         with self.lock:
@@ -185,31 +196,41 @@ class BipedOpenArmSim(W.MobileOpenArmSim):
             self.cmd_ramp += dv
             d = self.d
             vy = 0.0
-            # 명령이 정확히 0 (또는 0.5 s 동안 명령 없음) 일 때만 제자리 유지.
-            # 주의: Nav2 MPPI 는 '측정 속도 + 가속 한계×0.05 s' 만큼씩만 명령을 키운다. 작은 명령(0.04 m/s)을 정지로 무시하면
-            # 로봇이 안 움직이고 → 측정 속도 0 → 명령도 0.04 에 머무는 교착이 생긴다 (실제로 겪음).
-            if abs(v) < 1e-3 and abs(w) < 1e-3 and self.hold_position:
-                # 제자리 유지: Point-foot 은 명령 0 이어도 제자리 걸음을 하며 조금씩 흐른다.
-                # 명령이 0 이 된 순간의 오도메트리 자세를 기억했다가 그 자리로 되돌아가는 작은 속도를 정책에 준다.
-                if self._hold is None:
-                    self._hold = self.odom.copy()
-                ex, ey = self.odom[0] - self._hold[0], self.odom[1] - self._hold[1]
+            # 자세 추종(제자리 유지 포함): 명령 속도를 적분한 '기준 자세'를 만들고, 오도메트리 자세가 그것을 따라가게 한다.
+            #  - 명령 0 → 기준 자세가 멈춤 = 그 자리 유지 (Point-foot 은 명령 0 이어도 제자리 걸음을 하며 흐르므로)
+            #  - 제자리 회전·느린 직진(도킹) → 옆으로 미끄러지지 않고 명령대로 이동
+            #  - 주의: Nav2 MPPI 는 '측정 속도 + 가속 한계×0.05 s' 만큼씩만 명령을 키운다. 작은 명령(0.04 m/s)을 정지로
+            #    무시하면 로봇이 안 움직이고 → 측정 속도 0 → 명령도 0.04 에 머무는 교착이 생긴다 (실제로 겪음) → 무시하지 않는다
+            if self._hold is None:
+                self._hold = self.odom.copy()
+            ref = self._hold
+            if self.hold_position:
+                yr = ref[2]
+                ref[0] += self.cmd_ramp[0] * math.cos(yr) * POLICY_DT
+                ref[1] += self.cmd_ramp[0] * math.sin(yr) * POLICY_DT
+                ref[2] = math.atan2(math.sin(yr + self.cmd_ramp[1] * POLICY_DT), math.cos(yr + self.cmd_ramp[1] * POLICY_DT))
+                ex, ey = self.odom[0] - ref[0], self.odom[1] - ref[1]
                 c, s = math.cos(self.odom[2]), math.sin(self.odom[2])
                 bx, by = c * ex + s * ey, -s * ex + c * ey            # 몸통 좌표의 위치 오차
-                eyaw = math.atan2(math.sin(self.odom[2] - self._hold[2]), math.cos(self.odom[2] - self._hold[2]))
-                self.cmd_eff[:] = [float(np.clip(-HOLD_KP * bx, -HOLD_V, HOLD_V)), float(np.clip(-HOLD_KW * eyaw, -0.3, 0.3))]
-                vy = float(np.clip(-HOLD_KP * by, -HOLD_V, HOLD_V))
-                self._vi[:] = 0
+                eyaw = math.atan2(math.sin(self.odom[2] - ref[2]), math.cos(self.odom[2] - ref[2]))
+                if math.hypot(bx, by) > 0.4 or abs(eyaw) > 0.6:    # 크게 벗어나면(부딪힘 등) 기준을 현재 자세로 다시 잡음
+                    self._hold = self.odom.copy()
+                    bx = by = eyaw = 0.0
+                want = np.array([self.cmd_ramp[0] + np.clip(-HOLD_KP * bx, -HOLD_V, HOLD_V),
+                                 np.clip(-HOLD_KP * by, -HOLD_V, HOLD_V),
+                                 self.cmd_ramp[1] + np.clip(-HOLD_KW * eyaw, -0.3, 0.3)])
             else:
-                # 속도 외곽 루프(PI): 정책의 속도 추종 오차(느림·옆 흐름·회전 흐름)를 측정 속도(다리 오도메트리)로 보정
-                self._hold = None
                 want = np.array([self.cmd_ramp[0], 0.0, self.cmd_ramp[1]])
-                meas = np.array([self.odom_vel[0], self.odom_vy, self.odom_vel[1]])
-                err = want - meas
-                self._vi = np.clip(self._vi + VEL_KI * err * POLICY_DT, -VEL_I_MAX, VEL_I_MAX)
-                out = want + VEL_KP * err + self._vi
-                self.cmd_eff[:] = [float(np.clip(out[0], -0.4, 0.6)), float(np.clip(out[2], -1.2, 1.2))]
-                vy = float(np.clip(out[1], -0.15, 0.15))
+            # 속도 외곽 루프(PI): 목표 속도와 측정 속도(다리 오도메트리)의 차이로 정책 명령을 보정.
+            # 정책 고유의 치우침(느림·옆 흐름·회전 흐름, 제자리에서의 흐름)을 적분항이 상쇄한다.
+            meas = np.array([self.odom_vel[0], self.odom_vy, self.odom_vel[1]])
+            err = want - meas
+            self._vi = np.clip(self._vi + VEL_KI * err * POLICY_DT, -VEL_I_MAX, VEL_I_MAX)
+            out = want + VEL_KP * err + self._vi
+            # 보정량 상한: 팔 동작 반동 등으로 오차가 커져도 몸통이 달려 나가지 않도록
+            out = np.clip(out, want - CORR_MAX, want + CORR_MAX)
+            self.cmd_eff[:] = [float(np.clip(out[0], -0.45, 0.6)), float(np.clip(out[2], -1.2, 1.2))]
+            vy = float(np.clip(out[1], -0.25, 0.25))
             gyro = d.sensordata[self.gyro_adr:self.gyro_adr + 3]
             quat = d.sensordata[self.quat_adr:self.quat_adr + 4]
             target = self.policy.act(gyro, quat, d.qpos[self.leg_qadr], d.qvel[self.leg_dadr],

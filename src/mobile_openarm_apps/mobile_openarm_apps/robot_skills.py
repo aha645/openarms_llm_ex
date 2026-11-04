@@ -71,7 +71,9 @@ class RobotSkills(Node):
         self.tables = self.world["tables"]                 # 이름 → center/size
         self.station_table = self.world["station_table"]   # 스테이션 → 작업대
         self.current_station = None
-        self.named_states = self._load_srdf_states(os.path.join(mv_share, "config", "mobile_openarm.srdf"))
+        # 이름 자세(home/ready/carry/hands_up)를 읽을 SRDF. 다른 하반신(예: tron1_openarm)은 환경 변수로 자기 SRDF 를 지정
+        srdf = os.environ.get("OPENARM_SRDF") or os.path.join(mv_share, "config", "mobile_openarm.srdf")
+        self.named_states = self._load_srdf_states(srdf)
 
         cb = ReentrantCallbackGroup()
         self.cb = cb

@@ -45,6 +45,8 @@ def generate_launch_description():
             "move_person": lc("move_person"), "grasp_assist": lc("grasp_assist"),
             "rate_factor": lc("rate_factor"), "lidar_rays": lc("lidar_rays"),
             "camera_hz": lc("camera_hz"), "image_hz": lc("image_hz"),
+            # 머리 카메라가 바퀴형보다 8 cm 높아(1.24 m) 4 cm 마커가 640x480 에서 너무 작게 보임 → 960x720
+            "camera_width": 960, "camera_height": 720,
             "start_x": lc("start_x"), "start_y": lc("start_y"), "start_yaw": lc("start_yaw"),
         }],
     )
