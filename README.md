@@ -3,7 +3,11 @@
 PinkLAB "MuJoCo + ROS2 2일 워크샵" 커리큘럼(14개 모듈)을 **OpenArm v1 양팔 상반신 + 차동구동 바퀴 베이스**로
 따라 할 수 있도록 새로 구현한 워크스페이스입니다. (원본 교육과정 소스는 비공개라 같은 기술 스택으로 재구성)
 
-대상 PC: Ubuntu 24.04, Samsung Notebook Odyssey(2017, i7-7700HQ, GTX 1050) 기준. 자세한 설명은 함께 드린 가이드 문서를 보세요.
+대상 PC: Ubuntu 24.04, Samsung Notebook Odyssey(2017, i7-7700HQ, GTX 1050) 기준. 자세한 설명은 [실습 가이드](doc/mujoco_ros2_mobile_openarm_guide.md)를 보세요.
+
+## 문서
+- [MuJoCo + ROS 2 주행형 OpenArm 실습 가이드](doc/mujoco_ros2_mobile_openarm_guide.md) — Ubuntu 24.04 노트북 설치부터 DAY1·DAY2 실습, 실로봇 전환까지
+- [iMac Docker로 OpenArm 실습 환경 만들기](doc/imac_docker_openarm_guide.md) — Intel Mac + Docker, 컨테이너 화면(noVNC/VNC) 보기
 
 ## 빠른 시작
 ```bash
@@ -23,7 +27,7 @@ cd ~/openarm_mobile_ws/docker
 bash mac_start.sh          # 이미지 빌드 → 컨테이너 시작 → 04 스크립트 → 브라우저(noVNC) 열기
 ```
 컨테이너 안에는 GPU 가 없으므로 Mesa llvmpipe(CPU)로 그립니다. NVIDIA 드라이버·CUDA·PyTorch 는 설치하지 않습니다.
-자세한 명령과 옵션 설명은 별도 문서(Docker 가이드)를 보세요.
+자세한 명령과 옵션 설명은 [Docker 가이드](doc/imac_docker_openarm_guide.md)를 보세요.
 
 ## 패키지
 | 패키지 | 내용 |
