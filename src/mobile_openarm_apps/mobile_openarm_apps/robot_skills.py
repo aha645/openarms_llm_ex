@@ -639,6 +639,7 @@ class RobotSkills(Node):
         top = self.find_marker(mid)                         # 상자 윗면 마커 (base_footprint)
         center = top - np.array([0, 0, self.box_size / 2])
         self._table_top_seen = float(top[2] - self.box_size)
+        self.set_table()                                    # 이족: 잰 상판 높이로 작업대 충돌 객체 갱신
         side = side or ("right" if center[1] < 0 else "left")
         if self.holding[side]:
             raise SkillError(f"{side} 손에 이미 {self.holding[side]} 를 들고 있음")
