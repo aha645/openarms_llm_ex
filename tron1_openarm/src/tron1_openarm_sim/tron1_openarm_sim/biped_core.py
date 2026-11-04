@@ -32,6 +32,7 @@ PUBLISHED_JOINTS = (ARM_JOINTS["left"] + [GRIPPER_JOINT["left"], MIMIC_JOINT["le
 # 이족용 home: 팔을 바깥으로 0.2 rad 벌림 (곧게 내리면 손이 TRON1 몸통 옆면에 닿음). SRDF 의 home 과 같은 값
 HOME_ARM = {"left": [0.0, -0.20, 0.0, 0.0, 0.0, 0.0, 0.0], "right": [0.0, 0.20, 0.0, 0.0, 0.0, 0.0, 0.0]}
 CMD_LIMIT = (0.5, 1.0)          # 정책이 학습한 범위 안으로 (vx m/s, wz rad/s)
+SLIP_TAU = 3.0                   # 발 미끄러짐 보정 저역통과 시간상수 [s]
 VY_LIMIT, VY_ACCEL = 0.15, 0.5   # 옆걸음 최대 속도·가속 (학습 범위 ±0.2 m/s 안)
 CMD_ACCEL = (0.8, 2.0)          # 명령 변화율 제한 (m/s², rad/s²) — 이족은 급가속에 약함
 HOLD_KP, HOLD_KW, HOLD_V = 1.0, 1.5, 0.15   # 제자리 유지 이득 (m/s per m, rad/s per rad), 최대 보정 속도
@@ -97,6 +98,8 @@ class BipedOpenArmSim(W.MobileOpenArmSim):
         self.vy_ramp = 0.0
         self._vi = np.zeros(3)
         self.odom_vy = 0.0
+        self._slip_vx = 0.0
+        self._slip_off = np.zeros(2)
 
         self._init_arms()
         self.cmd = (0.0, 0.0)
@@ -169,6 +172,8 @@ class BipedOpenArmSim(W.MobileOpenArmSim):
             self.cmd_ramp = np.zeros(2)
             self.cmd_vy = 0.0
             self.vy_ramp = 0.0
+            self._slip_vx = 0.0
+            self._slip_off = np.zeros(2)
             self._vi = np.zeros(3)
             self._odom_reset()
 
@@ -299,10 +304,21 @@ class BipedOpenArmSim(W.MobileOpenArmSim):
                 dt_r = t - getattr(self, "_last_roll_t", t)
                 self._anchor = self._anchor + FOOT_RADIUS * np.array([w[1], -w[0]]) * dt_r
             self._est_xy = self._anchor - rel[st][:2]
+        dt_s = t - getattr(self, "_last_roll_t", t)
         self._last_roll_t = t
+        # 발 미끄러짐 보정 (앞뒤 방향만): 디딘 발이 미끄러지면 다리 오도메트리는 그 움직임을 못 본다.
+        # 보행 정책의 속도 추정기(인코더, 학습 때 실제 속도로 지도학습)는 IMU·관절 이력으로 미끄러짐까지 반영한다.
+        # 두 값의 차이를 3 s 저역통과해 '천천히 쌓이는 앞뒤 미끄러짐'만 더한다 (제자리 걸음 중 0.004 m/s 뒤로 흐르던 것).
+        # 옆 방향은 추정기에 +0.005~0.008 m/s 치우침이 있어 쓰지 않는다.
+        if dt_s > 0 and self.policy is not None:
+            enc_vx = float(self.policy.estimated_velocity[0])
+            a = min(1.0, dt_s / SLIP_TAU)
+            self._slip_vx += a * ((enc_vx - (self.odom_vel[0] - self._slip_vx)) - self._slip_vx)   # 다리 기구학만의 속도와 비교
+            yw = yaw_of(d.xquat[self.base_id])
+            self._slip_off += np.array([math.cos(yw), math.sin(yw)]) * self._slip_vx * dt_s
         yaw = yaw_of(d.xquat[self.base_id]) - self._origin_yaw
         c, s = math.cos(-self._origin_yaw), math.sin(-self._origin_yaw)
-        dxy = self._est_xy - self._origin_xy
+        dxy = self._est_xy + self._slip_off - self._origin_xy
         self.odom[0] = c * dxy[0] - s * dxy[1]
         self.odom[1] = s * dxy[0] + c * dxy[1]
         self.odom[2] = math.atan2(math.sin(yaw), math.cos(yaw))
