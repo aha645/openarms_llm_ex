@@ -342,7 +342,7 @@ class RobotSkills(Node):
         p.positions = [float(opening)]
         p.time_from_start = _dur(duration)
         g.trajectory.points = [p]
-        self._send_action(self.grippers[side], g, f"gripper({side})", 10.0)
+        self._send_action(self.grippers[side], g, f"gripper({side})", 30.0)   # 느린 PC(시뮬이 실시간보다 느림) 대비 여유
 
     def open_gripper(self, side):
         self.gripper(side, 0.044)

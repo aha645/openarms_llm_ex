@@ -187,6 +187,13 @@ class BipedOpenArmSim(W.MobileOpenArmSim):
         q = self.d.qpos[self.base_qadr:self.base_qadr + 7]
         return np.array([q[0], q[1], yaw_of(q[3:7])])
 
+    def _camera_scene_hook(self, scene):
+        # 머리 카메라 렌더에서 그림자·반사를 끈다. 소프트웨어 렌더(osmesa, GPU 없는 Docker)에서 그림자가
+        # 렌더 시간의 3/4 를 차지해(0.68 → 0.16 s/frame, 2코어 측정) 시뮬이 실시간의 0.15 배까지 느려졌다.
+        # ArUco 검출에는 그림자가 필요 없다 (오히려 대비가 좋아진다).
+        scene.flags[mujoco.mjtRndFlag.mjRND_SHADOW] = 0
+        scene.flags[mujoco.mjtRndFlag.mjRND_REFLECTION] = 0
+
     # ------------------------------------------------------------------ 하반신 제어
     def set_cmd_vel(self, v, w, vy=0.0):
         """바퀴형과 같은 (v, w) + 이족만 가능한 옆걸음 vy. 바퀴형 코드가 (v, w) 로 불러도 그대로 동작."""

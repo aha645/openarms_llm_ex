@@ -444,6 +444,7 @@ class MobileOpenArmSim:
             self.renderer = mujoco.Renderer(self.m, self.cam_h, self.cam_w)
         with self.lock:
             self.renderer.update_scene(self.d, camera=self.cam_id)
+            self._camera_scene_hook(self.renderer.scene)
             T_base_opt = self.camera_optical_in_base()
         rgb = self.renderer.render().copy()
         dets = self.aruco.detect(rgb)
@@ -452,6 +453,7 @@ class MobileOpenArmSim:
             # (640x480 에서 4cm 마커는 ~23px 라 PnP 깊이 오차가 5~15% 로 큼)
             self.renderer.enable_depth_rendering()
             self.renderer.update_scene(self.d, camera=self.cam_id)
+            self._camera_scene_hook(self.renderer.scene)
             depth = self.renderer.render().copy()
             self.renderer.disable_depth_rendering()
             self.last_depth = depth
@@ -472,6 +474,9 @@ class MobileOpenArmSim:
         self.last_image = rgb
         self.last_detections = dets
         return rgb, dets
+
+    def _camera_scene_hook(self, scene):
+        """카메라 렌더 직전 장면 설정을 바꿀 자리 (기본: 그대로). 하위 클래스가 그림자 끄기 등에 사용."""
 
     def camera_optical_in_base(self):
         """base_link → head_camera_optical_frame (x 오른쪽, y 아래, z 전방) 변환 4x4."""
