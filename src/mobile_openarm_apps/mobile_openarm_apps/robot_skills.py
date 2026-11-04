@@ -76,6 +76,12 @@ class RobotSkills(Node):
         self.named_states = self._load_srdf_states(srdf)
         # 옆걸음이 되는 하반신(이족 tron1_openarm)이면 1. 바퀴형은 설정하지 않음 → 기존 동작 그대로
         self.can_strafe = os.environ.get("OPENARM_BIPED", "0") == "1"
+        self._table_top_seen = None      # 이족: 카메라로 잰 상판 높이 (base_footprint 명목 좌표)
+        if self.can_strafe:
+            # 이족(TRON1)은 어깨가 1.08 m 로 바퀴형(1.0 m)보다 높아, 0.52 m 앞 상자는 팔 길이(약 0.63 m)의 끝에 걸려
+            # 직선 접근이 40~90% 에서 끊겼다. 작업대에 8 cm 더 붙어 서서(앞 여유 8 cm) 상자를 0.44 m 앞에 둔다.
+            self.DOCK_GAP = float(os.environ.get("OPENARM_DOCK_GAP", 0.32))
+            self.IDEAL_REACH = float(os.environ.get("OPENARM_IDEAL_REACH", 0.44))
 
         cb = ReentrantCallbackGroup()
         self.cb = cb
@@ -478,6 +484,11 @@ class RobotSkills(Node):
         box = SolidPrimitive()
         box.type = SolidPrimitive.BOX
         h = t["height"] - 0.012          # 손가락 끝이 상판에 닿는 것으로 판정되지 않도록 1.2cm 낮춤
+        if self.can_strafe and self._table_top_seen is not None:
+            # 이족: base_link 가 명목값(0.68 m, 수평)과 달리 1~3 cm 높고 3~4° 앞으로 기울어 있다. 팔과 카메라는 base_link 에
+            # 붙어 있으므로 카메라로 잰 상자 위치는 팔 기준으로 정확하지만, 지도에서 가져온 상판 높이는 그만큼 어긋나
+            # 상자 중심이 상판 '안'에 있는 것처럼 보였다(IK 충돌). → 카메라로 잰 상자 바닥 높이를 상판 높이로 쓴다
+            h = self._table_top_seen - 0.012
         box.dimensions = [float(t["size"][0]), float(t["size"][1]), float(h)]
         p = Pose()
         p.position.x, p.position.y, p.position.z = float(local[0]), float(local[1]), h / 2
@@ -609,6 +620,7 @@ class RobotSkills(Node):
         self.set_table()
         top = self.find_marker(mid)                         # 상자 윗면 마커 (base_footprint)
         center = top - np.array([0, 0, self.box_size / 2])
+        self._table_top_seen = float(top[2] - self.box_size)
         side = side or ("right" if center[1] < 0 else "left")
         if self.holding[side]:
             raise SkillError(f"{side} 손에 이미 {self.holding[side]} 를 들고 있음")
@@ -618,11 +630,15 @@ class RobotSkills(Node):
             self.nudge_base(center[0] - self.IDEAL_REACH)
             self.set_table()
             center = self.find_marker(mid) - np.array([0, 0, self.box_size / 2])
+            self._table_top_seen = float(center[2] - self.box_size / 2)
+            self.set_table()
             self.log(f"[pick] 보정 후 상자 위치 base {np.round(center, 3)}")
         if self.can_strafe and abs(center[1]) > self.LATERAL_OK:
             self.strafe_base(center[1] - math.copysign(self.LATERAL_IDEAL, center[1]))
             self.set_table()
             center = self.find_marker(mid) - np.array([0, 0, self.box_size / 2])
+            self._table_top_seen = float(center[2] - self.box_size / 2)
+            self.set_table()
             self.log(f"[pick] 옆걸음 후 상자 위치 base {np.round(center, 3)}")
         for attempt in (1, 2):
             self.open_gripper(side)
@@ -671,7 +687,8 @@ class RobotSkills(Node):
         edge = self.table_edge_distance(station)
         fwd = offset[0] if edge is None else edge + 0.12    # 모서리에서 12cm 안쪽에 내려놓기
         lat = offset[1] if offset[1] is not None else (-0.12 if side == "right" else 0.12)
-        target = np.array([fwd, lat, self.table_h + self.box_size / 2 + 0.01])
+        top_h = self._table_top_seen if (self.can_strafe and self._table_top_seen is not None) else self.table_h
+        target = np.array([fwd, lat, top_h + self.box_size / 2 + 0.01])
         self.log(f"[place] {self.holding[side]} → base {np.round(target, 3)} ({side})")
         R, pre, q_pre = self._solve_approach(side, target + np.array([0, 0, 0.05]), back=0.06)
         self.move_joints(f"{side}_arm", q_pre)
