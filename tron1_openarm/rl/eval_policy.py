@@ -135,8 +135,10 @@ if __name__ == "__main__":
     allres = {}
     for p in sys.argv[1:]:
         r = evaluate(p)
-        allres[os.path.basename(p)] = r
-        print(os.path.basename(p))
+        key = os.path.basename(p) if os.path.basename(p) not in ("best.npz", "final.npz") else \
+            os.path.basename(os.path.dirname(p)) + "/" + os.path.basename(p)
+        allres[key] = r
+        print(key)
         for k, v in r.items():
             print(f"  {k:6s} {v}")
     with open(os.path.join(ROOT, "policies", "eval_results.json"), "w") as fp:

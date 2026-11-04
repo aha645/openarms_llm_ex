@@ -36,8 +36,8 @@ VY_LIMIT, VY_ACCEL = 0.15, 0.5   # 옆걸음 최대 속도·가속 (학습 범�
 CMD_ACCEL = (0.8, 2.0)          # 명령 변화율 제한 (m/s², rad/s²) — 이족은 급가속에 약함
 HOLD_KP, HOLD_KW, HOLD_V = 1.0, 1.5, 0.15   # 제자리 유지 이득 (m/s per m, rad/s per rad), 최대 보정 속도
 VEL_KP, VEL_KI = np.array([0.3, 0.5, 0.3]), np.array([0.8, 1.0, 0.8])   # 속도 외곽 루프 이득 (vx, vy, wz)
-VEL_I_MAX = np.array([0.25, 0.25, 0.4])
-CORR_MAX = np.array([0.2, 0.2, 0.4])                    # 외곽 루프가 정책 명령에 더할 수 있는 최대 보정
+VEL_I_MAX = np.array([0.25, 0.45, 0.4])
+CORR_MAX = np.array([0.2, 0.45, 0.4])                    # 외곽 루프가 정책 명령에 더할 수 있는 최대 보정
 
 
 def default_policy_path():
@@ -253,7 +253,7 @@ class BipedOpenArmSim(W.MobileOpenArmSim):
             # 보정량 상한: 팔 동작 반동 등으로 오차가 커져도 몸통이 달려 나가지 않도록
             out = np.clip(out, want - CORR_MAX, want + CORR_MAX)
             self.cmd_eff[:] = [float(np.clip(out[0], -0.45, 0.6)), float(np.clip(out[2], -1.2, 1.2))]
-            vy = float(np.clip(out[1], -0.25, 0.25))
+            vy = float(np.clip(out[1], -0.45, 0.45))
             gyro = d.sensordata[self.gyro_adr:self.gyro_adr + 3]
             quat = d.sensordata[self.quat_adr:self.quat_adr + 4]
             target = self.policy.act(gyro, quat, d.qpos[self.leg_qadr], d.qvel[self.leg_dadr],
