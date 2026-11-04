@@ -590,25 +590,36 @@ class RobotSkills(Node):
         req.avoid_collisions = True
         return self._call(self.cart_srv, req, "compute_cartesian_path(검사)").fraction
 
-    def _solve_approach(self, side, target, back=0.10):
+    def _solve_approach(self, side, target, back=0.10, exclude_id=None):
         """접근 자세 후보(roll × 물러선 거리)들 중 '접근점 IK + 목표 IK + 접근점→목표 직선 경로' 가 모두 되는 것 → (R, pre, q_pre).
         직선 경로까지 미리 검사하는 이유: 두 끝점의 IK 가 풀려도 중간에 관절 한계에 걸려 직선이 끊길 수 있다
         (TRON1 이족에서 실제로 64%·45% 에서 끊김). 그러면 같은 roll 로 더 가까이(0.07, 0.05 m)에서 시작하거나 다른 roll 을 쓴다."""
         best = None
         pitches = [self.APPROACH_PITCH] + ([55.0, 65.0] if self.can_strafe else [])   # 이족: 어깨가 높아 더 위에서 내려오는 접근도 시도
         cands = [(p, b, r) for b in (back, 0.07, 0.05) for p in pitches for r in self.ROLL_CANDIDATES]
+        ok = []
         for pitch, b, roll in cands:
             R = approach_rotation(pitch, roll)
             pre = target - R[:, 2] * b
             q_pre = self.compute_ik(side, pre, R)
             if q_pre is None or not self.compute_ik(side, target, R, avoid_collisions=False):
                 continue
-            f = self._cart_fraction(side, q_pre, R, target + R[:, 2] * self.GRASP_DEPTH)
-            if f >= 0.95:
-                self.log(f"[ik] {side} 접근 자세 pitch={pitch:.0f}° roll={roll}°, {b * 100:.0f} cm 앞에서 직선 접근")
-                return R, pre, q_pre
-            if best is None or f > best[0]:
-                best = (f, roll, b)
+            ok.append((pitch, b, roll, R, pre, q_pre))
+        # 직선 접근 검사는 실제 접근 때와 같은 장면(목표 상자만 뺀)에서 해야 한다.
+        # 목표 상자를 장애물로 둔 채 검사하면 손이 상자에 닿는 마지막 구간이 '충돌'로 판정돼 항상 실패한다.
+        if exclude_id is not None:
+            self.set_boxes(exclude_id=exclude_id)
+        try:
+            for pitch, b, roll, R, pre, q_pre in ok:
+                f = self._cart_fraction(side, q_pre, R, target + R[:, 2] * self.GRASP_DEPTH)
+                if f >= 0.95:
+                    self.log(f"[ik] {side} 접근 자세 pitch={pitch:.0f}° roll={roll}°, {b * 100:.0f} cm 앞에서 직선 접근")
+                    return R, pre, q_pre
+                if best is None or f > best[0]:
+                    best = (f, roll, b)
+        finally:
+            if exclude_id is not None:
+                self.set_boxes()
         if best:
             raise SkillError(f"{side} 팔 직선 접근 불가 (최대 {best[0] * 100:.0f}%, roll={best[1]}°) — 로봇 위치를 조정하세요")
         raise SkillError(f"{side} 팔로 {np.round(target, 3)} 에 접근하는 IK 해 없음 — 로봇 위치를 조정하세요")
@@ -646,7 +657,7 @@ class RobotSkills(Node):
             # 몸 쪽 carry 자세에서 출발 → 접근점까지의 경로가 상자들 위쪽으로 지나감
             self.move_named(f"{side}_arm", "carry")
             self.set_boxes()                                   # 계획 중에는 모든 상자가 장애물
-            R, pre, q_pre = self._solve_approach(side, center)
+            R, pre, q_pre = self._solve_approach(side, center, exclude_id=mid)
             self.move_joints(f"{side}_arm", q_pre)
             if self.can_strafe:
                 # 팔을 뻗으면 이족 몸통이 반동으로 몇 cm 밀린다 → 직선 접근 목표를 마지막으로 다시 잰 위치로
