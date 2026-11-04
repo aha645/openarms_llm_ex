@@ -8,6 +8,7 @@
 달라진 점
   * MobileOpenArmSim → BipedOpenArmSim (보행 정책·다리 오도메트리)
   * BASE_LINK_Z: 0.08(바퀴 반지름) → 0.68(TRON1 서 있는 높이). ArUco 위치를 base_footprint 기준으로 바꿀 때 사용
+  * /cmd_vel 의 linear.y(옆걸음)도 받음 — 작업대 앞에서 상자 옆으로 비켜 서기 (robot_skills.strafe_base)
   * /biped/status (std_msgs/String JSON): 몸통 높이·기울기·넘어짐 여부·정책이 받는 명령
 """
 import json
@@ -30,6 +31,10 @@ class BipedBridge(B.MujocoBridge):
         self.pub_status = self.create_publisher(String, "/biped/status", 10)
         self.create_timer(0.5, self.publish_status)
         self.get_logger().info(f"TRON1 보행 정책 사용 (정책 50 Hz, 물리 {self.sim.m.opt.timestep * 1000:.0f} ms)")
+
+    def on_cmd_vel(self, msg):
+        # 바퀴형은 linear.x·angular.z 만 쓴다. 이족은 linear.y(옆걸음)도 받는다
+        self.sim.set_cmd_vel(msg.linear.x, msg.angular.z, msg.linear.y)
 
     def publish_status(self):
         h, tilt = self.sim.base_height_and_tilt()

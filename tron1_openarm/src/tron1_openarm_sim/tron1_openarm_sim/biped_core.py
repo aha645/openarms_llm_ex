@@ -32,6 +32,7 @@ PUBLISHED_JOINTS = (ARM_JOINTS["left"] + [GRIPPER_JOINT["left"], MIMIC_JOINT["le
 # 이족용 home: 팔을 바깥으로 0.2 rad 벌림 (곧게 내리면 손이 TRON1 몸통 옆면에 닿음). SRDF 의 home 과 같은 값
 HOME_ARM = {"left": [0.0, -0.20, 0.0, 0.0, 0.0, 0.0, 0.0], "right": [0.0, 0.20, 0.0, 0.0, 0.0, 0.0, 0.0]}
 CMD_LIMIT = (0.5, 1.0)          # 정책이 학습한 범위 안으로 (vx m/s, wz rad/s)
+VY_LIMIT, VY_ACCEL = 0.15, 0.5   # 옆걸음 최대 속도·가속 (학습 범위 ±0.2 m/s 안)
 CMD_ACCEL = (0.8, 2.0)          # 명령 변화율 제한 (m/s², rad/s²) — 이족은 급가속에 약함
 HOLD_KP, HOLD_KW, HOLD_V = 1.0, 1.5, 0.15   # 제자리 유지 이득 (m/s per m, rad/s per rad), 최대 보정 속도
 VEL_KP, VEL_KI = np.array([0.3, 0.5, 0.3]), np.array([0.8, 1.0, 0.8])   # 속도 외곽 루프 이득 (vx, vy, wz)
@@ -92,6 +93,8 @@ class BipedOpenArmSim(W.MobileOpenArmSim):
         self.hold_position = True      # 명령 0 일 때 제자리 유지 (False: 정책 그대로)
         self._hold = None
         self.cmd_ramp = np.zeros(2)
+        self.cmd_vy = 0.0                 # 옆걸음 명령 (/cmd_vel linear.y) — 바퀴형에는 없는 이족만의 동작
+        self.vy_ramp = 0.0
         self._vi = np.zeros(3)
         self.odom_vy = 0.0
 
@@ -164,6 +167,8 @@ class BipedOpenArmSim(W.MobileOpenArmSim):
             self.cmd_eff[:] = 0
             self._hold = None
             self.cmd_ramp = np.zeros(2)
+            self.cmd_vy = 0.0
+            self.vy_ramp = 0.0
             self._vi = np.zeros(3)
             self._odom_reset()
 
@@ -183,12 +188,22 @@ class BipedOpenArmSim(W.MobileOpenArmSim):
         return np.array([q[0], q[1], yaw_of(q[3:7])])
 
     # ------------------------------------------------------------------ 하반신 제어
+    def set_cmd_vel(self, v, w, vy=0.0):
+        """바퀴형과 같은 (v, w) + 이족만 가능한 옆걸음 vy. 바퀴형 코드가 (v, w) 로 불러도 그대로 동작."""
+        with self.lock:
+            self.cmd = (float(v), float(w))
+            self.cmd_vy = float(vy)
+            self.cmd_stamp = self.d.time
+
     def _apply_base(self):
         """물리 스텝마다 호출. policy_every 스텝(=20 ms)마다 보행 정책으로 다리 목표각을 새로 계산."""
         if self._substep % self.policy_every == 0:
             v, w = self.cmd
+            vyc = self.cmd_vy
             if self.d.time - self.cmd_stamp > self.cmd_timeout:
-                v, w = 0.0, 0.0
+                v, w, vyc = 0.0, 0.0, 0.0
+            vyc = float(np.clip(vyc, -VY_LIMIT, VY_LIMIT))
+            self.vy_ramp += float(np.clip(vyc - self.vy_ramp, -VY_ACCEL * POLICY_DT, VY_ACCEL * POLICY_DT))
             v = float(np.clip(v, -CMD_LIMIT[0] * 0.7, CMD_LIMIT[0]))
             w = float(np.clip(w, -CMD_LIMIT[1], CMD_LIMIT[1]))
             dv = np.clip(np.array([v, w]) - self.cmd_ramp, -np.array(CMD_ACCEL) * POLICY_DT,
@@ -206,8 +221,8 @@ class BipedOpenArmSim(W.MobileOpenArmSim):
             ref = self._hold
             if self.hold_position:
                 yr = ref[2]
-                ref[0] += self.cmd_ramp[0] * math.cos(yr) * POLICY_DT
-                ref[1] += self.cmd_ramp[0] * math.sin(yr) * POLICY_DT
+                ref[0] += (self.cmd_ramp[0] * math.cos(yr) - self.vy_ramp * math.sin(yr)) * POLICY_DT
+                ref[1] += (self.cmd_ramp[0] * math.sin(yr) + self.vy_ramp * math.cos(yr)) * POLICY_DT
                 ref[2] = math.atan2(math.sin(yr + self.cmd_ramp[1] * POLICY_DT), math.cos(yr + self.cmd_ramp[1] * POLICY_DT))
                 ex, ey = self.odom[0] - ref[0], self.odom[1] - ref[1]
                 c, s = math.cos(self.odom[2]), math.sin(self.odom[2])
@@ -217,10 +232,10 @@ class BipedOpenArmSim(W.MobileOpenArmSim):
                     self._hold = self.odom.copy()
                     bx = by = eyaw = 0.0
                 want = np.array([self.cmd_ramp[0] + np.clip(-HOLD_KP * bx, -HOLD_V, HOLD_V),
-                                 np.clip(-HOLD_KP * by, -HOLD_V, HOLD_V),
+                                 self.vy_ramp + np.clip(-HOLD_KP * by, -HOLD_V, HOLD_V),
                                  self.cmd_ramp[1] + np.clip(-HOLD_KW * eyaw, -0.3, 0.3)])
             else:
-                want = np.array([self.cmd_ramp[0], 0.0, self.cmd_ramp[1]])
+                want = np.array([self.cmd_ramp[0], self.vy_ramp, self.cmd_ramp[1]])
             # 속도 외곽 루프(PI): 목표 속도와 측정 속도(다리 오도메트리)의 차이로 정책 명령을 보정.
             # 정책 고유의 치우침(느림·옆 흐름·회전 흐름, 제자리에서의 흐름)을 적분항이 상쇄한다.
             meas = np.array([self.odom_vel[0], self.odom_vy, self.odom_vel[1]])

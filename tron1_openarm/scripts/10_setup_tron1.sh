@@ -43,4 +43,4 @@ cd "$WS"
 colcon build --symlink-install --base-paths src tron1_openarm/src
 echo "빌드 완료: source $WS/install/setup.bash"
 echo "실행 예: ros2 launch tron1_openarm_sim sim.launch.py"
-echo "DAY2 앱을 ros2 run 으로 따로 실행할 때: export OPENARM_SRDF=\$(ros2 pkg prefix --share tron1_openarm_moveit_config)/config/tron1_openarm.srdf"
+echo "DAY2 앱을 ros2 run 으로 따로 실행할 때: export OPENARM_BIPED=1 OPENARM_SRDF=\$(ros2 pkg prefix --share tron1_openarm_moveit_config)/config/tron1_openarm.srdf"

@@ -115,6 +115,7 @@ ros2 run mobile_openarm_apps arm_demo
 ```bash
 ros2 launch tron1_openarm_sim sim.launch.py start_x:=2.5 start_y:=2.45 start_yaw:=1.5708
 ros2 launch tron1_openarm_moveit_config move_group.launch.py rviz:=false
+export OPENARM_BIPED=1     # 옆걸음 + 접근 직전 재측정 켜기
 export OPENARM_SRDF=$(ros2 pkg prefix --share tron1_openarm_moveit_config)/config/tron1_openarm.srdf
 ros2 run mobile_openarm_apps pick_place --ros-args -p object:=box_0
 ```
@@ -122,6 +123,8 @@ ros2 run mobile_openarm_apps pick_place --ros-args -p object:=box_0
 - 머리 카메라는 960×720 입니다 (바퀴형 640×480). 카메라가 높아져 마커가 작게 보이기 때문입니다.
 
 - 이족은 조작 중에도 제자리 걸음을 하므로 몸통이 조금씩 흐릅니다. `robot_skills.pick()` 은 그래서 원래부터 **집기 직전에 카메라로 다시 재고(find_marker 5회 평균), 상자가 0.52 m 앞에 오도록 미세 이동**합니다. 이족에서 이 단계가 더 중요해집니다.
+- **옆걸음 (이족만):** 작업대 앞에서 상자가 옆으로 0.18 m 넘게 치우쳐 있으면 `[base] 옆걸음 -0.15 m` 처럼 옆으로 걸어 0.12 m 에 맞춥니다. 바퀴형은 옆으로 못 가므로 Nav2 로 다시 가야 하지만, 이족은 `/cmd_vel` 의 `linear.y` 로 바로 비켜 섭니다. 직접 해 보기: `ros2 topic pub -r 10 /cmd_vel geometry_msgs/msg/Twist "{linear: {y: 0.08}}"`
+- 이족은 팔을 `carry` 로 올리는 동안에도 몸이 1~3 cm 움직이므로, 접근 직전에 상자를 **한 번 더 잽니다.**
 - 실패해도 `파지 실패 → 다시 인식해서 재시도` 가 한 번 더 돕니다.
 
 ### DAY 2-03 ~ 2-06

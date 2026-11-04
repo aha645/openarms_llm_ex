@@ -74,6 +74,8 @@ class RobotSkills(Node):
         # 이름 자세(home/ready/carry/hands_up)를 읽을 SRDF. 다른 하반신(예: tron1_openarm)은 환경 변수로 자기 SRDF 를 지정
         srdf = os.environ.get("OPENARM_SRDF") or os.path.join(mv_share, "config", "mobile_openarm.srdf")
         self.named_states = self._load_srdf_states(srdf)
+        # 옆걸음이 되는 하반신(이족 tron1_openarm)이면 1. 바퀴형은 설정하지 않음 → 기존 동작 그대로
+        self.can_strafe = os.environ.get("OPENARM_BIPED", "0") == "1"
 
         cb = ReentrantCallbackGroup()
         self.cb = cb
@@ -262,6 +264,27 @@ class RobotSkills(Node):
             time.sleep(0.05)
         self.cmd_pub.publish(Twist())
         time.sleep(0.5)
+
+    def strafe_base(self, dy, speed=0.08, timeout=15.0):
+        """옆걸음 (+왼쪽). 이족(OPENARM_BIPED=1)만 가능 — 바퀴형(차동 구동)은 옆으로 못 간다. odom TF 폐루프."""
+        dy = float(np.clip(dy, -0.25, 0.25))
+        if not self.can_strafe or abs(dy) < 0.01:
+            return
+        self.log(f"[base] 옆걸음 {dy:+.2f} m")
+        p0 = self.robot_pose("odom")
+        msg = Twist()
+        t0 = time.time()
+        while time.time() - t0 < timeout:
+            p = self.robot_pose("odom")
+            moved = 0.0 if (p is None or p0 is None) else math.hypot(p[0] - p0[0], p[1] - p0[1])
+            remain = abs(dy) - moved
+            if remain < 0.005:
+                break
+            msg.linear.y = math.copysign(max(0.02, min(speed, remain * 1.5)), dy)
+            self.cmd_pub.publish(msg)
+            time.sleep(0.05)
+        self.cmd_pub.publish(Twist())
+        time.sleep(0.8)
 
     def rotate_base(self, dyaw, speed=0.3, timeout=20.0):
         """제자리 회전 (odom TF 폐루프)."""
@@ -535,6 +558,11 @@ class RobotSkills(Node):
     # approach_rotation(roll=0) 에서 손가락이 닫히는 축(TCP y)은 '위-아래' 방향 → roll ±70~90 이 손가락을 수평으로 만들어
     # 상자 옆면을 잡는다. MuJoCo 오프라인 실험: ±70 이 가장 안정(상자 밀림 1~2cm), 0 은 모서리 집기라 밀림 3~4cm, ±20 은 놓침.
     ROLL_CANDIDATES = [70, -70, 90, -90, 50, -50, 0]
+    # 이족 전용: 상자가 옆으로 이만큼 넘게 치우쳐 있으면 옆걸음으로 LATERAL_IDEAL 에 맞춘다.
+    # 바퀴형 도킹에서 상자는 보통 팔 쪽으로 0.10~0.15 m. 이족은 AMCL 옆 오차(±0.15 m)로 0.27~0.31 m 가 되어
+    # 직선 접근이 64% 에서 막혔다 (실험). 바퀴형은 옆으로 못 가므로 이 단계를 건너뛴다.
+    LATERAL_OK = 0.18
+    LATERAL_IDEAL = 0.12
 
     def _solve_approach(self, side, target, back=0.10):
         """접근 자세 후보(roll)들 중 IK 가 풀리는 것을 찾는다 → (R, pre_pos)."""
@@ -565,10 +593,19 @@ class RobotSkills(Node):
             self.set_table()
             center = self.find_marker(mid) - np.array([0, 0, self.box_size / 2])
             self.log(f"[pick] 보정 후 상자 위치 base {np.round(center, 3)}")
+        if self.can_strafe and abs(center[1]) > self.LATERAL_OK:
+            self.strafe_base(center[1] - math.copysign(self.LATERAL_IDEAL, center[1]))
+            self.set_table()
+            center = self.find_marker(mid) - np.array([0, 0, self.box_size / 2])
+            self.log(f"[pick] 옆걸음 후 상자 위치 base {np.round(center, 3)}")
         for attempt in (1, 2):
             self.open_gripper(side)
             # 몸 쪽 carry 자세에서 출발 → 접근점까지의 경로가 상자들 위쪽으로 지나감
             self.move_named(f"{side}_arm", "carry")
+            if self.can_strafe:
+                # 이족은 팔을 움직이는 동안에도 제자리 걸음으로 몸이 1~3 cm 움직인다 → 접근 직전에 다시 잰다
+                self.set_table()
+                center = self.find_marker(mid) - np.array([0, 0, self.box_size / 2])
             self.set_boxes()                                   # 계획 중에는 모든 상자가 장애물
             R, pre, q_pre = self._solve_approach(side, center)
             self.move_joints(f"{side}_arm", q_pre)
