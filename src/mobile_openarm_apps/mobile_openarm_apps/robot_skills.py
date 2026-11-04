@@ -599,6 +599,11 @@ class RobotSkills(Node):
         req.avoid_collisions = True
         return self._call(self.cart_srv, req, "compute_cartesian_path(검사)").fraction
 
+    def _need_fraction(self, back):
+        """직선 접근에서 최소한 상자 중심 + 1 cm 까지는 가야 한다 → 필요한 경로 비율.
+        GRASP_DEPTH 가 1 cm(바퀴형)면 0.95 이상 그대로, 이족처럼 더 깊이 넣으라고 한 몫은 다 못 가도 된다."""
+        return min(0.95, (back + 0.01) / (back + self.GRASP_DEPTH))
+
     def _solve_approach(self, side, target, back=0.10, exclude_id=None):
         """접근 자세 후보(roll × 물러선 거리)들 중 '접근점 IK + 목표 IK + 접근점→목표 직선 경로' 가 모두 되는 것 → (R, pre, q_pre).
         직선 경로까지 미리 검사하는 이유: 두 끝점의 IK 가 풀려도 중간에 관절 한계에 걸려 직선이 끊길 수 있다
@@ -624,7 +629,7 @@ class RobotSkills(Node):
                     if q_pre is None:
                         continue
                     f = self._cart_fraction(side, q_pre, R, target + R[:, 2] * self.GRASP_DEPTH)
-                    if f >= 0.95:
+                    if f >= self._need_fraction(b):
                         self.log(f"[ik] {side} 접근 자세 pitch={pitch:.0f}° roll={roll}°, {b * 100:.0f} cm 앞에서 직선 접근")
                         return R, pre, q_pre
                     if best is None or f > best[0]:
@@ -681,7 +686,8 @@ class RobotSkills(Node):
                 except SkillError:
                     pass                                       # 팔이 마커를 가리면 이전 측정값 사용
             self.set_boxes(exclude_id=mid)                     # 직선 접근 전에 목표 상자만 제거
-            self.cartesian(side, [center + R[:, 2] * self.GRASP_DEPTH], R)   # 1cm 더 깊이: 상자가 손가락 안쪽에 오도록
+            self.cartesian(side, [center + R[:, 2] * self.GRASP_DEPTH], R,   # 더 깊이: 상자가 손가락 안쪽에 오도록
+                           min_fraction=self._need_fraction(float(np.linalg.norm(center - pre))))
             self.close_gripper(side)
             time.sleep(0.5)
             # 파지 확인: 손가락이 끝까지 닫혔으면(물체 없음) 실패 — 실로봇에서도 같은 방법으로 판정
