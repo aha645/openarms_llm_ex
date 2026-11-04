@@ -29,7 +29,7 @@ ARM_POSES = {   # SRDF(mobile_openarm_moveit_config) 의 이름 자세 — DAY2 
     "hands_up": ([0, 0, 0, 2.0, 0, 0, 0], [0, 0, 0, 2.0, 0, 0, 0]),
 }
 REWARD_SCALES = dict(
-    keep_balance=1.0, tracking_lin_vel=1.5, tracking_ang_vel=0.75, base_height=-20.0, lin_vel_z=-0.5,
+    keep_balance=1.0, tracking_lin_vel=3.0, tracking_ang_vel=1.5, base_height=-20.0, lin_vel_z=-0.5,
     ang_vel_xy=-0.05, torques=-8e-5, action_rate=-0.01, action_smooth=-0.01, orientation=-10.0,
     dof_pos_limits=-2.0, feet_distance=-100.0, contact_force=-2.0, contact_vel=-2.0, termination=-20.0)
 
@@ -326,8 +326,8 @@ class Tron1OpenArmEnv:
         lo, hi = self.jrange[:, 0] * 0.95, self.jrange[:, 1] * 0.95
         t = dict(
             keep_balance=np.ones(self.N),
-            tracking_lin_vel=np.exp(-np.sum((self.cmd[:, :2] - lin[:, :2]) ** 2, 1) / 0.2),
-            tracking_ang_vel=np.exp(-(self.cmd[:, 2] - gyro[:, 2]) ** 2 / 0.25),
+            tracking_lin_vel=np.exp(-np.sum((self.cmd[:, :2] - lin[:, :2]) ** 2, 1) / 0.05),   # LimX 0.2 → 0.05: 옆 흐름·속도 부족을 더 강하게
+            tracking_ang_vel=np.exp(-(self.cmd[:, 2] - gyro[:, 2]) ** 2 / 0.1),
             base_height=(h - BASE_HEIGHT_TARGET) ** 2,
             lin_vel_z=lin[:, 2] ** 2,
             ang_vel_xy=np.sum(gyro[:, :2] ** 2, 1),

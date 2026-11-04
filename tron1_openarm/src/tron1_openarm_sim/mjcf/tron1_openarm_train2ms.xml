@@ -1,0 +1,329 @@
+<!-- 자동 생성 파일: tron1_openarm/src/tron1_openarm_sim/tools/build_tron1_openarm.py
+     하반신: LimX TRON1 PF_TRON1A (tron1-robot-description, Apache-2.0) xacro → URDF → MJCF
+     상반신: enactic/openarm_mujoco v1 (Apache-2.0), 기둥만 짧게 교체 -->
+<mujoco model="tron1_openarm">
+  <option timestep="0.002" integrator="implicitfast" />
+  <default>
+    <joint stiffness="0" ref="0.0" />
+    <default class="robot">
+      <default class="motor_DM8009">
+        <joint frictionloss="0.1" damping="1.0" armature="0.016" limited="true" type="hinge" />
+        <position forcelimited="true" forcerange="-40 40" ctrllimited="true" />
+      </default>
+      <default class="motor_DM4340">
+        <joint frictionloss="0.1" damping="0.9" armature="0.030" limited="true" type="hinge" />
+        <position forcelimited="true" forcerange="-27 27" ctrllimited="true" />
+      </default>
+      <default class="motor_DM4310">
+        <joint frictionloss="0.1" damping="0.9" armature="0.002" limited="true" type="hinge" />
+        <position forcelimited="true" forcerange="-7 7" ctrllimited="true" />
+      </default>
+      <default class="motor_finger">
+        <joint type="slide" limited="true" damping="9" frictionloss="0" armature="0.566" />
+        <position forcelimited="true" forcerange="-150.75 150.75" ctrllimited="true" ctrlrange="-0.005 0.044" />
+      </default>
+      <default class="collision">
+        <geom material="matte_black" condim="3" conaffinity="0" priority="1" group="2" solref="0.005 1" friction="1 0.01 0.01" contype="0" />
+        <equality solimp="0.99 0.999 1e-05" solref="0.005 1" />
+      </default>
+      <default class="visual">
+        <geom material="visualgeom" contype="0" conaffinity="0" group="2" />
+      </default>
+    </default>
+  </default>
+  <compiler angle="radian" meshdir="meshes" />
+  <asset>
+    <material name="default_material" rgba="0.7 0.7 0.7 1" />
+    <material name="collision_material" rgba="1.0 0.28 0.1 0.9" />
+    <mesh name="link0_collision" file="collision/arm/link0.stl" scale="0.001 0.001 0.001" />
+    <mesh name="link0_collision_left" file="collision/arm/link0_left.stl" scale="0.001 0.001 0.001" />
+    <mesh name="link1_collision" file="collision/arm/link1.stl" scale="0.001 0.001 0.001" />
+    <mesh name="link1_collision_left" file="collision/arm/link1_left.stl" scale="0.001 0.001 0.001" />
+    <mesh name="link2_collision" file="collision/arm/link2.stl" scale="0.001 0.001 0.001" />
+    <mesh name="link2_collision_left" file="collision/arm/link2_left.stl" scale="0.001 0.001 0.001" />
+    <mesh name="link3_collision" file="collision/arm/link3.stl" scale="0.001 0.001 0.001" />
+    <mesh name="link4_collision" file="collision/arm/link4.stl" scale="0.001 0.001 0.001" />
+    <mesh name="link5_collision" file="collision/arm/link5.stl" scale="0.001 0.001 0.001" />
+    <mesh name="link5_collision_left" file="collision/arm/link5_left.stl" scale="0.001 0.001 0.001" />
+    <mesh name="link6_collision" file="collision/arm/link6.stl" scale="0.001 0.001 0.001" />
+    <mesh name="link6_collision_left" file="collision/arm/link6_left.stl" scale="0.001 0.001 0.001" />
+    <mesh name="link7_collision" file="collision/arm/link7.stl" scale="0.001 0.001 0.001" />
+    <mesh name="link7_collision_left" file="collision/arm/link7_left.stl" scale="0.001 0.001 0.001" />
+    <mesh name="hand_collision" file="collision/gripper/hand.stl" scale="0.001 0.001 0.001" />
+    <mesh name="finger_collision" file="collision/gripper/finger.stl" scale="0.001 0.001 0.001" />
+    <material name="matte_black" rgba="0.24705882 0.24705882 0.24705882 1.0" reflectance="0.05098039000000001" shininess="0.5" />
+    <material name="metal_silver" rgba="0.79607843 0.79607843 0.79607843 1.0" reflectance="1.0" shininess="1.0" />
+    </asset>
+  <worldbody>
+    <light directional="true" pos="0 0 3" dir="0 0 -1" diffuse="0.6 0.6 0.6" />
+    <body name="base_link" pos="0 0 0.71">
+      <freejoint name="base_free" />
+      <geom name="base_collision" size="0.135 0.13 0.095" pos="0.03 0 -0.072" type="box" rgba="0.75 0.78 0.9 1" group="2" contype="1" conaffinity="1" />
+      <inertial pos="0.04576 0.00014 -0.16398" quat="0.972485 -0.00621822 -0.232848 0.0039652" mass="9.585" diaginertia="0.154432 0.110639 0.0846249" />
+      <body name="imu_Link">
+        <inertial pos="0 0 0" mass="0.001" diaginertia="0.0001 0.0001 0.0001" />
+      </body>
+      <body name="abad_L_Link" pos="0.05556 0.105 -0.2602">
+        <geom name="abad_L_collision" type="cylinder" pos="-0.08 0 0" euler="1.57 0 0" size="0.05 0.025" rgba="0.75 0.78 0.9 1" group="2" contype="1" conaffinity="1" />
+        <inertial pos="-0.06977 0.04479 0.00057" quat="0.595024 0.579772 0.394141 0.393019" mass="1.469" diaginertia="0.00252289 0.00208104 0.00139163" />
+        <joint name="abad_L_joint" pos="0 0 0" axis="1 0 0" range="-0.383972 1.39626" actuatorfrcrange="-80 80" armature="0.01" damping="0.01" />
+        <body name="hip_L_Link" pos="-0.077 0.0205 0">
+          <geom name="hip_L_collision" type="cylinder" pos="-0.1 -0.02 -0.14" euler="0 0.53 0" size="0.035 0.09" rgba="0.75 0.78 0.9 1" group="2" contype="1" conaffinity="1" />
+          <inertial pos="-0.02869 -0.0477 -0.03992" quat="0.853885 0.192797 0.226903 0.426877" mass="2.3" diaginertia="0.0233264 0.0230229 0.00277548" />
+          <joint name="hip_L_joint" pos="0 0 0" axis="0 1 0" range="-1.01229 1.39626" actuatorfrcrange="-80 80" armature="0.01" damping="0.01" />
+          <body name="knee_L_Link" pos="-0.15 -0.0205 -0.25981">
+            <geom name="knee_L_collision" type="cylinder" pos="0.078 0 -0.12" euler="0 -0.55 0" size="0.015 0.13" rgba="0.75 0.78 0.9 1" group="2" contype="1" conaffinity="1" />
+            <inertial pos="0.05168 0.00152 -0.08148" quat="0.668191 -0.202995 -0.19946 0.687408" mass="0.55" diaginertia="0.00419956 0.00414131 0.000138393" />
+            <joint name="knee_L_joint" pos="0 0 0" axis="0 -1 0" range="-0.872665 1.36136" actuatorfrcrange="-80 80" armature="0.01" damping="0.01" />
+            <body name="foot_L_Link" pos="0.145 0 -0.2598">
+              <inertial pos="-0.00129 -1e-05 0.00568" quat="0.689436 -0.0830159 -0.0800204 0.715111" mass="0.18" diaginertia="9.99215e-05 9.87928e-05 7.33657e-05" />
+              <geom size="0.032" rgba="0.2 0.2 0.2 1" name="foot_L_collision" friction="0.8 0.005 0.0001" condim="3" group="3" />
+              <site name="foot_L_site" pos="0 0 0" size="0.045" group="4" />
+            </body>
+          </body>
+        </body>
+      </body>
+      <body name="abad_R_Link" pos="0.05556 -0.105 -0.2602">
+        <geom name="abad_R_collision" type="cylinder" pos="-0.08 0 0" euler="1.57 0 0" size="0.05 0.025" rgba="0.75 0.78 0.9 1" group="2" contype="1" conaffinity="1" />
+        <inertial pos="-0.06977 -0.04479 0.00057" quat="0.393019 0.394141 0.579772 0.595024" mass="1.469" diaginertia="0.00252289 0.00208104 0.00139163" />
+        <joint name="abad_R_joint" pos="0 0 0" axis="1 0 0" range="-1.39626 0.383972" actuatorfrcrange="-80 80" armature="0.01" damping="0.01" />
+        <body name="hip_R_Link" pos="-0.077 -0.0205 0">
+          <geom name="hip_R_collision" type="cylinder" pos="-0.10 0.025 -0.14" euler="0 0.53 0" size="0.035 0.09" rgba="0.75 0.78 0.9 1" group="2" contype="1" conaffinity="1" />
+          <inertial pos="-0.02869 0.0477 -0.03992" quat="0.426877 0.226903 0.192797 0.853885" mass="2.3" diaginertia="0.0233264 0.0230229 0.00277548" />
+          <joint name="hip_R_joint" pos="0 0 0" axis="0 -1 0" range="-1.39626 1.01229" actuatorfrcrange="-80 80" armature="0.01" damping="0.01" />
+          <body name="knee_R_Link" pos="-0.15 0.0205 -0.25981">
+            <geom name="knee_R_collision" type="cylinder" pos="0.078 0 -0.12" euler="0 -0.55 0" size="0.015 0.13" rgba="0.75 0.78 0.9 1" group="2" contype="1" conaffinity="1" />
+            <inertial pos="0.05168 -0.00152 -0.08148" quat="0.687408 -0.19946 -0.202995 0.668191" mass="0.55" diaginertia="0.00419956 0.00414131 0.000138393" />
+            <joint name="knee_R_joint" pos="0 0 0" axis="0 1 0" range="-1.36136 0.872665" actuatorfrcrange="-80 80" armature="0.01" damping="0.01" />
+            <body name="foot_R_Link" pos="0.145 0 -0.2598">
+              <inertial pos="-0.00129 1e-05 0.00568" quat="0.715111 -0.0800204 -0.0830159 0.689436" mass="0.18" diaginertia="9.99215e-05 9.87928e-05 7.33657e-05" />
+              <geom size="0.032" rgba="0.2 0.2 0.2 1" name="foot_R_collision" friction="0.8 0.005 0.0001" condim="3" group="3" />
+              <site name="foot_R_site" pos="0 0 0" size="0.045" group="4" />
+            </body>
+          </body>
+        </body>
+      </body>
+      <body name="openarm_mount_link" pos="0 0 0.03">
+        <inertial pos="0 0 0" quat="0.5 0.5 -0.5 0.5" mass="0.6" diaginertia="0.00488 0.0028898 0.0020098" />
+        <body name="openarm_body_link0" pos="0 0 -0.408" quat="1.0 0.0 0.0 0.0">
+          <site name="arm_origin" pos="0 0 0.697" size="0.02" rgba="1 0.8 0 1" group="4" />
+          <inertial pos="-0.005 0 0.644801" quat="1.0 0.0 0.0 0.0" mass="2.2140" diaginertia="0.0322152 0.0322152 0.006" />
+          <body name="openarm_left_link0" pos="0.0 0.030 0.697" quat="0.7071054825112363 -0.7071080798594735 0.0 0.0">
+            <inertial pos="-0.0009483362816297526 -0.0001580207020448382 0.03076860287587199" mass="1.1432284943239561" fullinertia="0.001128 0.000962 0.00147 4e-06 -3.3e-05 7e-06" />
+            <geom name="openarm_left_link0_collision" pos="0.0 0.0 0.0" quat="1.0 0.0 0.0 0.0" type="mesh" mesh="link0_collision_left" class="collision" contype="0" conaffinity="0" />
+            <body name="openarm_left_link1" pos="0.0 0.0 0.0625" quat="1.0 0.0 0.0 0.0">
+              <joint name="openarm_left_joint1" type="hinge" ref="0.0" class="motor_DM8009" range="-3.490659 1.3962629999999998" axis="0 0 1" />
+              <inertial pos="0.0011467657911800769 -3.319987657026362e-05 0.05395284380736254" mass="1.1416684646202298" fullinertia="0.001567 0.001273 0.001016 1e-06 -2.9e-05 -1e-06" />
+              <geom name="openarm_left_link1_collision" pos="-0.0 0.0 -0.0625" quat="1.0 0.0 0.0 0.0" type="mesh" mesh="link1_collision_left" class="collision" contype="0" conaffinity="0" />
+              <body name="openarm_left_link2" pos="-0.0301 0.0 0.06" quat="0.7071067811882787 -0.7071067811848163 0.0 0.0">
+                <joint name="openarm_left_joint2" type="hinge" ref="0.0" class="motor_DM8009" range="-3.3161253267948965 0.17453267320510335" axis="-1 0 0" />
+                <inertial pos="0.00839629182351943 2.0145102027597523e-08 0.03256649300522363" mass="0.2775092746011571" fullinertia="0.000359 0.000376 0.000232 -1e-06 -0.000109 -1e-06" />
+                <geom name="openarm_left_link2_collision" pos="0.0301 0.0 -0.1225" quat="1.0 0.0 0.0 0.0" type="mesh" mesh="link2_collision_left" class="collision" contype="0" conaffinity="0" />
+                <body name="openarm_left_link3" pos="0.0301 0.0 0.06625" quat="1.0 0.0 0.0 0.0">
+                  <joint name="openarm_left_joint3" type="hinge" ref="0.0" class="motor_DM4340" range="-1.570796 1.570796" axis="0 0 1" />
+                  <inertial pos="-0.002104752099628911 0.0005549085042607548 0.09047470545721961" mass="1.073863338202347" fullinertia="0.004372 0.004319 0.000661 1e-06 1.1e-05 -3.6e-05" />
+                  <geom name="openarm_left_link3_collision" pos="-0.0 -0.0 -0.18875" quat="1.0 0.0 0.0 0.0" type="mesh" mesh="link3_collision" class="collision" contype="0" conaffinity="0" />
+                  <body name="openarm_left_link4" pos="-0.0 0.0315 0.15375" quat="1.0 0.0 0.0 0.0">
+                    <joint name="openarm_left_joint4" type="hinge" ref="0.0" class="motor_DM4340" range="0.0 2.443461" axis="0 1 0" />
+                    <inertial pos="-0.0029006831074562967 -0.03030575826634669 0.06339637422196209" mass="0.6348534566833373" fullinertia="0.000623 0.000511 0.000334 -1e-06 -1.9e-05 3.8e-05" />
+                    <geom name="openarm_left_link4_collision" pos="0.0 -0.0315 -0.3425" quat="1.0 0.0 0.0 0.0" type="mesh" mesh="link4_collision" class="collision" contype="0" conaffinity="0" />
+                    <body name="openarm_left_link5" pos="0.0 -0.0315 0.0955" quat="1.0 0.0 0.0 0.0">
+                      <joint name="openarm_left_joint5" type="hinge" ref="0.0" class="motor_DM4310" range="-1.570796 1.570796" axis="0 0 1" />
+                      <inertial pos="-0.003049665024221911 -0.0008866902457326625 0.043079803024980934" mass="0.6156588026168502" fullinertia="0.000423 0.000445 0.000324 8e-06 6e-06 6e-06" />
+                      <geom name="openarm_left_link5_collision" pos="-0.0 -0.0 -0.438" quat="1.0 0.0 0.0 0.0" type="mesh" mesh="link5_collision_left" class="collision" contype="0" conaffinity="0" />
+                      <body name="openarm_left_link6" pos="0.0375 0.0 0.1205" quat="1.0 0.0 0.0 0.0">
+                        <joint name="openarm_left_joint6" type="hinge" ref="0.0" class="motor_DM4310" range="-0.785398 0.785398" axis="1 0 0" />
+                        <inertial pos="-0.037136587005447405 -0.00033230528343419053 -9.498374522309838e-05" mass="0.475202773187987" fullinertia="0.000143 0.000157 0.000159 -1e-06 1e-06 -1e-06" />
+                        <geom name="openarm_left_link6_collision" pos="-0.0375 -0.0 -0.5585" quat="1.0 0.0 0.0 0.0" type="mesh" mesh="link6_collision_left" class="collision" contype="0" conaffinity="0" />
+                        <body name="openarm_left_link7" pos="-0.0375 0.0 0.0" quat="1.0 0.0 0.0 0.0">
+                          <joint name="openarm_left_joint7" type="hinge" ref="0.0" class="motor_DM4310" range="-1.570796 1.570796" axis="0 -1 0" />
+                          <inertial pos="-9.897454675528511e-05 -0.003372444724450437 0.06138919729233123" mass="0.4054971268153967" fullinertia="0.0003637830920674498 0.0003351190950225729 0.0001865112723189818 0 0 -7.094884219324384e-05" />
+                          <geom name="openarm_left_link7_collision" pos="0.0 -0.0 -0.5585" quat="1.0 0.0 0.0 0.0" type="mesh" mesh="link7_collision_left" class="collision" contype="0" conaffinity="0" />
+                          <site name="left_ee_control_point" pos="0 0 0" quat="0 1 0 0" size="0.01" rgba="0 1 0 1" />
+                          <body name="openarm_left_hand" pos="0 0 0.1001">
+                            <inertial pos="0 0 0.005122940871819574" mass="0.1723111736408497" fullinertia="0.000250930641371331 5.560627616753029e-05 0.0002906093338421478 1.18380219510342e-05 0 0" />
+                            <geom name="openarm_left_hand_collision" pos="0 0 -0.6586" quat="1.0 0.0 0.0 0.0" type="mesh" mesh="hand_collision" class="collision" contype="0" conaffinity="0" />
+                            <body name="openarm_left_hand_tcp" pos="0 0 0.09" quat="1.0 0.0 0.0 0.0" />
+                            <body name="openarm_left_right_finger" pos="0 -0.005 0.015" quat="1.0 0.0 0.0 0.0">
+                              <joint name="openarm_left_finger_joint1" type="slide" ref="0.0" class="motor_finger" range="0.0 0.044" axis="0 -1 0" />
+                              <inertial pos="0.004646697332048465 -0.01217890651468325 0.01335289447269551" mass="0.07444998664008126" fullinertia="3.284268617249738e-05 4.17523619254798e-05 1.882116318207188e-05 -4.813534779503441e-07 4.110240982958172e-06 -3.504307786795564e-06" />
+                              <geom name="openarm_left_right_finger_collision" pos="0.0 0.05 -0.673001" quat="0 0 0 1" type="mesh" mesh="finger_collision" class="collision" contype="0" conaffinity="0" />
+                              </body>
+                            <body name="openarm_left_left_finger" pos="0 0.005 0.015" quat="1.0 0.0 0.0 0.0">
+                              <joint name="openarm_left_finger_joint2" type="slide" ref="0.0" class="motor_finger" range="0.0 0.044" axis="0 1 0" />
+                              <inertial pos="-0.004646697332048465 0.01217890651468325 0.01335289447269551" mass="0.07444998664008126" fullinertia="3.284268617249738e-05 4.17523619254798e-05 1.882116318207188e-05 -4.813534779503441e-07 -4.110240982958172e-06 3.504307786795564e-06" />
+                              <geom name="openarm_left_left_finger_collision" pos="0.0 -0.05 -0.673001" quat="1.0 0.0 0.0 0.0" type="mesh" mesh="finger_collision" class="collision" contype="0" conaffinity="0" />
+                              </body>
+                          </body>
+                        </body>
+                      </body>
+                    </body>
+                  </body>
+                </body>
+              </body>
+            </body>
+          </body>
+          <body name="openarm_right_link0" pos="0.0 -0.030 0.697" quat="0.7071054825112363 0.7071080798594735 0.0 0.0">
+            <inertial pos="-0.0009483362816297526 0.0001580207020448382 0.03076860287587199" mass="1.1432284943239561" fullinertia="0.001128 0.000962 0.00147 -4e-06 -3.3e-05 -7e-06" />
+            <geom name="openarm_right_link0_collision" pos="0.0 0.0 0.0" quat="1.0 0.0 0.0 0.0" type="mesh" mesh="link0_collision" class="collision" contype="0" conaffinity="0" />
+            <body name="openarm_right_link1" pos="0.0 0.0 0.0625" quat="1.0 0.0 0.0 0.0">
+              <joint name="openarm_right_joint1" type="hinge" ref="0.0" class="motor_DM8009" range="-1.396263 3.490659" axis="0 0 1" />
+              <inertial pos="0.0011467657911800769 3.319987657026362e-05 0.05395284380736254" mass="1.1416684646202298" fullinertia="0.001567 0.001273 0.001016 -1e-06 -2.9e-05 1e-06" />
+              <geom name="openarm_right_link1_collision" pos="-0.0 0.0 -0.0625" quat="1.0 0.0 0.0 0.0" type="mesh" mesh="link1_collision" class="collision" contype="0" conaffinity="0" />
+              <body name="openarm_right_link2" pos="-0.0301 0.0 0.06" quat="0.7071067811882787 0.7071067811848163 0.0 0.0">
+                <joint name="openarm_right_joint2" type="hinge" ref="0.0" class="motor_DM8009" range="-0.17453267320510335 3.3161253267948965" axis="-1 0 0" />
+                <inertial pos="0.00839629182351943 -2.0145102027597523e-08 0.03256649300522363" mass="0.2775092746011571" fullinertia="0.000359 0.000376 0.000232 1e-06 -0.000109 1e-06" />
+                <geom name="openarm_right_link2_collision" pos="0.0301 0.0 -0.1225" quat="1.0 0.0 0.0 0.0" type="mesh" mesh="link2_collision" class="collision" contype="0" conaffinity="0" />
+                <body name="openarm_right_link3" pos="0.0301 0.0 0.06625" quat="1.0 0.0 0.0 0.0">
+                  <joint name="openarm_right_joint3" type="hinge" ref="0.0" class="motor_DM4340" range="-1.570796 1.570796" axis="0 0 1" />
+                  <inertial pos="-0.002104752099628911 0.0005549085042607548 0.09047470545721961" mass="1.073863338202347" fullinertia="0.004372 0.004319 0.000661 1e-06 1.1e-05 -3.6e-05" />
+                  <geom name="openarm_right_link3_collision" pos="-0.0 -0.0 -0.18875" quat="1.0 0.0 0.0 0.0" type="mesh" mesh="link3_collision" class="collision" contype="0" conaffinity="0" />
+                  <body name="openarm_right_link4" pos="-0.0 0.0315 0.15375" quat="1.0 0.0 0.0 0.0">
+                    <joint name="openarm_right_joint4" type="hinge" ref="0.0" class="motor_DM4340" range="0.0 2.443461" axis="0 1 0" />
+                    <inertial pos="-0.0029006831074562967 -0.03030575826634669 0.06339637422196209" mass="0.6348534566833373" fullinertia="0.000623 0.000511 0.000334 -1e-06 -1.9e-05 3.8e-05" />
+                    <geom name="openarm_right_link4_collision" pos="0.0 -0.0315 -0.3425" quat="1.0 0.0 0.0 0.0" type="mesh" mesh="link4_collision" class="collision" contype="0" conaffinity="0" />
+                    <body name="openarm_right_link5" pos="0.0 -0.0315 0.0955" quat="1.0 0.0 0.0 0.0">
+                      <joint name="openarm_right_joint5" type="hinge" ref="0.0" class="motor_DM4310" range="-1.570796 1.570796" axis="0 0 1" />
+                      <inertial pos="-0.003049665024221911 0.0008866902457326625 0.043079803024980934" mass="0.6156588026168502" fullinertia="0.000423 0.000445 0.000324 -8e-06 6e-06 -6e-06" />
+                      <geom name="openarm_right_link5_collision" pos="-0.0 -0.0 -0.438" quat="1.0 0.0 0.0 0.0" type="mesh" mesh="link5_collision" class="collision" contype="0" conaffinity="0" />
+                      <body name="openarm_right_link6" pos="0.0375 0.0 0.1205" quat="1.0 0.0 0.0 0.0">
+                        <joint name="openarm_right_joint6" type="hinge" ref="0.0" class="motor_DM4310" range="-0.785398 0.785398" axis="1 0 0" />
+                        <inertial pos="-0.037136587005447405 0.00033230528343419053 -9.498374522309838e-05" mass="0.475202773187987" fullinertia="0.000143 0.000157 0.000159 1e-06 1e-06 1e-06" />
+                        <geom name="openarm_right_link6_collision" pos="-0.0375 -0.0 -0.5585" quat="1.0 0.0 0.0 0.0" type="mesh" mesh="link6_collision" class="collision" contype="0" conaffinity="0" />
+                        <body name="openarm_right_link7" pos="-0.0375 0.0 0.0" quat="1.0 0.0 0.0 0.0">
+                          <joint name="openarm_right_joint7" type="hinge" ref="0.0" class="motor_DM4310" range="-1.570796 1.570796" axis="0 1 0" />
+                          <inertial pos="-9.897454675528511e-05 0.003372444724450437 0.06138919729233123" mass="0.4054971268153967" fullinertia="0.0003637830920674498 0.0003351190950225729 0.0001865112723189818 0 0 7.094884219324384e-05" />
+                          <geom name="openarm_right_link7_collision" pos="0.0 -0.0 -0.5585" quat="1.0 0.0 0.0 0.0" type="mesh" mesh="link7_collision" class="collision" contype="0" conaffinity="0" />
+                          <site name="right_ee_control_point" pos="0 0 0" quat="0 1 0 0" size="0.01" rgba="1 0 0 1" />
+                          <body name="openarm_right_hand" pos="0 0 0.1001">
+                            <inertial pos="0 0 0.005122940871819574" mass="0.1723111736408497" fullinertia="0.000250930641371331 5.560627616753029e-05 0.0002906093338421478 1.18380219510342e-05 0 0" />
+                            <geom name="openarm_right_hand_collision" pos="0 0 -0.6586" quat="1.0 0.0 0.0 0.0" type="mesh" mesh="hand_collision" class="collision" contype="0" conaffinity="0" />
+                            <body name="openarm_right_hand_tcp" pos="0 0 0.09" quat="1.0 0.0 0.0 0.0" />
+                            <body name="openarm_right_right_finger" pos="0 -0.005 0.015" quat="1.0 0.0 0.0 0.0">
+                              <joint name="openarm_right_finger_joint1" type="slide" ref="0.0" class="motor_finger" range="0.0 0.044" axis="0 -1 0" />
+                              <inertial pos="0.004646697332048465 -0.01217890651468325 0.01335289447269551" mass="0.07444998664008126" fullinertia="3.284268617249738e-05 4.17523619254798e-05 1.882116318207188e-05 -4.813534779503441e-07 4.110240982958172e-06 -3.504307786795564e-06" />
+                              <geom name="openarm_right_right_finger_collision" pos="0.0 0.05 -0.673001" quat="0 0 0 1" type="mesh" mesh="finger_collision" class="collision" contype="0" conaffinity="0" />
+                              </body>
+                            <body name="openarm_right_left_finger" pos="0 0.005 0.015" quat="1.0 0.0 0.0 0.0">
+                              <joint name="openarm_right_finger_joint2" type="slide" ref="0.0" class="motor_finger" range="0.0 0.044" axis="0 1 0" />
+                              <inertial pos="-0.004646697332048465 0.01217890651468325 0.01335289447269551" mass="0.07444998664008126" fullinertia="3.284268617249738e-05 4.17523619254798e-05 1.882116318207188e-05 -4.813534779503441e-07 -4.110240982958172e-06 3.504307786795564e-06" />
+                              <geom name="openarm_right_left_finger_collision" pos="0.0 -0.05 -0.673001" quat="1.0 0.0 0.0 0.0" type="mesh" mesh="finger_collision" class="collision" contype="0" conaffinity="0" />
+                              </body>
+                          </body>
+                        </body>
+                      </body>
+                    </body>
+                  </body>
+                </body>
+              </body>
+            </body>
+          </body>
+          <geom name="openarm_column_collision" type="box" size="0.03 0.03 0.1735" pos="0 0 0.5885" group="2" rgba="0.75 0.78 0.9 1" contype="0" conaffinity="0" />
+          <geom name="openarm_column_vis" type="box" size="0.03 0.03 0.1735" pos="0 0 0.5885" material="matte_black" contype="0" conaffinity="0" group="2" mass="0" />
+          <geom name="openarm_shoulder_bracket_vis" type="box" size="0.05 0.11 0.035" pos="0 0 0.727" material="metal_silver" contype="0" conaffinity="0" group="2" mass="0" />
+          <camera name="head_camera" pos="0.1 0 0.86" fovy="70" xyaxes="0 -1 0 0.766044 0 0.642788" />
+          <geom name="head_camera_vis" type="box" size="0.02 0.05 0.02" pos="0.08 0 0.86" rgba="0.1 0.1 0.1 1" contype="0" conaffinity="0" group="2" mass="0" />
+          <geom name="head_mast_vis" type="cylinder" size="0.012 0.06" pos="0.05 0 0.8" rgba="0.3 0.3 0.3 1" contype="0" conaffinity="0" group="2" mass="0" />
+        </body>
+      </body>
+      <site name="imu_site" pos="0 0 0" size="0.01" group="4" />
+      <site name="lidar_site" pos="0.17 0 -0.13" size="0.02" rgba="0.1 0.1 0.1 1" group="4" />
+      <geom name="lidar_vis" type="cylinder" size="0.035 0.025" pos="0.17 0 -0.14" rgba="0.1 0.1 0.1 1" contype="0" conaffinity="0" group="2" mass="0" />
+      <geom name="lidar_bracket_vis" type="box" size="0.03 0.03 0.05" pos="0.13 0 -0.09" rgba="0.3 0.3 0.3 1" contype="0" conaffinity="0" group="2" mass="0" />
+    </body>
+  <geom name="floor" type="plane" size="0 0 0.05" rgba="0.6 0.6 0.6 1" friction="0.8 0.005 0.0001" /></worldbody>
+  <tendon>
+    <fixed name="split_right">
+      <joint joint="openarm_right_finger_joint1" coef="0.5" />
+      <joint joint="openarm_right_finger_joint2" coef="0.5" />
+    </fixed>
+    <fixed name="split_left">
+      <joint joint="openarm_left_finger_joint1" coef="0.5" />
+      <joint joint="openarm_left_finger_joint2" coef="0.5" />
+    </fixed>
+  </tendon>
+  <equality>
+    <joint joint1="openarm_right_finger_joint1" joint2="openarm_right_finger_joint2" solimp="0.95 0.99 0.001" solref="0.005 1" />
+    <joint joint1="openarm_left_finger_joint1" joint2="openarm_left_finger_joint2" solimp="0.95 0.99 0.001" solref="0.005 1" />
+  </equality>
+  <actuator>
+    <position name="left_joint1_ctrl" joint="openarm_left_joint1" class="motor_DM8009" kp="230" kv="2.7" ctrlrange="-3.490659 1.396263" />
+    <position name="left_joint2_ctrl" joint="openarm_left_joint2" class="motor_DM8009" kp="230" kv="2.7" ctrlrange="-3.3161253267948965 0.17453267320510335" />
+    <position name="left_joint3_ctrl" joint="openarm_left_joint3" class="motor_DM4340" kp="190" kv="2.2" ctrlrange="-1.570796 1.570796" />
+    <position name="left_joint4_ctrl" joint="openarm_left_joint4" class="motor_DM4340" kp="190" kv="2.2" ctrlrange="0 2.443461" />
+    <position name="left_joint5_ctrl" joint="openarm_left_joint5" class="motor_DM4310" kp="30" kv="1.5" ctrlrange="-1.570796 1.570796" />
+    <position name="left_joint6_ctrl" joint="openarm_left_joint6" class="motor_DM4310" kp="30" kv="1.5" ctrlrange="-0.785398 0.785398" />
+    <position name="left_joint7_ctrl" joint="openarm_left_joint7" class="motor_DM4310" kp="30" kv="1.5" ctrlrange="-1.570796 1.570796" />
+    <position name="left_finger1_ctrl" joint="openarm_left_finger_joint1" class="motor_finger" kp="5664" kv="113.3" />
+    <position name="right_joint1_ctrl" joint="openarm_right_joint1" class="motor_DM8009" kp="230" kv="2.7" ctrlrange="-1.396263 3.490659" />
+    <position name="right_joint2_ctrl" joint="openarm_right_joint2" class="motor_DM8009" kp="230" kv="2.7" ctrlrange="-0.17453267320510335 3.3161253267948965" />
+    <position name="right_joint3_ctrl" joint="openarm_right_joint3" class="motor_DM4340" kp="190" kv="2.2" ctrlrange="-1.570796 1.570796" />
+    <position name="right_joint4_ctrl" joint="openarm_right_joint4" class="motor_DM4340" kp="190" kv="2.2" ctrlrange="0 2.443461" />
+    <position name="right_joint5_ctrl" joint="openarm_right_joint5" class="motor_DM4310" kp="30" kv="1.5" ctrlrange="-1.570796 1.570796" />
+    <position name="right_joint6_ctrl" joint="openarm_right_joint6" class="motor_DM4310" kp="30" kv="1.5" ctrlrange="-0.785398 0.785398" />
+    <position name="right_joint7_ctrl" joint="openarm_right_joint7" class="motor_DM4310" kp="30" kv="1.5" ctrlrange="-1.570796 1.570796" />
+    <position name="right_finger1_ctrl" joint="openarm_right_finger_joint1" class="motor_finger" kp="5664" kv="113.3" />
+    <position name="abad_L_joint_ctrl" joint="abad_L_joint" kp="42" kv="3.5" forcelimited="true" forcerange="-80 80" ctrllimited="false" />
+    <position name="hip_L_joint_ctrl" joint="hip_L_joint" kp="42" kv="3.5" forcelimited="true" forcerange="-80 80" ctrllimited="false" />
+    <position name="knee_L_joint_ctrl" joint="knee_L_joint" kp="42" kv="3.5" forcelimited="true" forcerange="-80 80" ctrllimited="false" />
+    <position name="abad_R_joint_ctrl" joint="abad_R_joint" kp="42" kv="3.5" forcelimited="true" forcerange="-80 80" ctrllimited="false" />
+    <position name="hip_R_joint_ctrl" joint="hip_R_joint" kp="42" kv="3.5" forcelimited="true" forcerange="-80 80" ctrllimited="false" />
+    <position name="knee_R_joint_ctrl" joint="knee_R_joint" kp="42" kv="3.5" forcelimited="true" forcerange="-80 80" ctrllimited="false" />
+  </actuator>
+  <keyframe>
+    <key name="home" qpos="0 0 0 1.570796 0 0 0 0.044 0.044             0 0 0 1.570796 0 0 0 0.044 0.044" ctrl="0 0 0 1.570796 0 0 0 0.044             0 0 0 1.570796 0 0 0 0.044" />
+  </keyframe>
+  <contact>
+    <exclude body1="openarm_body_link0" body2="openarm_left_link0" />
+    <exclude body1="openarm_left_link0" body2="openarm_left_link1" />
+    <exclude body1="openarm_left_link0" body2="openarm_left_link2" />
+    <exclude body1="openarm_left_link0" body2="openarm_left_link3" />
+    <exclude body1="openarm_left_link1" body2="openarm_left_link2" />
+    <exclude body1="openarm_left_link1" body2="openarm_left_link3" />
+    <exclude body1="openarm_left_link2" body2="openarm_left_link3" />
+    <exclude body1="openarm_left_link3" body2="openarm_left_link4" />
+    <exclude body1="openarm_left_link4" body2="openarm_left_link5" />
+    <exclude body1="openarm_left_link5" body2="openarm_left_link6" />
+    <exclude body1="openarm_left_link5" body2="openarm_left_link7" />
+    <exclude body1="openarm_left_link6" body2="openarm_left_link7" />
+    <exclude body1="openarm_body_link0" body2="openarm_right_link0" />
+    <exclude body1="openarm_right_link0" body2="openarm_right_link1" />
+    <exclude body1="openarm_right_link0" body2="openarm_right_link2" />
+    <exclude body1="openarm_right_link0" body2="openarm_right_link3" />
+    <exclude body1="openarm_right_link1" body2="openarm_right_link2" />
+    <exclude body1="openarm_right_link1" body2="openarm_right_link3" />
+    <exclude body1="openarm_right_link2" body2="openarm_right_link3" />
+    <exclude body1="openarm_right_link3" body2="openarm_right_link4" />
+    <exclude body1="openarm_right_link4" body2="openarm_right_link5" />
+    <exclude body1="openarm_right_link5" body2="openarm_right_link6" />
+    <exclude body1="openarm_right_link5" body2="openarm_right_link7" />
+    <exclude body1="openarm_right_link6" body2="openarm_right_link7" />
+    <exclude body1="openarm_left_link7" body2="openarm_left_right_finger" />
+    <exclude body1="openarm_left_link7" body2="openarm_left_left_finger" />
+    <exclude body1="openarm_right_link7" body2="openarm_right_right_finger" />
+    <exclude body1="openarm_right_link7" body2="openarm_right_left_finger" />
+    <exclude body1="base_link" body2="openarm_mount_link" />
+    <exclude body1="base_link" body2="openarm_body_link0" />
+    <exclude body1="openarm_mount_link" body2="openarm_body_link0" />
+    <exclude body1="base_link" body2="openarm_left_link0" />
+    <exclude body1="base_link" body2="openarm_right_link0" />
+  </contact>
+  <sensor>
+    <gyro name="imu_gyro" site="imu_site" />
+    <accelerometer name="imu_acc" site="imu_site" />
+    <framequat name="imu_quat" objtype="site" objname="imu_site" />
+    <velocimeter name="base_linvel" site="imu_site" />
+    <touch name="foot_L_touch" site="foot_L_site" />
+    <framepos name="foot_L_pos" objtype="site" objname="foot_L_site" />
+    <framelinvel name="foot_L_vel" objtype="site" objname="foot_L_site" />
+    <touch name="foot_R_touch" site="foot_R_site" />
+    <framepos name="foot_R_pos" objtype="site" objname="foot_R_site" />
+    <framelinvel name="foot_R_vel" objtype="site" objname="foot_R_site" />
+    <actuatorfrc name="abad_L_joint_tau" actuator="abad_L_joint_ctrl" />
+    <actuatorfrc name="hip_L_joint_tau" actuator="hip_L_joint_ctrl" />
+    <actuatorfrc name="knee_L_joint_tau" actuator="knee_L_joint_ctrl" />
+    <actuatorfrc name="abad_R_joint_tau" actuator="abad_R_joint_ctrl" />
+    <actuatorfrc name="hip_R_joint_tau" actuator="hip_R_joint_ctrl" />
+    <actuatorfrc name="knee_R_joint_tau" actuator="knee_R_joint_ctrl" />
+  </sensor>
+</mujoco>

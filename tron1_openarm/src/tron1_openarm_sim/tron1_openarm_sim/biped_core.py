@@ -26,10 +26,13 @@ from .locomotion_policy import POLICY_DT, LocomotionPolicy
 
 NOMINAL_BASE_HEIGHT = 0.68
 SPAWN_HEIGHT = NOMINAL_BASE_HEIGHT + 0.03
+FOOT_RADIUS = 0.032            # LimX const.xacro foot_radius
 PUBLISHED_JOINTS = (ARM_JOINTS["left"] + [GRIPPER_JOINT["left"], MIMIC_JOINT["left"]]
                     + ARM_JOINTS["right"] + [GRIPPER_JOINT["right"], MIMIC_JOINT["right"]] + LEG_JOINTS)
 CMD_LIMIT = (0.5, 1.0)          # 정책이 학습한 범위 안으로 (vx m/s, wz rad/s)
 CMD_ACCEL = (0.8, 2.0)          # 명령 변화율 제한 (m/s², rad/s²) — 이족은 급가속에 약함
+HOLD_KP, HOLD_KW, HOLD_V = 1.0, 1.5, 0.15   # 제자리 유지 이득 (m/s per m, rad/s per rad), 최대 보정 속도
+HOLD_DEADBAND = (0.03, 0.05)                 # 이보다 작은 명령(m/s, rad/s)은 정지로 보고 제자리 유지
 
 
 def default_policy_path():
@@ -82,6 +85,8 @@ class BipedOpenArmSim(W.MobileOpenArmSim):
         self.gyro_adr = m.sensor_adr[m.sensor("imu_gyro").id]
         self.quat_adr = m.sensor_adr[m.sensor("imu_quat").id]
         self.fallen = False
+        self.hold_position = True      # 명령 0 일 때 제자리 유지 (False: 정책 그대로)
+        self._hold = None
 
         self._init_arms()
         self.cmd = (0.0, 0.0)
@@ -142,6 +147,7 @@ class BipedOpenArmSim(W.MobileOpenArmSim):
             self._substep = 0
             self.fallen = False
             self.cmd_eff[:] = 0
+            self._hold = None
             self._odom_reset()
 
     def reset(self, x=0.0, y=0.0, yaw=0.0):
@@ -172,10 +178,25 @@ class BipedOpenArmSim(W.MobileOpenArmSim):
                          np.array(CMD_ACCEL) * POLICY_DT)
             self.cmd_eff += dv
             d = self.d
+            vy = 0.0
+            # Nav2 는 멈춰 있을 때도 0.01~0.03 같은 아주 작은 속도를 보낸다. 정책은 그런 속도를 낼 수 없으므로(학습 때 0.05 미만은 0) 정지로 본다
+            if abs(v) < HOLD_DEADBAND[0] and abs(w) < HOLD_DEADBAND[1] and self.hold_position:
+                # 제자리 유지: Point-foot 은 명령 0 이어도 제자리 걸음을 하며 조금씩 흐른다.
+                # 명령이 0 이 된 순간의 오도메트리 자세를 기억했다가 그 자리로 되돌아가는 작은 속도를 정책에 준다.
+                if self._hold is None:
+                    self._hold = self.odom.copy()
+                ex, ey = self.odom[0] - self._hold[0], self.odom[1] - self._hold[1]
+                c, s = math.cos(self.odom[2]), math.sin(self.odom[2])
+                bx, by = c * ex + s * ey, -s * ex + c * ey            # 몸통 좌표의 위치 오차
+                eyaw = math.atan2(math.sin(self.odom[2] - self._hold[2]), math.cos(self.odom[2] - self._hold[2]))
+                self.cmd_eff[:] = [float(np.clip(-HOLD_KP * bx, -HOLD_V, HOLD_V)), float(np.clip(-HOLD_KW * eyaw, -0.3, 0.3))]
+                vy = float(np.clip(-HOLD_KP * by, -HOLD_V, HOLD_V))
+            else:
+                self._hold = None
             gyro = d.sensordata[self.gyro_adr:self.gyro_adr + 3]
             quat = d.sensordata[self.quat_adr:self.quat_adr + 4]
             target = self.policy.act(gyro, quat, d.qpos[self.leg_qadr], d.qvel[self.leg_dadr],
-                                     (self.cmd_eff[0], 0.0, self.cmd_eff[1]))
+                                     (self.cmd_eff[0], vy, self.cmd_eff[1]))
             d.ctrl[self.leg_act] = target
             if d.xpos[self.base_id][2] < 0.42 and not self.fallen:
                 self.fallen = True
@@ -203,11 +224,20 @@ class BipedOpenArmSim(W.MobileOpenArmSim):
         rel = [d.xpos[b] - d.xpos[self.base_id] for b in self.foot_body]
         F = [d.sensordata[self.m.sensor_adr[s]] for s in self.foot_touch]
         st = int(np.argmax(F)) if max(F) > 20.0 else None
+        t = d.time
         if st is not None:
             if st != self._stance or self._anchor is None:
                 self._stance = st
-                self._anchor = self._est_xy + rel[st][:2]        # 새로 디딘 발의 (추정) 세계 위치
+                self._anchor = self._est_xy + rel[st][:2]        # 새로 디딘 발 '공 중심'의 (추정) 세계 위치
+            else:
+                # 공 모양 발은 디딘 채로 굴러간다: 접점은 그대로여도 공 중심은 r·(발 회전)만큼 앞으로 이동.
+                # 이걸 무시하면 거리가 약 10% 짧게 나온다 (발 반지름 3.2 cm, 한 걸음에 정강이가 ~0.2 rad 회전)
+                w = np.zeros(6)
+                mujoco.mj_objectVelocity(self.m, d, mujoco.mjtObj.mjOBJ_BODY, self.foot_body[st], w, 0)
+                dt_r = t - getattr(self, "_last_roll_t", t)
+                self._anchor = self._anchor + FOOT_RADIUS * np.array([w[1], -w[0]]) * dt_r
             self._est_xy = self._anchor - rel[st][:2]
+        self._last_roll_t = t
         yaw = yaw_of(d.xquat[self.base_id]) - self._origin_yaw
         c, s = math.cos(-self._origin_yaw), math.sin(-self._origin_yaw)
         dxy = self._est_xy - self._origin_xy

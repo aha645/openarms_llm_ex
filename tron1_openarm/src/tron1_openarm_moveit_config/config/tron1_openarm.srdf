@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- 자동 생성: tools/make_srdf.py -->
-<robot name="mobile_openarm">
+<robot name="tron1_openarm">
   <group name="left_arm">
     <chain base_link="openarm_left_link0" tip_link="openarm_left_hand_tcp" />
   </group>
@@ -159,64 +159,238 @@
   <end_effector name="right_hand" parent_link="openarm_right_hand_tcp" group="right_gripper" parent_group="right_arm" />
   <passive_joint name="left_wheel_joint" />
   <passive_joint name="right_wheel_joint" />
-  <disable_collisions link1="base_link" link2="left_wheel_link" reason="Adjacent" />
+  <disable_collisions link1="abad_L_Link" link2="abad_R_Link" reason="Never" />
+  <disable_collisions link1="abad_L_Link" link2="base_link" reason="Adjacent" />
+  <disable_collisions link1="abad_L_Link" link2="foot_L_Link" reason="Never" />
+  <disable_collisions link1="abad_L_Link" link2="foot_R_Link" reason="Never" />
+  <disable_collisions link1="abad_L_Link" link2="hip_L_Link" reason="Adjacent" />
+  <disable_collisions link1="abad_L_Link" link2="hip_R_Link" reason="Never" />
+  <disable_collisions link1="abad_L_Link" link2="knee_L_Link" reason="Never" />
+  <disable_collisions link1="abad_L_Link" link2="knee_R_Link" reason="Never" />
+  <disable_collisions link1="abad_L_Link" link2="openarm_body_link0" reason="Never" />
+  <disable_collisions link1="abad_L_Link" link2="openarm_left_link0" reason="Never" />
+  <disable_collisions link1="abad_L_Link" link2="openarm_left_link1" reason="Never" />
+  <disable_collisions link1="abad_L_Link" link2="openarm_left_link2" reason="Never" />
+  <disable_collisions link1="abad_L_Link" link2="openarm_left_link3" reason="Never" />
+  <disable_collisions link1="abad_L_Link" link2="openarm_left_link4" reason="Never" />
+  <disable_collisions link1="abad_L_Link" link2="openarm_left_link5" reason="Never" />
+  <disable_collisions link1="abad_L_Link" link2="openarm_left_link6" reason="Never" />
+  <disable_collisions link1="abad_L_Link" link2="openarm_right_hand" reason="Never" />
+  <disable_collisions link1="abad_L_Link" link2="openarm_right_left_finger" reason="Never" />
+  <disable_collisions link1="abad_L_Link" link2="openarm_right_link0" reason="Never" />
+  <disable_collisions link1="abad_L_Link" link2="openarm_right_link1" reason="Never" />
+  <disable_collisions link1="abad_L_Link" link2="openarm_right_link2" reason="Never" />
+  <disable_collisions link1="abad_L_Link" link2="openarm_right_link3" reason="Never" />
+  <disable_collisions link1="abad_L_Link" link2="openarm_right_link4" reason="Never" />
+  <disable_collisions link1="abad_L_Link" link2="openarm_right_link5" reason="Never" />
+  <disable_collisions link1="abad_L_Link" link2="openarm_right_link6" reason="Never" />
+  <disable_collisions link1="abad_L_Link" link2="openarm_right_link7" reason="Never" />
+  <disable_collisions link1="abad_L_Link" link2="openarm_right_right_finger" reason="Never" />
+  <disable_collisions link1="abad_R_Link" link2="base_link" reason="Adjacent" />
+  <disable_collisions link1="abad_R_Link" link2="foot_L_Link" reason="Never" />
+  <disable_collisions link1="abad_R_Link" link2="foot_R_Link" reason="Never" />
+  <disable_collisions link1="abad_R_Link" link2="hip_L_Link" reason="Never" />
+  <disable_collisions link1="abad_R_Link" link2="hip_R_Link" reason="Adjacent" />
+  <disable_collisions link1="abad_R_Link" link2="knee_L_Link" reason="Never" />
+  <disable_collisions link1="abad_R_Link" link2="knee_R_Link" reason="Never" />
+  <disable_collisions link1="abad_R_Link" link2="openarm_body_link0" reason="Never" />
+  <disable_collisions link1="abad_R_Link" link2="openarm_left_hand" reason="Never" />
+  <disable_collisions link1="abad_R_Link" link2="openarm_left_left_finger" reason="Never" />
+  <disable_collisions link1="abad_R_Link" link2="openarm_left_link0" reason="Never" />
+  <disable_collisions link1="abad_R_Link" link2="openarm_left_link1" reason="Never" />
+  <disable_collisions link1="abad_R_Link" link2="openarm_left_link2" reason="Never" />
+  <disable_collisions link1="abad_R_Link" link2="openarm_left_link3" reason="Never" />
+  <disable_collisions link1="abad_R_Link" link2="openarm_left_link4" reason="Never" />
+  <disable_collisions link1="abad_R_Link" link2="openarm_left_link5" reason="Never" />
+  <disable_collisions link1="abad_R_Link" link2="openarm_left_link6" reason="Never" />
+  <disable_collisions link1="abad_R_Link" link2="openarm_left_link7" reason="Never" />
+  <disable_collisions link1="abad_R_Link" link2="openarm_left_right_finger" reason="Never" />
+  <disable_collisions link1="abad_R_Link" link2="openarm_right_link0" reason="Never" />
+  <disable_collisions link1="abad_R_Link" link2="openarm_right_link1" reason="Never" />
+  <disable_collisions link1="abad_R_Link" link2="openarm_right_link2" reason="Never" />
+  <disable_collisions link1="abad_R_Link" link2="openarm_right_link3" reason="Never" />
+  <disable_collisions link1="abad_R_Link" link2="openarm_right_link4" reason="Never" />
+  <disable_collisions link1="abad_R_Link" link2="openarm_right_link5" reason="Never" />
+  <disable_collisions link1="abad_R_Link" link2="openarm_right_link6" reason="Never" />
+  <disable_collisions link1="base_link" link2="foot_L_Link" reason="Never" />
+  <disable_collisions link1="base_link" link2="foot_R_Link" reason="Never" />
+  <disable_collisions link1="base_link" link2="hip_L_Link" reason="Never" />
+  <disable_collisions link1="base_link" link2="hip_R_Link" reason="Never" />
+  <disable_collisions link1="base_link" link2="imu_Link" reason="Adjacent" />
+  <disable_collisions link1="base_link" link2="knee_L_Link" reason="Never" />
+  <disable_collisions link1="base_link" link2="knee_R_Link" reason="Never" />
   <disable_collisions link1="base_link" link2="openarm_body_link0" reason="Adjacent" />
-  <disable_collisions link1="base_link" link2="openarm_left_hand" reason="Never" />
-  <disable_collisions link1="base_link" link2="openarm_left_left_finger" reason="Never" />
-  <disable_collisions link1="base_link" link2="openarm_left_link0" reason="Never" />
+  <disable_collisions link1="base_link" link2="openarm_left_link0" reason="Adjacent" />
   <disable_collisions link1="base_link" link2="openarm_left_link1" reason="Never" />
   <disable_collisions link1="base_link" link2="openarm_left_link2" reason="Never" />
   <disable_collisions link1="base_link" link2="openarm_left_link3" reason="Never" />
-  <disable_collisions link1="base_link" link2="openarm_left_link4" reason="Never" />
-  <disable_collisions link1="base_link" link2="openarm_left_link5" reason="Never" />
-  <disable_collisions link1="base_link" link2="openarm_left_link6" reason="Never" />
-  <disable_collisions link1="base_link" link2="openarm_left_link7" reason="Never" />
-  <disable_collisions link1="base_link" link2="openarm_left_right_finger" reason="Never" />
-  <disable_collisions link1="base_link" link2="openarm_right_hand" reason="Never" />
-  <disable_collisions link1="base_link" link2="openarm_right_left_finger" reason="Never" />
-  <disable_collisions link1="base_link" link2="openarm_right_link0" reason="Never" />
+  <disable_collisions link1="base_link" link2="openarm_mount_link" reason="Adjacent" />
+  <disable_collisions link1="base_link" link2="openarm_right_link0" reason="Adjacent" />
   <disable_collisions link1="base_link" link2="openarm_right_link1" reason="Never" />
   <disable_collisions link1="base_link" link2="openarm_right_link2" reason="Never" />
   <disable_collisions link1="base_link" link2="openarm_right_link3" reason="Never" />
-  <disable_collisions link1="base_link" link2="openarm_right_link4" reason="Never" />
-  <disable_collisions link1="base_link" link2="openarm_right_link5" reason="Never" />
-  <disable_collisions link1="base_link" link2="openarm_right_link6" reason="Never" />
-  <disable_collisions link1="base_link" link2="openarm_right_link7" reason="Never" />
-  <disable_collisions link1="base_link" link2="openarm_right_right_finger" reason="Never" />
-  <disable_collisions link1="base_link" link2="right_wheel_link" reason="Adjacent" />
-  <disable_collisions link1="left_wheel_link" link2="openarm_body_link0" reason="Never" />
-  <disable_collisions link1="left_wheel_link" link2="openarm_left_hand" reason="Never" />
-  <disable_collisions link1="left_wheel_link" link2="openarm_left_left_finger" reason="Never" />
-  <disable_collisions link1="left_wheel_link" link2="openarm_left_link0" reason="Never" />
-  <disable_collisions link1="left_wheel_link" link2="openarm_left_link1" reason="Never" />
-  <disable_collisions link1="left_wheel_link" link2="openarm_left_link2" reason="Never" />
-  <disable_collisions link1="left_wheel_link" link2="openarm_left_link3" reason="Never" />
-  <disable_collisions link1="left_wheel_link" link2="openarm_left_link4" reason="Never" />
-  <disable_collisions link1="left_wheel_link" link2="openarm_left_link5" reason="Never" />
-  <disable_collisions link1="left_wheel_link" link2="openarm_left_link6" reason="Never" />
-  <disable_collisions link1="left_wheel_link" link2="openarm_left_link7" reason="Never" />
-  <disable_collisions link1="left_wheel_link" link2="openarm_left_right_finger" reason="Never" />
-  <disable_collisions link1="left_wheel_link" link2="openarm_right_hand" reason="Never" />
-  <disable_collisions link1="left_wheel_link" link2="openarm_right_left_finger" reason="Never" />
-  <disable_collisions link1="left_wheel_link" link2="openarm_right_link0" reason="Never" />
-  <disable_collisions link1="left_wheel_link" link2="openarm_right_link1" reason="Never" />
-  <disable_collisions link1="left_wheel_link" link2="openarm_right_link2" reason="Never" />
-  <disable_collisions link1="left_wheel_link" link2="openarm_right_link3" reason="Never" />
-  <disable_collisions link1="left_wheel_link" link2="openarm_right_link4" reason="Never" />
-  <disable_collisions link1="left_wheel_link" link2="openarm_right_link5" reason="Never" />
-  <disable_collisions link1="left_wheel_link" link2="openarm_right_link6" reason="Never" />
-  <disable_collisions link1="left_wheel_link" link2="openarm_right_link7" reason="Never" />
-  <disable_collisions link1="left_wheel_link" link2="openarm_right_right_finger" reason="Never" />
-  <disable_collisions link1="left_wheel_link" link2="right_wheel_link" reason="Never" />
+  <disable_collisions link1="foot_L_Link" link2="foot_R_Link" reason="Never" />
+  <disable_collisions link1="foot_L_Link" link2="hip_L_Link" reason="Never" />
+  <disable_collisions link1="foot_L_Link" link2="hip_R_Link" reason="Never" />
+  <disable_collisions link1="foot_L_Link" link2="knee_L_Link" reason="Adjacent" />
+  <disable_collisions link1="foot_L_Link" link2="knee_R_Link" reason="Never" />
+  <disable_collisions link1="foot_L_Link" link2="openarm_body_link0" reason="Never" />
+  <disable_collisions link1="foot_L_Link" link2="openarm_left_hand" reason="Never" />
+  <disable_collisions link1="foot_L_Link" link2="openarm_left_left_finger" reason="Never" />
+  <disable_collisions link1="foot_L_Link" link2="openarm_left_link0" reason="Never" />
+  <disable_collisions link1="foot_L_Link" link2="openarm_left_link1" reason="Never" />
+  <disable_collisions link1="foot_L_Link" link2="openarm_left_link2" reason="Never" />
+  <disable_collisions link1="foot_L_Link" link2="openarm_left_link3" reason="Never" />
+  <disable_collisions link1="foot_L_Link" link2="openarm_left_link4" reason="Never" />
+  <disable_collisions link1="foot_L_Link" link2="openarm_left_link5" reason="Never" />
+  <disable_collisions link1="foot_L_Link" link2="openarm_left_link6" reason="Never" />
+  <disable_collisions link1="foot_L_Link" link2="openarm_left_link7" reason="Never" />
+  <disable_collisions link1="foot_L_Link" link2="openarm_left_right_finger" reason="Never" />
+  <disable_collisions link1="foot_L_Link" link2="openarm_right_hand" reason="Never" />
+  <disable_collisions link1="foot_L_Link" link2="openarm_right_left_finger" reason="Never" />
+  <disable_collisions link1="foot_L_Link" link2="openarm_right_link0" reason="Never" />
+  <disable_collisions link1="foot_L_Link" link2="openarm_right_link1" reason="Never" />
+  <disable_collisions link1="foot_L_Link" link2="openarm_right_link2" reason="Never" />
+  <disable_collisions link1="foot_L_Link" link2="openarm_right_link3" reason="Never" />
+  <disable_collisions link1="foot_L_Link" link2="openarm_right_link4" reason="Never" />
+  <disable_collisions link1="foot_L_Link" link2="openarm_right_link5" reason="Never" />
+  <disable_collisions link1="foot_L_Link" link2="openarm_right_link6" reason="Never" />
+  <disable_collisions link1="foot_L_Link" link2="openarm_right_link7" reason="Never" />
+  <disable_collisions link1="foot_L_Link" link2="openarm_right_right_finger" reason="Never" />
+  <disable_collisions link1="foot_R_Link" link2="hip_L_Link" reason="Never" />
+  <disable_collisions link1="foot_R_Link" link2="hip_R_Link" reason="Never" />
+  <disable_collisions link1="foot_R_Link" link2="knee_L_Link" reason="Never" />
+  <disable_collisions link1="foot_R_Link" link2="knee_R_Link" reason="Adjacent" />
+  <disable_collisions link1="foot_R_Link" link2="openarm_body_link0" reason="Never" />
+  <disable_collisions link1="foot_R_Link" link2="openarm_left_hand" reason="Never" />
+  <disable_collisions link1="foot_R_Link" link2="openarm_left_left_finger" reason="Never" />
+  <disable_collisions link1="foot_R_Link" link2="openarm_left_link0" reason="Never" />
+  <disable_collisions link1="foot_R_Link" link2="openarm_left_link1" reason="Never" />
+  <disable_collisions link1="foot_R_Link" link2="openarm_left_link2" reason="Never" />
+  <disable_collisions link1="foot_R_Link" link2="openarm_left_link3" reason="Never" />
+  <disable_collisions link1="foot_R_Link" link2="openarm_left_link4" reason="Never" />
+  <disable_collisions link1="foot_R_Link" link2="openarm_left_link5" reason="Never" />
+  <disable_collisions link1="foot_R_Link" link2="openarm_left_link6" reason="Never" />
+  <disable_collisions link1="foot_R_Link" link2="openarm_left_link7" reason="Never" />
+  <disable_collisions link1="foot_R_Link" link2="openarm_left_right_finger" reason="Never" />
+  <disable_collisions link1="foot_R_Link" link2="openarm_right_hand" reason="Never" />
+  <disable_collisions link1="foot_R_Link" link2="openarm_right_left_finger" reason="Never" />
+  <disable_collisions link1="foot_R_Link" link2="openarm_right_link0" reason="Never" />
+  <disable_collisions link1="foot_R_Link" link2="openarm_right_link1" reason="Never" />
+  <disable_collisions link1="foot_R_Link" link2="openarm_right_link2" reason="Never" />
+  <disable_collisions link1="foot_R_Link" link2="openarm_right_link3" reason="Never" />
+  <disable_collisions link1="foot_R_Link" link2="openarm_right_link4" reason="Never" />
+  <disable_collisions link1="foot_R_Link" link2="openarm_right_link5" reason="Never" />
+  <disable_collisions link1="foot_R_Link" link2="openarm_right_link6" reason="Never" />
+  <disable_collisions link1="foot_R_Link" link2="openarm_right_link7" reason="Never" />
+  <disable_collisions link1="foot_R_Link" link2="openarm_right_right_finger" reason="Never" />
+  <disable_collisions link1="hip_L_Link" link2="hip_R_Link" reason="Never" />
+  <disable_collisions link1="hip_L_Link" link2="knee_L_Link" reason="Adjacent" />
+  <disable_collisions link1="hip_L_Link" link2="knee_R_Link" reason="Never" />
+  <disable_collisions link1="hip_L_Link" link2="openarm_body_link0" reason="Never" />
+  <disable_collisions link1="hip_L_Link" link2="openarm_left_hand" reason="Never" />
+  <disable_collisions link1="hip_L_Link" link2="openarm_left_left_finger" reason="Never" />
+  <disable_collisions link1="hip_L_Link" link2="openarm_left_link0" reason="Never" />
+  <disable_collisions link1="hip_L_Link" link2="openarm_left_link1" reason="Never" />
+  <disable_collisions link1="hip_L_Link" link2="openarm_left_link2" reason="Never" />
+  <disable_collisions link1="hip_L_Link" link2="openarm_left_link3" reason="Never" />
+  <disable_collisions link1="hip_L_Link" link2="openarm_left_link4" reason="Never" />
+  <disable_collisions link1="hip_L_Link" link2="openarm_left_link5" reason="Never" />
+  <disable_collisions link1="hip_L_Link" link2="openarm_left_link6" reason="Never" />
+  <disable_collisions link1="hip_L_Link" link2="openarm_left_link7" reason="Never" />
+  <disable_collisions link1="hip_L_Link" link2="openarm_left_right_finger" reason="Never" />
+  <disable_collisions link1="hip_L_Link" link2="openarm_right_hand" reason="Never" />
+  <disable_collisions link1="hip_L_Link" link2="openarm_right_left_finger" reason="Never" />
+  <disable_collisions link1="hip_L_Link" link2="openarm_right_link0" reason="Never" />
+  <disable_collisions link1="hip_L_Link" link2="openarm_right_link1" reason="Never" />
+  <disable_collisions link1="hip_L_Link" link2="openarm_right_link2" reason="Never" />
+  <disable_collisions link1="hip_L_Link" link2="openarm_right_link3" reason="Never" />
+  <disable_collisions link1="hip_L_Link" link2="openarm_right_link4" reason="Never" />
+  <disable_collisions link1="hip_L_Link" link2="openarm_right_link5" reason="Never" />
+  <disable_collisions link1="hip_L_Link" link2="openarm_right_link6" reason="Never" />
+  <disable_collisions link1="hip_L_Link" link2="openarm_right_link7" reason="Never" />
+  <disable_collisions link1="hip_L_Link" link2="openarm_right_right_finger" reason="Never" />
+  <disable_collisions link1="hip_R_Link" link2="knee_L_Link" reason="Never" />
+  <disable_collisions link1="hip_R_Link" link2="knee_R_Link" reason="Adjacent" />
+  <disable_collisions link1="hip_R_Link" link2="openarm_body_link0" reason="Never" />
+  <disable_collisions link1="hip_R_Link" link2="openarm_left_hand" reason="Never" />
+  <disable_collisions link1="hip_R_Link" link2="openarm_left_left_finger" reason="Never" />
+  <disable_collisions link1="hip_R_Link" link2="openarm_left_link0" reason="Never" />
+  <disable_collisions link1="hip_R_Link" link2="openarm_left_link1" reason="Never" />
+  <disable_collisions link1="hip_R_Link" link2="openarm_left_link2" reason="Never" />
+  <disable_collisions link1="hip_R_Link" link2="openarm_left_link3" reason="Never" />
+  <disable_collisions link1="hip_R_Link" link2="openarm_left_link4" reason="Never" />
+  <disable_collisions link1="hip_R_Link" link2="openarm_left_link5" reason="Never" />
+  <disable_collisions link1="hip_R_Link" link2="openarm_left_link6" reason="Never" />
+  <disable_collisions link1="hip_R_Link" link2="openarm_left_link7" reason="Never" />
+  <disable_collisions link1="hip_R_Link" link2="openarm_left_right_finger" reason="Never" />
+  <disable_collisions link1="hip_R_Link" link2="openarm_right_hand" reason="Never" />
+  <disable_collisions link1="hip_R_Link" link2="openarm_right_left_finger" reason="Never" />
+  <disable_collisions link1="hip_R_Link" link2="openarm_right_link0" reason="Never" />
+  <disable_collisions link1="hip_R_Link" link2="openarm_right_link1" reason="Never" />
+  <disable_collisions link1="hip_R_Link" link2="openarm_right_link2" reason="Never" />
+  <disable_collisions link1="hip_R_Link" link2="openarm_right_link3" reason="Never" />
+  <disable_collisions link1="hip_R_Link" link2="openarm_right_link4" reason="Never" />
+  <disable_collisions link1="hip_R_Link" link2="openarm_right_link5" reason="Never" />
+  <disable_collisions link1="hip_R_Link" link2="openarm_right_link6" reason="Never" />
+  <disable_collisions link1="hip_R_Link" link2="openarm_right_link7" reason="Never" />
+  <disable_collisions link1="hip_R_Link" link2="openarm_right_right_finger" reason="Never" />
+  <disable_collisions link1="knee_L_Link" link2="knee_R_Link" reason="Never" />
+  <disable_collisions link1="knee_L_Link" link2="openarm_body_link0" reason="Never" />
+  <disable_collisions link1="knee_L_Link" link2="openarm_left_hand" reason="Never" />
+  <disable_collisions link1="knee_L_Link" link2="openarm_left_left_finger" reason="Never" />
+  <disable_collisions link1="knee_L_Link" link2="openarm_left_link0" reason="Never" />
+  <disable_collisions link1="knee_L_Link" link2="openarm_left_link1" reason="Never" />
+  <disable_collisions link1="knee_L_Link" link2="openarm_left_link2" reason="Never" />
+  <disable_collisions link1="knee_L_Link" link2="openarm_left_link3" reason="Never" />
+  <disable_collisions link1="knee_L_Link" link2="openarm_left_link4" reason="Never" />
+  <disable_collisions link1="knee_L_Link" link2="openarm_left_link5" reason="Never" />
+  <disable_collisions link1="knee_L_Link" link2="openarm_left_link6" reason="Never" />
+  <disable_collisions link1="knee_L_Link" link2="openarm_left_link7" reason="Never" />
+  <disable_collisions link1="knee_L_Link" link2="openarm_left_right_finger" reason="Never" />
+  <disable_collisions link1="knee_L_Link" link2="openarm_right_hand" reason="Never" />
+  <disable_collisions link1="knee_L_Link" link2="openarm_right_left_finger" reason="Never" />
+  <disable_collisions link1="knee_L_Link" link2="openarm_right_link0" reason="Never" />
+  <disable_collisions link1="knee_L_Link" link2="openarm_right_link1" reason="Never" />
+  <disable_collisions link1="knee_L_Link" link2="openarm_right_link2" reason="Never" />
+  <disable_collisions link1="knee_L_Link" link2="openarm_right_link3" reason="Never" />
+  <disable_collisions link1="knee_L_Link" link2="openarm_right_link4" reason="Never" />
+  <disable_collisions link1="knee_L_Link" link2="openarm_right_link5" reason="Never" />
+  <disable_collisions link1="knee_L_Link" link2="openarm_right_link6" reason="Never" />
+  <disable_collisions link1="knee_L_Link" link2="openarm_right_link7" reason="Never" />
+  <disable_collisions link1="knee_L_Link" link2="openarm_right_right_finger" reason="Never" />
+  <disable_collisions link1="knee_R_Link" link2="openarm_body_link0" reason="Never" />
+  <disable_collisions link1="knee_R_Link" link2="openarm_left_hand" reason="Never" />
+  <disable_collisions link1="knee_R_Link" link2="openarm_left_left_finger" reason="Never" />
+  <disable_collisions link1="knee_R_Link" link2="openarm_left_link0" reason="Never" />
+  <disable_collisions link1="knee_R_Link" link2="openarm_left_link1" reason="Never" />
+  <disable_collisions link1="knee_R_Link" link2="openarm_left_link2" reason="Never" />
+  <disable_collisions link1="knee_R_Link" link2="openarm_left_link3" reason="Never" />
+  <disable_collisions link1="knee_R_Link" link2="openarm_left_link4" reason="Never" />
+  <disable_collisions link1="knee_R_Link" link2="openarm_left_link5" reason="Never" />
+  <disable_collisions link1="knee_R_Link" link2="openarm_left_link6" reason="Never" />
+  <disable_collisions link1="knee_R_Link" link2="openarm_left_link7" reason="Never" />
+  <disable_collisions link1="knee_R_Link" link2="openarm_left_right_finger" reason="Never" />
+  <disable_collisions link1="knee_R_Link" link2="openarm_right_hand" reason="Never" />
+  <disable_collisions link1="knee_R_Link" link2="openarm_right_left_finger" reason="Never" />
+  <disable_collisions link1="knee_R_Link" link2="openarm_right_link0" reason="Never" />
+  <disable_collisions link1="knee_R_Link" link2="openarm_right_link1" reason="Never" />
+  <disable_collisions link1="knee_R_Link" link2="openarm_right_link2" reason="Never" />
+  <disable_collisions link1="knee_R_Link" link2="openarm_right_link3" reason="Never" />
+  <disable_collisions link1="knee_R_Link" link2="openarm_right_link4" reason="Never" />
+  <disable_collisions link1="knee_R_Link" link2="openarm_right_link5" reason="Never" />
+  <disable_collisions link1="knee_R_Link" link2="openarm_right_link6" reason="Never" />
+  <disable_collisions link1="knee_R_Link" link2="openarm_right_link7" reason="Never" />
+  <disable_collisions link1="knee_R_Link" link2="openarm_right_right_finger" reason="Never" />
   <disable_collisions link1="openarm_body_link0" link2="openarm_left_link0" reason="Adjacent" />
   <disable_collisions link1="openarm_body_link0" link2="openarm_left_link1" reason="Never" />
   <disable_collisions link1="openarm_body_link0" link2="openarm_left_link2" reason="Never" />
   <disable_collisions link1="openarm_body_link0" link2="openarm_left_link3" reason="Never" />
+  <disable_collisions link1="openarm_body_link0" link2="openarm_mount_link" reason="Adjacent" />
   <disable_collisions link1="openarm_body_link0" link2="openarm_right_link0" reason="Adjacent" />
   <disable_collisions link1="openarm_body_link0" link2="openarm_right_link1" reason="Never" />
   <disable_collisions link1="openarm_body_link0" link2="openarm_right_link2" reason="Never" />
   <disable_collisions link1="openarm_body_link0" link2="openarm_right_link3" reason="Never" />
-  <disable_collisions link1="openarm_body_link0" link2="right_wheel_link" reason="Never" />
   <disable_collisions link1="openarm_left_hand" link2="openarm_left_hand_tcp" reason="Adjacent" />
   <disable_collisions link1="openarm_left_hand" link2="openarm_left_left_finger" reason="Adjacent" />
   <disable_collisions link1="openarm_left_hand" link2="openarm_left_link2" reason="Never" />
@@ -227,9 +401,12 @@
   <disable_collisions link1="openarm_left_hand" link2="openarm_left_link7" reason="Adjacent" />
   <disable_collisions link1="openarm_left_hand" link2="openarm_left_right_finger" reason="Adjacent" />
   <disable_collisions link1="openarm_left_hand" link2="openarm_right_hand" reason="Never" />
+  <disable_collisions link1="openarm_left_hand" link2="openarm_right_left_finger" reason="Never" />
   <disable_collisions link1="openarm_left_hand" link2="openarm_right_link2" reason="Never" />
+  <disable_collisions link1="openarm_left_hand" link2="openarm_right_link3" reason="Never" />
+  <disable_collisions link1="openarm_left_hand" link2="openarm_right_link4" reason="Never" />
   <disable_collisions link1="openarm_left_hand" link2="openarm_right_link7" reason="Never" />
-  <disable_collisions link1="openarm_left_hand" link2="right_wheel_link" reason="Never" />
+  <disable_collisions link1="openarm_left_hand" link2="openarm_right_right_finger" reason="Never" />
   <disable_collisions link1="openarm_left_left_finger" link2="openarm_left_link2" reason="Never" />
   <disable_collisions link1="openarm_left_left_finger" link2="openarm_left_link3" reason="Never" />
   <disable_collisions link1="openarm_left_left_finger" link2="openarm_left_link4" reason="Never" />
@@ -237,8 +414,9 @@
   <disable_collisions link1="openarm_left_left_finger" link2="openarm_left_link6" reason="Never" />
   <disable_collisions link1="openarm_left_left_finger" link2="openarm_left_link7" reason="Adjacent" />
   <disable_collisions link1="openarm_left_left_finger" link2="openarm_left_right_finger" reason="Default" />
+  <disable_collisions link1="openarm_left_left_finger" link2="openarm_right_hand" reason="Never" />
   <disable_collisions link1="openarm_left_left_finger" link2="openarm_right_left_finger" reason="Never" />
-  <disable_collisions link1="openarm_left_left_finger" link2="right_wheel_link" reason="Never" />
+  <disable_collisions link1="openarm_left_left_finger" link2="openarm_right_right_finger" reason="Never" />
   <disable_collisions link1="openarm_left_link0" link2="openarm_left_link1" reason="Adjacent" />
   <disable_collisions link1="openarm_left_link0" link2="openarm_left_link2" reason="Adjacent" />
   <disable_collisions link1="openarm_left_link0" link2="openarm_left_link3" reason="Adjacent" />
@@ -248,7 +426,7 @@
   <disable_collisions link1="openarm_left_link0" link2="openarm_right_link2" reason="Never" />
   <disable_collisions link1="openarm_left_link0" link2="openarm_right_link3" reason="Never" />
   <disable_collisions link1="openarm_left_link0" link2="openarm_right_link4" reason="Never" />
-  <disable_collisions link1="openarm_left_link0" link2="right_wheel_link" reason="Never" />
+  <disable_collisions link1="openarm_left_link0" link2="openarm_right_link5" reason="Never" />
   <disable_collisions link1="openarm_left_link1" link2="openarm_left_link2" reason="Adjacent" />
   <disable_collisions link1="openarm_left_link1" link2="openarm_left_link3" reason="Adjacent" />
   <disable_collisions link1="openarm_left_link1" link2="openarm_left_link4" reason="Never" />
@@ -262,13 +440,13 @@
   <disable_collisions link1="openarm_left_link1" link2="openarm_right_link4" reason="Never" />
   <disable_collisions link1="openarm_left_link1" link2="openarm_right_link5" reason="Never" />
   <disable_collisions link1="openarm_left_link1" link2="openarm_right_link6" reason="Never" />
-  <disable_collisions link1="openarm_left_link1" link2="right_wheel_link" reason="Never" />
   <disable_collisions link1="openarm_left_link2" link2="openarm_left_link3" reason="Adjacent" />
   <disable_collisions link1="openarm_left_link2" link2="openarm_left_link4" reason="Never" />
   <disable_collisions link1="openarm_left_link2" link2="openarm_left_link5" reason="Never" />
   <disable_collisions link1="openarm_left_link2" link2="openarm_left_link6" reason="Never" />
   <disable_collisions link1="openarm_left_link2" link2="openarm_left_link7" reason="Never" />
   <disable_collisions link1="openarm_left_link2" link2="openarm_left_right_finger" reason="Never" />
+  <disable_collisions link1="openarm_left_link2" link2="openarm_right_hand" reason="Never" />
   <disable_collisions link1="openarm_left_link2" link2="openarm_right_link0" reason="Never" />
   <disable_collisions link1="openarm_left_link2" link2="openarm_right_link1" reason="Never" />
   <disable_collisions link1="openarm_left_link2" link2="openarm_right_link2" reason="Never" />
@@ -277,13 +455,13 @@
   <disable_collisions link1="openarm_left_link2" link2="openarm_right_link5" reason="Never" />
   <disable_collisions link1="openarm_left_link2" link2="openarm_right_link6" reason="Never" />
   <disable_collisions link1="openarm_left_link2" link2="openarm_right_link7" reason="Never" />
-  <disable_collisions link1="openarm_left_link2" link2="right_wheel_link" reason="Never" />
   <disable_collisions link1="openarm_left_link3" link2="openarm_left_link4" reason="Adjacent" />
   <disable_collisions link1="openarm_left_link3" link2="openarm_left_link5" reason="Never" />
   <disable_collisions link1="openarm_left_link3" link2="openarm_left_link6" reason="Never" />
   <disable_collisions link1="openarm_left_link3" link2="openarm_left_link7" reason="Never" />
   <disable_collisions link1="openarm_left_link3" link2="openarm_left_right_finger" reason="Never" />
   <disable_collisions link1="openarm_left_link3" link2="openarm_right_hand" reason="Never" />
+  <disable_collisions link1="openarm_left_link3" link2="openarm_right_left_finger" reason="Never" />
   <disable_collisions link1="openarm_left_link3" link2="openarm_right_link0" reason="Never" />
   <disable_collisions link1="openarm_left_link3" link2="openarm_right_link1" reason="Never" />
   <disable_collisions link1="openarm_left_link3" link2="openarm_right_link2" reason="Never" />
@@ -292,7 +470,7 @@
   <disable_collisions link1="openarm_left_link3" link2="openarm_right_link5" reason="Never" />
   <disable_collisions link1="openarm_left_link3" link2="openarm_right_link6" reason="Never" />
   <disable_collisions link1="openarm_left_link3" link2="openarm_right_link7" reason="Never" />
-  <disable_collisions link1="openarm_left_link3" link2="right_wheel_link" reason="Never" />
+  <disable_collisions link1="openarm_left_link3" link2="openarm_right_right_finger" reason="Never" />
   <disable_collisions link1="openarm_left_link4" link2="openarm_left_link5" reason="Adjacent" />
   <disable_collisions link1="openarm_left_link4" link2="openarm_left_link6" reason="Never" />
   <disable_collisions link1="openarm_left_link4" link2="openarm_left_link7" reason="Never" />
@@ -304,9 +482,10 @@
   <disable_collisions link1="openarm_left_link4" link2="openarm_right_link2" reason="Never" />
   <disable_collisions link1="openarm_left_link4" link2="openarm_right_link3" reason="Never" />
   <disable_collisions link1="openarm_left_link4" link2="openarm_right_link4" reason="Never" />
+  <disable_collisions link1="openarm_left_link4" link2="openarm_right_link5" reason="Never" />
+  <disable_collisions link1="openarm_left_link4" link2="openarm_right_link6" reason="Never" />
   <disable_collisions link1="openarm_left_link4" link2="openarm_right_link7" reason="Never" />
   <disable_collisions link1="openarm_left_link4" link2="openarm_right_right_finger" reason="Never" />
-  <disable_collisions link1="openarm_left_link4" link2="right_wheel_link" reason="Never" />
   <disable_collisions link1="openarm_left_link5" link2="openarm_left_link6" reason="Adjacent" />
   <disable_collisions link1="openarm_left_link5" link2="openarm_left_link7" reason="Adjacent" />
   <disable_collisions link1="openarm_left_link5" link2="openarm_left_right_finger" reason="Never" />
@@ -316,26 +495,29 @@
   <disable_collisions link1="openarm_left_link5" link2="openarm_right_link1" reason="Never" />
   <disable_collisions link1="openarm_left_link5" link2="openarm_right_link2" reason="Never" />
   <disable_collisions link1="openarm_left_link5" link2="openarm_right_link3" reason="Never" />
+  <disable_collisions link1="openarm_left_link5" link2="openarm_right_link4" reason="Never" />
+  <disable_collisions link1="openarm_left_link5" link2="openarm_right_link5" reason="Never" />
   <disable_collisions link1="openarm_left_link5" link2="openarm_right_link6" reason="Never" />
   <disable_collisions link1="openarm_left_link5" link2="openarm_right_link7" reason="Never" />
   <disable_collisions link1="openarm_left_link5" link2="openarm_right_right_finger" reason="Never" />
-  <disable_collisions link1="openarm_left_link5" link2="right_wheel_link" reason="Never" />
   <disable_collisions link1="openarm_left_link6" link2="openarm_left_link7" reason="Adjacent" />
   <disable_collisions link1="openarm_left_link6" link2="openarm_left_right_finger" reason="Never" />
   <disable_collisions link1="openarm_left_link6" link2="openarm_right_hand" reason="Never" />
   <disable_collisions link1="openarm_left_link6" link2="openarm_right_link1" reason="Never" />
   <disable_collisions link1="openarm_left_link6" link2="openarm_right_link2" reason="Never" />
   <disable_collisions link1="openarm_left_link6" link2="openarm_right_link3" reason="Never" />
+  <disable_collisions link1="openarm_left_link6" link2="openarm_right_link4" reason="Never" />
+  <disable_collisions link1="openarm_left_link6" link2="openarm_right_link5" reason="Never" />
   <disable_collisions link1="openarm_left_link6" link2="openarm_right_link6" reason="Never" />
   <disable_collisions link1="openarm_left_link6" link2="openarm_right_link7" reason="Never" />
-  <disable_collisions link1="openarm_left_link6" link2="right_wheel_link" reason="Never" />
   <disable_collisions link1="openarm_left_link7" link2="openarm_left_right_finger" reason="Adjacent" />
   <disable_collisions link1="openarm_left_link7" link2="openarm_right_link2" reason="Never" />
-  <disable_collisions link1="openarm_left_link7" link2="right_wheel_link" reason="Never" />
+  <disable_collisions link1="openarm_left_link7" link2="openarm_right_link3" reason="Never" />
+  <disable_collisions link1="openarm_left_link7" link2="openarm_right_link4" reason="Never" />
+  <disable_collisions link1="openarm_left_right_finger" link2="openarm_right_hand" reason="Never" />
   <disable_collisions link1="openarm_left_right_finger" link2="openarm_right_left_finger" reason="Never" />
   <disable_collisions link1="openarm_left_right_finger" link2="openarm_right_link6" reason="Never" />
   <disable_collisions link1="openarm_left_right_finger" link2="openarm_right_right_finger" reason="Never" />
-  <disable_collisions link1="openarm_left_right_finger" link2="right_wheel_link" reason="Never" />
   <disable_collisions link1="openarm_right_hand" link2="openarm_right_hand_tcp" reason="Adjacent" />
   <disable_collisions link1="openarm_right_hand" link2="openarm_right_left_finger" reason="Adjacent" />
   <disable_collisions link1="openarm_right_hand" link2="openarm_right_link3" reason="Never" />
@@ -344,7 +526,6 @@
   <disable_collisions link1="openarm_right_hand" link2="openarm_right_link6" reason="Never" />
   <disable_collisions link1="openarm_right_hand" link2="openarm_right_link7" reason="Adjacent" />
   <disable_collisions link1="openarm_right_hand" link2="openarm_right_right_finger" reason="Adjacent" />
-  <disable_collisions link1="openarm_right_hand" link2="right_wheel_link" reason="Never" />
   <disable_collisions link1="openarm_right_left_finger" link2="openarm_right_link2" reason="Never" />
   <disable_collisions link1="openarm_right_left_finger" link2="openarm_right_link3" reason="Never" />
   <disable_collisions link1="openarm_right_left_finger" link2="openarm_right_link4" reason="Never" />
@@ -352,44 +533,36 @@
   <disable_collisions link1="openarm_right_left_finger" link2="openarm_right_link6" reason="Never" />
   <disable_collisions link1="openarm_right_left_finger" link2="openarm_right_link7" reason="Adjacent" />
   <disable_collisions link1="openarm_right_left_finger" link2="openarm_right_right_finger" reason="Default" />
-  <disable_collisions link1="openarm_right_left_finger" link2="right_wheel_link" reason="Never" />
   <disable_collisions link1="openarm_right_link0" link2="openarm_right_link1" reason="Adjacent" />
   <disable_collisions link1="openarm_right_link0" link2="openarm_right_link2" reason="Adjacent" />
   <disable_collisions link1="openarm_right_link0" link2="openarm_right_link3" reason="Adjacent" />
   <disable_collisions link1="openarm_right_link0" link2="openarm_right_link4" reason="Never" />
-  <disable_collisions link1="openarm_right_link0" link2="right_wheel_link" reason="Never" />
+  <disable_collisions link1="openarm_right_link0" link2="openarm_right_link5" reason="Never" />
+  <disable_collisions link1="openarm_right_link0" link2="openarm_right_link6" reason="Never" />
   <disable_collisions link1="openarm_right_link1" link2="openarm_right_link2" reason="Adjacent" />
   <disable_collisions link1="openarm_right_link1" link2="openarm_right_link3" reason="Adjacent" />
   <disable_collisions link1="openarm_right_link1" link2="openarm_right_link4" reason="Never" />
   <disable_collisions link1="openarm_right_link1" link2="openarm_right_link5" reason="Never" />
   <disable_collisions link1="openarm_right_link1" link2="openarm_right_link6" reason="Never" />
-  <disable_collisions link1="openarm_right_link1" link2="right_wheel_link" reason="Never" />
   <disable_collisions link1="openarm_right_link2" link2="openarm_right_link3" reason="Adjacent" />
   <disable_collisions link1="openarm_right_link2" link2="openarm_right_link4" reason="Never" />
   <disable_collisions link1="openarm_right_link2" link2="openarm_right_link5" reason="Never" />
   <disable_collisions link1="openarm_right_link2" link2="openarm_right_link6" reason="Never" />
   <disable_collisions link1="openarm_right_link2" link2="openarm_right_link7" reason="Never" />
   <disable_collisions link1="openarm_right_link2" link2="openarm_right_right_finger" reason="Never" />
-  <disable_collisions link1="openarm_right_link2" link2="right_wheel_link" reason="Never" />
   <disable_collisions link1="openarm_right_link3" link2="openarm_right_link4" reason="Adjacent" />
   <disable_collisions link1="openarm_right_link3" link2="openarm_right_link5" reason="Never" />
   <disable_collisions link1="openarm_right_link3" link2="openarm_right_link6" reason="Never" />
   <disable_collisions link1="openarm_right_link3" link2="openarm_right_link7" reason="Never" />
   <disable_collisions link1="openarm_right_link3" link2="openarm_right_right_finger" reason="Never" />
-  <disable_collisions link1="openarm_right_link3" link2="right_wheel_link" reason="Never" />
   <disable_collisions link1="openarm_right_link4" link2="openarm_right_link5" reason="Adjacent" />
   <disable_collisions link1="openarm_right_link4" link2="openarm_right_link6" reason="Never" />
   <disable_collisions link1="openarm_right_link4" link2="openarm_right_link7" reason="Never" />
   <disable_collisions link1="openarm_right_link4" link2="openarm_right_right_finger" reason="Never" />
-  <disable_collisions link1="openarm_right_link4" link2="right_wheel_link" reason="Never" />
   <disable_collisions link1="openarm_right_link5" link2="openarm_right_link6" reason="Adjacent" />
   <disable_collisions link1="openarm_right_link5" link2="openarm_right_link7" reason="Adjacent" />
   <disable_collisions link1="openarm_right_link5" link2="openarm_right_right_finger" reason="Never" />
-  <disable_collisions link1="openarm_right_link5" link2="right_wheel_link" reason="Never" />
   <disable_collisions link1="openarm_right_link6" link2="openarm_right_link7" reason="Adjacent" />
   <disable_collisions link1="openarm_right_link6" link2="openarm_right_right_finger" reason="Never" />
-  <disable_collisions link1="openarm_right_link6" link2="right_wheel_link" reason="Never" />
   <disable_collisions link1="openarm_right_link7" link2="openarm_right_right_finger" reason="Adjacent" />
-  <disable_collisions link1="openarm_right_link7" link2="right_wheel_link" reason="Never" />
-  <disable_collisions link1="openarm_right_right_finger" link2="right_wheel_link" reason="Never" />
 </robot>

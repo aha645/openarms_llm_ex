@@ -51,6 +51,8 @@ def parse():
     ap.add_argument("--critic-warmup", type=int, default=30)
     ap.add_argument("--threads", type=int, default=os.cpu_count() or 2)
     ap.add_argument("--seed", type=int, default=1)
+    ap.add_argument("--max-difficulty", type=float, default=0.5,
+                    help="랜덤화 강도 상한. 1.0 이면 LimX 수준 잡음·지연·밀기 (실로봇용), 높을수록 속도 추종이 보수적이 됨")
     ap.add_argument("--resume", default="")
     ap.add_argument("--train-encoder", type=int, default=1,
                     help="1: PPO 뒤에 인코더를 실제 선속도로 지도학습 (LimX 방식). 0: 사전학습 인코더 고정")
@@ -230,7 +232,7 @@ def main():
         fall_hist.append(fall_rate)
         fr = float(np.mean(fall_hist[-10:]))
         # 낙상률(스텝당) 0.0003 = 환경 하나가 평균 67초에 한 번 넘어지는 정도
-        if actor_on and it > a.critic_warmup + 10 and fr < 0.0003 and env.difficulty < 1.0:
+        if actor_on and it > a.critic_warmup + 10 and fr < 0.0003 and env.difficulty < a.max_difficulty:
             env.set_difficulty(env.difficulty + 0.02)
         elif fr > 0.0015 and env.difficulty > 0:
             env.set_difficulty(env.difficulty - 0.02)
