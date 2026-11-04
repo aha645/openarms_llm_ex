@@ -13,6 +13,7 @@
 | 3 | [03-locomotion-rl.md](03-locomotion-rl.md) | 두 발로 서고 걷기: LimX 사전학습 정책 + PPO 미세조정, 결과, 가상 로봇 적용 |
 | 4 | [04-ros2-labs.md](04-ros2-labs.md) | 같은 DAY1·DAY2 실습을 TRON1 으로 (명령 대응표, 장별 차이, 통합 검증 결과) |
 | 5 | [05-limits-real-robot.md](05-limits-real-robot.md) | 검증 범위·한계·실로봇으로 갈 때 |
+| 6 | [06-sway-analysis.md](06-sway-analysis.md) | 몸통 흔들림 원인 분석 (팔 반동·정책·팔 처짐·기둥 길이 분해 실험) |
 
 약어는 각 문서 맨 앞 "이 장에 나오는 용어"와 [용어집](../labs/glossary.md)에 풀어 두었습니다.
 
