@@ -273,7 +273,15 @@ class BipedOpenArmSim(W.MobileOpenArmSim):
             # (Point-foot 은 발목이 없어 이 모드가 없다 → 항상 제자리 걸음, 팔을 움직이면 5~10 cm 출렁임)
             idle = (v == 0.0 and w == 0.0 and vyc == 0.0 and np.all(np.abs(self.cmd_ramp) < 1e-3) and abs(self.vy_ramp) < 1e-3)
             if self.foot == "sf":
-                self.policy.stand_still = bool(self.stand_when_idle and idle)
+                # 서 있다가 균형이 무너지기 시작하면(한 발에 거의 다 실림 / 몸통이 기울며 회전 / 미끄러짐)
+                # 서기 모드를 잠시(1.5 s) 풀어 발을 디뎌 회복하게 한다. 팔을 carry → home 으로 내릴 때처럼
+                # 무게중심이 빠르게 옮겨 가면 발을 묶어 둔 채로는 버티지 못하고 발을 구르며 크게 흔들렸다 (시뮬 측정 0.4 m)
+                F = [float(d.sensordata[self.m.sensor_adr[s]]) for s in self.foot_touch]
+                gxy = float(np.linalg.norm(d.sensordata[self.gyro_adr:self.gyro_adr + 2]))
+                unstable = (sum(F) > 50 and min(F) < 0.12 * sum(F)) or gxy > 0.5
+                if self.policy.standing and unstable:
+                    self._stand_block = d.time + 1.5
+                self.policy.stand_still = bool(self.stand_when_idle and idle and d.time > getattr(self, "_stand_block", -1.0))
                 if self.policy.standing:
                     # 서 있는 동안은 보정 루프를 멈추고 기준 자세를 현재 자세로 (다시 걸을 때 튀지 않게)
                     self._vi[:] = 0.0
