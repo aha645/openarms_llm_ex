@@ -29,7 +29,7 @@ class BipedBridge(B.MujocoBridge):
     def __init__(self):
         super().__init__()
         self.pub_status = self.create_publisher(String, "/biped/status", 10)
-        self.create_timer(0.5, self.publish_status)
+        self.create_timer(0.2, self.publish_status)
         self.get_logger().info(f"TRON1 보행 정책 사용 (정책 50 Hz, 물리 {self.sim.m.opt.timestep * 1000:.0f} ms)")
 
     def on_cmd_vel(self, msg):
@@ -41,7 +41,10 @@ class BipedBridge(B.MujocoBridge):
         msg = String()
         msg.data = json.dumps({"base_height": round(h, 3), "tilt_deg": round(tilt, 1), "fallen": self.sim.fallen,
                                "cmd": [round(float(x), 3) for x in self.sim.cmd_eff],
-                               "est_vel": [round(float(x), 3) for x in self.sim.policy.estimated_velocity]})
+                               "est_vel": [round(float(x), 3) for x in self.sim.policy.estimated_velocity],
+                               # 디버그·채점용 정답값(시뮬에서만): 손끝(TCP) 세계 위치
+                               "tcp_world": {s: [round(float(v), 4) for v in self.sim.d.site_xpos[self.sim.m.site(f"{s}_ee_control_point").id]]
+                                             for s in ("left", "right")}})
         self.pub_status.publish(msg)
         if self.sim.fallen:
             self.get_logger().error("로봇이 넘어졌습니다 → ros2 service call /sim/reset std_srvs/srv/Trigger",
