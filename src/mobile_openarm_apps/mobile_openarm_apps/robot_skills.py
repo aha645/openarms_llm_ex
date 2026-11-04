@@ -600,9 +600,9 @@ class RobotSkills(Node):
         return self._call(self.cart_srv, req, "compute_cartesian_path(검사)").fraction
 
     def _need_fraction(self, back):
-        """직선 접근에서 최소한 상자 중심 + 1 cm 까지는 가야 한다 → 필요한 경로 비율.
+        """직선 접근에서 최소한 상자 중심 + 0.5 cm 까지는 가야 한다 → 필요한 경로 비율.
         GRASP_DEPTH 가 1 cm(바퀴형)면 0.95 이상 그대로, 이족처럼 더 깊이 넣으라고 한 몫은 다 못 가도 된다."""
-        return min(0.95, (back + 0.01) / (back + self.GRASP_DEPTH))
+        return min(0.95, (back + 0.005) / (back + self.GRASP_DEPTH))
 
     def _solve_approach(self, side, target, back=0.10, exclude_id=None):
         """접근 자세 후보(roll × 물러선 거리)들 중 '접근점 IK + 목표 IK + 접근점→목표 직선 경로' 가 모두 되는 것 → (R, pre, q_pre).
@@ -675,7 +675,22 @@ class RobotSkills(Node):
             # 몸 쪽 carry 자세에서 출발 → 접근점까지의 경로가 상자들 위쪽으로 지나감
             self.move_named(f"{side}_arm", "carry")
             self.set_boxes()                                   # 계획 중에는 모든 상자가 장애물
-            R, pre, q_pre = self._solve_approach(side, center, exclude_id=mid)
+            try:
+                R, pre, q_pre = self._solve_approach(side, center, exclude_id=mid)
+            except SkillError as e:
+                if not self.can_strafe:
+                    raise
+                # 이족: 몸통 자세가 조금만 달라도 직선 접근 가능 여부가 바뀐다 → 3 cm 다가서서 한 번 더
+                self.log(f"[pick] {e} → 3 cm 다가서서 다시 시도")
+                self.move_named(f"{side}_arm", "home")
+                self.nudge_base(0.03)
+                self.set_table()
+                center = self.find_marker(mid) - np.array([0, 0, self.box_size / 2])
+                self._table_top_seen = float(center[2] - self.box_size / 2)
+                self.set_table()
+                self.move_named(f"{side}_arm", "carry")
+                self.set_boxes()
+                R, pre, q_pre = self._solve_approach(side, center, exclude_id=mid)
             self.move_joints(f"{side}_arm", q_pre)
             if self.can_strafe:
                 # 팔을 뻗으면 이족 몸통이 반동으로 몇 cm 밀린다 → 직선 접근 목표를 마지막으로 다시 잰 위치로
