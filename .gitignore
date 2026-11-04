@@ -1,0 +1,10 @@
+build/
+install/
+log/
+third_party/
+src/mobile_openarm_sim/mjcf/meshes/*
+!src/mobile_openarm_sim/mjcf/meshes/README.txt
+__pycache__/
+*.pyc
+.DS_Store
+src/mobile_openarm_sim/tools/selftest_camera.png

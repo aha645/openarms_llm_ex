@@ -1,0 +1,36 @@
+# 사용법 (Mac 터미널, 이 파일이 있는 docker/ 폴더에서):
+#   docker compose build          # 이미지 빌드 (처음 1회, 20~40분)
+#   docker compose up -d          # 컨테이너 시작 → 브라우저 http://localhost:6080/vnc.html
+#   docker compose exec openarm bash     # 컨테이너 터미널 열기
+#   docker compose down           # 정지·삭제 (워크스페이스와 빌드 결과는 남음)
+services:
+  openarm:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: openarm-mobile:jazzy
+    container_name: openarm
+    platform: linux/amd64          # Intel iMac = x86_64 (에뮬레이션 없음)
+    shm_size: "2gb"                # DDS 공유메모리·RViz(Qt) 용. 기본 64MB 면 대용량 메시지에서 멈춤
+    ports:
+      - "127.0.0.1:6080:6080"      # noVNC (브라우저 화면)
+      - "127.0.0.1:5901:5901"      # VNC (macOS '화면 공유' 앱)
+      - "127.0.0.1:8080:8080"      # DAY2-06 웹 대시보드
+    environment:
+      RESOLUTION: "1600x900x24"    # 가상 화면 크기 — 작을수록 소프트웨어 렌더가 빠름
+      VNC_PASSWORD: "openarm"      # 바꿔서 쓰세요 (macOS 화면 공유는 비밀번호 필수)
+      LP_NUM_THREADS: "4"          # llvmpipe 렌더 스레드 수 (Docker 에 준 CPU 수 - 1~2)
+      OPENAI_API_KEY: "${OPENAI_API_KEY:-}"   # Mac 셸에서 export 해 두면 전달됨
+      OPENAI_MODEL: "${OPENAI_MODEL:-gpt-4o-mini}"
+      OPENAI_BASE_URL: "${OPENAI_BASE_URL:-}"
+    volumes:
+      - ..:/root/openarm_mobile_ws                       # 워크스페이스 소스 (Mac 폴더와 공유)
+      - ws_build:/root/openarm_mobile_ws/build           # 빌드 산출물은 Docker 볼륨에 (Mac 파일공유보다 빠름)
+      - ws_install:/root/openarm_mobile_ws/install
+      - ws_log:/root/openarm_mobile_ws/log
+    stdin_open: true
+    tty: true
+volumes:
+  ws_build:
+  ws_install:
+  ws_log:

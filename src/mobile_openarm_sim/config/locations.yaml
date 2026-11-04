@@ -1,0 +1,73 @@
+aruco:
+  dictionary: DICT_4X4_50
+  marker_size: 0.04
+  box_size: 0.05
+  table_height: 0.7
+objects:
+  box_0:
+    marker_id: 0
+    color: red
+  box_1:
+    marker_id: 1
+    color: green
+  box_2:
+    marker_id: 2
+    color: blue
+locations:
+  home:
+  - 0.0
+  - 0.0
+  - 0.0
+  pick_station:
+  - 2.5
+  - 2.15
+  - 90.0
+  place_station:
+  - -2.5
+  - 2.15
+  - 90.0
+  door:
+  - 0.0
+  - 1.5
+  - 90.0
+  patrol_1:
+  - 3.5
+  - -2.8
+  - 0.0
+  patrol_2:
+  - 3.5
+  - 0.6
+  - 90.0
+  patrol_3:
+  - -3.5
+  - 0.6
+  - 180.0
+  patrol_4:
+  - -3.5
+  - -2.8
+  - -90.0
+tables:
+  pick_table:
+    center:
+    - 2.5
+    - 3.1
+    size:
+    - 0.9
+    - 0.5
+    height: 0.7
+  place_table:
+    center:
+    - -2.5
+    - 3.1
+    size:
+    - 0.9
+    - 0.5
+    height: 0.7
+station_table:
+  pick_station: pick_table
+  place_station: place_table
+patrol_route:
+- patrol_1
+- patrol_2
+- patrol_3
+- patrol_4

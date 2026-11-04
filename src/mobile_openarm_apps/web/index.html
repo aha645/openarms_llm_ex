@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mobile OpenArm 관제</title>
+<style>
+  :root {
+    --bg: #f4f3ef; --panel: #ffffff; --ink: #1d1f22; --muted: #6b6f76; --line: #e2e0da;
+    --accent: #d6336c; --ok: #2f9e44; --warn: #e8590c; --run: #1c7ed6;
+    --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #16171a; --panel: #1f2125; --ink: #e9e9ea; --muted: #9a9ea6; --line: #30333a; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 14px/1.5 system-ui, -apple-system, "Noto Sans KR", sans-serif; }
+  header { display: flex; align-items: baseline; gap: 16px; padding: 14px 20px; border-bottom: 1px solid var(--line); }
+  header h1 { font-size: 16px; margin: 0; letter-spacing: .02em; }
+  header .state { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); margin-right: 6px; }
+  main { display: grid; gap: 14px; padding: 14px 20px; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; padding: 12px 16px; } }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; min-width: 0; }
+  section h2 { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 8px; }
+  canvas, img.cam { width: 100%; height: auto; display: block; border-radius: 6px; background: #ccc; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  input[type=text] { flex: 1 1 240px; min-width: 0; padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px;
+                     background: transparent; color: var(--ink); font-size: 14px; }
+  button { padding: 9px 12px; border: 1px solid var(--line); border-radius: 8px; background: transparent; color: var(--ink); cursor: pointer; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .chips button { font-size: 12px; padding: 5px 9px; }
+  ol.steps { margin: 6px 0 0; padding-left: 22px; font-family: var(--mono); font-size: 13px; }
+  ol.steps li[data-s=done] { color: var(--ok); }
+  ol.steps li[data-s=running] { color: var(--run); font-weight: 600; }
+  ol.steps li[data-s=failed] { color: var(--warn); }
+  .log { font-family: var(--mono); font-size: 12px; max-height: 220px; overflow: auto; white-space: pre-wrap; color: var(--muted); }
+  .kv { font-family: var(--mono); font-size: 13px; }
+  .msg { margin-top: 6px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Mobile OpenArm · 관제</h1>
+  <span class="state"><span class="dot" id="conn"></span><span id="connText">연결 중…</span></span>
+  <span class="state" id="pose">pose —</span>
+</header>
+<main>
+  <section>
+    <h2>지도 · 로봇 위치</h2>
+    <canvas id="map" width="880" height="720"></canvas>
+  </section>
+  <div style="display:grid; gap:14px; min-width:0">
+    <section>
+      <h2>머리 카메라 (MJPEG)</h2>
+      <img class="cam" id="cam" alt="camera stream" src="/camera.mjpg">
+      <div class="kv" id="dets" style="margin-top:6px">마커: —</div>
+    </section>
+    <section>
+      <h2>자연어 명령</h2>
+      <div class="row">
+        <input type="text" id="cmd" placeholder="예) 빨간 상자를 왼쪽 작업대로 옮기고 돌아와">
+        <button class="primary" id="send">실행</button>
+        <button id="cancel">취소</button>
+      </div>
+      <div class="row chips" style="margin-top:8px">
+        <button data-c="빨간 상자를 왼쪽 작업대로 옮기고 돌아와">빨간 상자 운반</button>
+        <button data-c="파란 상자를 왼쪽 작업대로 옮겨줘">파란 상자 운반</button>
+        <button data-c="순찰 한 바퀴 돌고 와">순찰</button>
+        <button data-c="커피 한 잔 타줘">불가능한 명령</button>
+      </div>
+    </section>
+    <section>
+      <h2>미션</h2>
+      <div class="kv" id="task">—</div>
+      <div class="msg" id="taskMsg"></div>
+      <ol class="steps" id="steps"></ol>
+    </section>
+    <section>
+      <h2>로그</h2>
+      <div class="log" id="log"></div>
+    </section>
+  </div>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const cv = $("map"), ctx = cv.getContext("2d");
+let mapImg = null, mapStamp = 0, last = null;
+
+function loadMap(meta) {
+  if (!meta || meta.stamp === mapStamp) return;
+  mapStamp = meta.stamp;
+  const im = new Image();
+  im.onload = () => { mapImg = im; };
+  im.src = "/map.png?t=" + meta.stamp;
+}
+
+function draw(s) {
+  ctx.clearRect(0, 0, cv.width, cv.height);
+  const m = s.map;
+  if (!m || !mapImg) {
+    ctx.fillStyle = "#888"; ctx.font = "14px sans-serif";
+    ctx.fillText("/map 대기 중 (Nav2 map_server 또는 SLAM 실행 필요)", 20, 30);
+    return;
+  }
+  const sc = Math.min(cv.width / m.width, cv.height / m.height);
+  const ox = (cv.width - m.width * sc) / 2, oy = (cv.height - m.height * sc) / 2;
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(mapImg, ox, oy, m.width * sc, m.height * sc);
+  const toPx = (x, y) => [ox + (x - m.origin[0]) / m.resolution * sc,
+                          oy + (m.height - (y - m.origin[1]) / m.resolution) * sc];
+  ctx.font = "12px sans-serif";
+  for (const [name, p] of Object.entries(s.locations || {})) {
+    const [px, py] = toPx(p[0], p[1]);
+    ctx.fillStyle = "#1c7ed6"; ctx.beginPath(); ctx.arc(px, py, 4, 0, 7); ctx.fill();
+    ctx.fillStyle = "#555"; ctx.fillText(name, px + 6, py - 6);
+  }
+  if (s.pose && s.pose.frame === "map") {
+    const [px, py] = toPx(s.pose.x, s.pose.y);
+    const r = 0.3 / m.resolution * sc;
+    ctx.save(); ctx.translate(px, py); ctx.rotate(-s.pose.yaw);
+    ctx.fillStyle = "rgba(214,51,108,.85)";
+    ctx.beginPath(); ctx.moveTo(r, 0); ctx.lineTo(-r * .7, r * .6); ctx.lineTo(-r * .7, -r * .6); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+}
+
+function render(s) {
+  last = s;
+  loadMap(s.map);
+  draw(s);
+  $("pose").textContent = s.pose ? `${s.pose.frame}  x=${s.pose.x.toFixed(2)}  y=${s.pose.y.toFixed(2)}  yaw=${(s.pose.yaw * 57.3).toFixed(0)}°` : "pose —";
+  const t = s.task || {};
+  $("task").textContent = `상태: ${t.state || "—"}   planner: ${t.planner || "—"}`;
+  $("taskMsg").textContent = (t.message || "") + ((t.warnings || []).length ? "  ⚠ " + t.warnings.join(" / ") : "");
+  $("steps").innerHTML = (t.steps || []).map(st =>
+    `<li data-s="${st.status}">${st.action} ${st.location || st.object || st.text || st.seconds || ""} — ${st.status}</li>`).join("");
+  $("dets").textContent = "마커: " + ((s.detections || []).map(d => `id${d.id}(${d.position.map(v => v.toFixed(2)).join(",")})`).join("  ") || "없음")
+    + "   잡은 물체: " + JSON.stringify(s.attached || {});
+  $("log").textContent = (s.logs || []).map(l => `${l.t}  ${l.msg}`).join("\n");
+}
+
+function connect() {
+  const es = new EventSource("/events");
+  es.onopen = () => { $("conn").style.background = "var(--ok)"; $("connText").textContent = "연결됨"; };
+  es.onerror = () => { $("conn").style.background = "var(--warn)"; $("connText").textContent = "재연결 중…"; };
+  es.onmessage = (e) => render(JSON.parse(e.data));
+}
+
+async function send(text) {
+  if (!text) return;
+  await fetch("/api/command", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }) });
+}
+$("send").onclick = () => send($("cmd").value.trim());
+$("cmd").addEventListener("keydown", (e) => { if (e.key === "Enter") send($("cmd").value.trim()); });
+$("cancel").onclick = () => fetch("/api/cancel", { method: "POST" });
+document.querySelectorAll("[data-c]").forEach(b => b.onclick = () => { $("cmd").value = b.dataset.c; send(b.dataset.c); });
+connect();
+</script>
+</body>
+</html>

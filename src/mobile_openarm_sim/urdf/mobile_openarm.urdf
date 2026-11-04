@@ -1,0 +1,1196 @@
+<?xml version="1.0"?>
+<!-- 자동 생성: tools/mjcf_to_urdf.py (원본 MJCF: mjcf/mobile_openarm.xml) -->
+<robot name="mobile_openarm">
+  <material name="black">
+    <color rgba="0.25 0.25 0.25 1" />
+  </material>
+  <material name="silver">
+    <color rgba="0.8 0.8 0.8 1" />
+  </material>
+  <material name="white">
+    <color rgba="0.85 0.85 0.88 1" />
+  </material>
+  <material name="pink">
+    <color rgba="0.95 0.35 0.55 1" />
+  </material>
+  <link name="base_footprint" />
+  <joint name="base_footprint_to_base_link" type="fixed">
+    <parent link="base_footprint" />
+    <child link="base_link" />
+    <origin xyz="0 0 0.08" rpy="0 0 0" />
+  </joint>
+  <link name="base_link">
+    <inertial>
+      <origin xyz="0 0 0.0919297" rpy="3.14159 -1.5708 3.14159" />
+      <mass value="25.6" />
+      <inertia ixx="0.815217" iyy="0.685481" izz="0.410648" ixy="0" ixz="0" iyz="0" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0.095" rpy="0 0 0" />
+      <geometry>
+        <box size="0.5 0.36 0.25" />
+      </geometry>
+      <material name="chassis_mat">
+        <color rgba="0.85 0.85 0.88 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0.095" rpy="0 0 0" />
+      <geometry>
+        <box size="0.5 0.36 0.25" />
+      </geometry>
+    </collision>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <box size="0.52 0.38 0.04" />
+      </geometry>
+      <material name="bumper_vis_mat">
+        <color rgba="0.95 0.35 0.55 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="0.2 0 -0.036" rpy="0 0 0" />
+      <geometry>
+        <sphere radius="0.04" />
+      </geometry>
+      <material name="caster_front_mat">
+        <color rgba="0.2 0.2 0.2 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0.2 0 -0.036" rpy="0 0 0" />
+      <geometry>
+        <sphere radius="0.04" />
+      </geometry>
+    </collision>
+    <visual>
+      <origin xyz="-0.2 0 -0.036" rpy="0 0 0" />
+      <geometry>
+        <sphere radius="0.04" />
+      </geometry>
+      <material name="caster_rear_mat">
+        <color rgba="0.2 0.2 0.2 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="-0.2 0 -0.036" rpy="0 0 0" />
+      <geometry>
+        <sphere radius="0.04" />
+      </geometry>
+    </collision>
+    <visual>
+      <origin xyz="0.22 0 0.25" rpy="0 0 0" />
+      <geometry>
+        <cylinder radius="0.035" length="0.05" />
+      </geometry>
+      <material name="lidar_vis_mat">
+        <color rgba="0.1 0.1 0.1 1" />
+      </material>
+    </visual>
+  </link>
+  <link name="left_wheel_link">
+    <inertial>
+      <origin xyz="0 0 0" rpy="1.5708 0 0" />
+      <mass value="1.5" />
+      <inertia ixx="0.0026" iyy="0.0026" izz="0.0048" ixy="0" ixz="0" iyz="0" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="1.5708 0 0" />
+      <geometry>
+        <cylinder radius="0.08" length="0.04" />
+      </geometry>
+      <material name="left_wheel_mat">
+        <color rgba="0.15 0.15 0.15 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="1.5708 0 0" />
+      <geometry>
+        <cylinder radius="0.08" length="0.04" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="left_wheel_joint" type="continuous">
+    <parent link="base_link" />
+    <child link="left_wheel_link" />
+    <origin xyz="0 0.22 0" rpy="0 0 0" />
+    <axis xyz="0 1 0" />
+    <limit effort="25" velocity="30" />
+  </joint>
+  <link name="right_wheel_link">
+    <inertial>
+      <origin xyz="0 0 0" rpy="1.5708 0 0" />
+      <mass value="1.5" />
+      <inertia ixx="0.0026" iyy="0.0026" izz="0.0048" ixy="0" ixz="0" iyz="0" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="1.5708 0 0" />
+      <geometry>
+        <cylinder radius="0.08" length="0.04" />
+      </geometry>
+      <material name="right_wheel_mat">
+        <color rgba="0.15 0.15 0.15 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="1.5708 0 0" />
+      <geometry>
+        <cylinder radius="0.08" length="0.04" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="right_wheel_joint" type="continuous">
+    <parent link="base_link" />
+    <child link="right_wheel_link" />
+    <origin xyz="0 -0.22 0" rpy="0 0 0" />
+    <axis xyz="0 1 0" />
+    <limit effort="25" velocity="30" />
+  </joint>
+  <link name="openarm_body_link0">
+    <inertial>
+      <origin xyz="-0.0162069 0 0.244092" rpy="0 0 0" />
+      <mass value="3.74" />
+      <inertia ixx="0.248947" iyy="0.253034" izz="0.0140272" ixy="0" ixz="0" iyz="0" />
+    </inertial>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/visual/body/body_link0_3.obj" scale="0.001 0.001 0.001" />
+      </geometry>
+    </collision>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/visual/body/body_link0_0.obj" scale="0.001 0.001 0.001" />
+      </geometry>
+      <material name="openarm_body_link0_visual_0_mat">
+        <color rgba="0.247059 0.247059 0.247059 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/visual/body/body_link0_1.obj" scale="0.001 0.001 0.001" />
+      </geometry>
+      <material name="openarm_body_link0_visual_1_mat">
+        <color rgba="0.796078 0.796078 0.796078 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/visual/body/body_link0_2.obj" scale="0.001 0.001 0.001" />
+      </geometry>
+      <material name="openarm_body_link0_visual_2_mat">
+        <color rgba="0.247059 0.247059 0.247059 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/visual/body/body_link0_3.obj" scale="0.001 0.001 0.001" />
+      </geometry>
+      <material name="openarm_body_link0_visual_3_mat">
+        <color rgba="0.247059 0.247059 0.247059 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/visual/body/body_link0_4.obj" scale="0.001 0.001 0.001" />
+      </geometry>
+      <material name="openarm_body_link0_visual_4_mat">
+        <color rgba="0.796078 0.796078 0.796078 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/visual/body/body_link0_5.obj" scale="0.001 0.001 0.001" />
+      </geometry>
+      <material name="openarm_body_link0_visual_5_mat">
+        <color rgba="0.247059 0.247059 0.247059 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="0.08 0 0.86" rpy="0 0 0" />
+      <geometry>
+        <box size="0.04 0.1 0.04" />
+      </geometry>
+      <material name="head_camera_vis_mat">
+        <color rgba="0.1 0.1 0.1 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="0.05 0 0.8" rpy="0 0 0" />
+      <geometry>
+        <cylinder radius="0.012" length="0.12" />
+      </geometry>
+      <material name="head_mast_vis_mat">
+        <color rgba="0.3 0.3 0.3 1" />
+      </material>
+    </visual>
+  </link>
+  <joint name="base_link_to_openarm_body_link0" type="fixed">
+    <parent link="base_link" />
+    <child link="openarm_body_link0" />
+    <origin xyz="0.12 0 0.22" rpy="0 0 0" />
+  </joint>
+  <link name="openarm_left_link0">
+    <inertial>
+      <origin xyz="-0.000948336 -0.000158021 0.0307686" rpy="-1.40809 -1.47478 3.00677" />
+      <mass value="1.14323" />
+      <inertia ixx="0.00147324" iyy="0.00112498" izz="0.000961783" ixy="0" ixz="0" iyz="0" />
+    </inertial>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/collision/arm/link0_left.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </collision>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/visual/arm/link0_0.obj" scale="0.001 -0.001 0.001" />
+      </geometry>
+      <material name="openarm_left_link0_visual_0_mat">
+        <color rgba="0.796078 0.796078 0.796078 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/visual/arm/link0_1.obj" scale="0.001 -0.001 0.001" />
+      </geometry>
+      <material name="openarm_left_link0_visual_1_mat">
+        <color rgba="0.247059 0.247059 0.247059 1" />
+      </material>
+    </visual>
+  </link>
+  <joint name="openarm_body_link0_to_openarm_left_link0" type="fixed">
+    <parent link="openarm_body_link0" />
+    <child link="openarm_left_link0" />
+    <origin xyz="0 0.03 0.697" rpy="-1.5708 0 0" />
+  </joint>
+  <link name="openarm_left_link1">
+    <inertial>
+      <origin xyz="0.00114677 -3.31999e-05 0.0539528" rpy="-0.00347338 0.0524442 0.00356137" />
+      <mass value="1.14167" />
+      <inertia ixx="0.00156853" iyy="0.001273" izz="0.00101447" ixy="0" ixz="0" iyz="0" />
+    </inertial>
+    <collision>
+      <origin xyz="-0 0 -0.0625" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/collision/arm/link1_left.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </collision>
+    <visual>
+      <origin xyz="-0 0 -0.0625" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/visual/arm/link1_0.obj" scale="0.001 -0.001 0.001" />
+      </geometry>
+      <material name="openarm_left_link1_visual_0_mat">
+        <color rgba="0.247059 0.247059 0.247059 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="-0 0 -0.0625" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/visual/arm/link1_2.obj" scale="0.001 -0.001 0.001" />
+      </geometry>
+      <material name="openarm_left_link1_visual_2_mat">
+        <color rgba="0.247059 0.247059 0.247059 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="-0 0 -0.0625" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/visual/arm/link1_3.obj" scale="0.001 -0.001 0.001" />
+      </geometry>
+      <material name="openarm_left_link1_visual_3_mat">
+        <color rgba="0.247059 0.247059 0.247059 1" />
+      </material>
+    </visual>
+  </link>
+  <joint name="openarm_left_joint1" type="revolute">
+    <parent link="openarm_left_link0" />
+    <child link="openarm_left_link1" />
+    <origin xyz="0 0 0.0625" rpy="0 0 0" />
+    <axis xyz="0 0 1" />
+    <limit lower="-3.49066" upper="1.39626" effort="40" velocity="10" />
+  </joint>
+  <link name="openarm_left_link2">
+    <inertial>
+      <origin xyz="0.00839629 2.01451e-08 0.0325665" rpy="-0.0112487 0.521584 -0.00931631" />
+      <mass value="0.277509" />
+      <inertia ixx="0.000421651" iyy="0.000376006" izz="0.000169343" ixy="0" ixz="0" iyz="0" />
+    </inertial>
+    <collision>
+      <origin xyz="0.0301 0 -0.1225" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/collision/arm/link2_left.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </collision>
+    <visual>
+      <origin xyz="0.0301 0 -0.1225" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/visual/arm/link2_0.obj" scale="0.001 -0.001 0.001" />
+      </geometry>
+      <material name="openarm_left_link2_visual_0_mat">
+        <color rgba="0.247059 0.247059 0.247059 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="0.0301 0 -0.1225" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/visual/arm/link2_1.obj" scale="0.001 -0.001 0.001" />
+      </geometry>
+      <material name="openarm_left_link2_visual_1_mat">
+        <color rgba="0.247059 0.247059 0.247059 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="0.0301 0 -0.1225" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/visual/arm/link2_2.obj" scale="0.001 -0.001 0.001" />
+      </geometry>
+      <material name="openarm_left_link2_visual_2_mat">
+        <color rgba="0.247059 0.247059 0.247059 1" />
+      </material>
+    </visual>
+  </link>
+  <joint name="openarm_left_joint2" type="revolute">
+    <parent link="openarm_left_link1" />
+    <child link="openarm_left_link2" />
+    <origin xyz="-0.0301 0 0.06" rpy="-1.5708 0 0" />
+    <axis xyz="-1 0 0" />
+    <limit lower="-3.31613" upper="0.174533" effort="40" velocity="10" />
+  </joint>
+  <link name="openarm_left_link3">
+    <inertial>
+      <origin xyz="-0.00210475 0.000554909 0.0904747" rpy="-0.00988899 -0.00279929 0.0169494" />
+      <mass value="1.07386" />
+      <inertia ixx="0.00437205" iyy="0.00431934" izz="0.000660613" ixy="0" ixz="0" iyz="0" />
+    </inertial>
+    <collision>
+      <origin xyz="-0 -0 -0.18875" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/collision/arm/link3.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </collision>
+    <visual>
+      <origin xyz="-0 -0 -0.18875" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/visual/arm/link3_0.obj" scale="0.001 0.001 0.001" />
+      </geometry>
+      <material name="openarm_left_link3_visual_0_mat">
+        <color rgba="0.247059 0.247059 0.247059 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="-0 -0 -0.18875" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/visual/arm/link3_1.obj" scale="0.001 0.001 0.001" />
+      </geometry>
+      <material name="openarm_left_link3_visual_1_mat">
+        <color rgba="0.247059 0.247059 0.247059 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="-0 -0 -0.18875" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/visual/arm/link3_2.obj" scale="0.001 0.001 0.001" />
+      </geometry>
+      <material name="openarm_left_link3_visual_2_mat">
+        <color rgba="0.796078 0.796078 0.796078 1" />
+      </material>
+    </visual>
+  </link>
+  <joint name="openarm_left_joint3" type="revolute">
+    <parent link="openarm_left_link2" />
+    <child link="openarm_left_link3" />
+    <origin xyz="0.0301 0 0.06625" rpy="0 0 0" />
+    <axis xyz="0 0 1" />
+    <limit lower="-1.5708" upper="1.5708" effort="27" velocity="10" />
+  </joint>
+  <link name="openarm_left_link4">
+    <inertial>
+      <origin xyz="-0.00290068 -0.0303058 0.0633964" rpy="0.198736 0.069499 -0.0321583" />
+      <mass value="0.634853" />
+      <inertia ixx="0.000624355" iyy="0.000518596" izz="0.000325049" ixy="0" ixz="0" iyz="0" />
+    </inertial>
+    <collision>
+      <origin xyz="0 -0.0315 -0.3425" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/collision/arm/link4.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </collision>
+    <visual>
+      <origin xyz="0 -0.0315 -0.3425" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/visual/arm/link4_0.obj" scale="0.001 0.001 0.001" />
+      </geometry>
+      <material name="openarm_left_link4_visual_0_mat">
+        <color rgba="0.247059 0.247059 0.247059 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="0 -0.0315 -0.3425" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/visual/arm/link4_1.obj" scale="0.001 0.001 0.001" />
+      </geometry>
+      <material name="openarm_left_link4_visual_1_mat">
+        <color rgba="0.796078 0.796078 0.796078 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="0 -0.0315 -0.3425" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/visual/arm/link4_2.obj" scale="0.001 0.001 0.001" />
+      </geometry>
+      <material name="openarm_left_link4_visual_2_mat">
+        <color rgba="0.247059 0.247059 0.247059 1" />
+      </material>
+    </visual>
+  </link>
+  <joint name="openarm_left_joint4" type="revolute">
+    <parent link="openarm_left_link3" />
+    <child link="openarm_left_link4" />
+    <origin xyz="-0 0.0315 0.15375" rpy="0 0 0" />
+    <axis xyz="0 1 0" />
+    <limit lower="0" upper="2.44346" effort="27" velocity="10" />
+  </joint>
+  <link name="openarm_left_link5">
+    <inertial>
+      <origin xyz="-0.00304967 -0.00088669 0.0430798" rpy="-0.0390765 -0.061133 1.24788" />
+      <mass value="0.615659" />
+      <inertia ixx="0.000448064" iyy="0.000420549" izz="0.000323387" ixy="0" ixz="0" iyz="0" />
+    </inertial>
+    <collision>
+      <origin xyz="-0 -0 -0.438" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/collision/arm/link5_left.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </collision>
+    <visual>
+      <origin xyz="-0 -0 -0.438" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/visual/arm/link5_0.obj" scale="0.001 -0.001 0.001" />
+      </geometry>
+      <material name="openarm_left_link5_visual_0_mat">
+        <color rgba="0.247059 0.247059 0.247059 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="-0 -0 -0.438" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/visual/arm/link5_1.obj" scale="0.001 -0.001 0.001" />
+      </geometry>
+      <material name="openarm_left_link5_visual_1_mat">
+        <color rgba="0.796078 0.796078 0.796078 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="-0 -0 -0.438" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/visual/arm/link5_2.obj" scale="0.001 -0.001 0.001" />
+      </geometry>
+      <material name="openarm_left_link5_visual_2_mat">
+        <color rgba="0.247059 0.247059 0.247059 1" />
+      </material>
+    </visual>
+  </link>
+  <joint name="openarm_left_joint5" type="revolute">
+    <parent link="openarm_left_link4" />
+    <child link="openarm_left_link5" />
+    <origin xyz="0 -0.0315 0.0955" rpy="0 0 0" />
+    <axis xyz="0 0 1" />
+    <limit lower="-1.5708" upper="1.5708" effort="7" velocity="10" />
+  </joint>
+  <link name="openarm_left_link6">
+    <inertial>
+      <origin xyz="-0.0371366 -0.000332305 -9.49837e-05" rpy="-1.71441 -1.15617 -1.3726" />
+      <mass value="0.475203" />
+      <inertia ixx="0.000159518" iyy="0.000156606" izz="0.000142875" ixy="0" ixz="0" iyz="0" />
+    </inertial>
+    <collision>
+      <origin xyz="-0.0375 -0 -0.5585" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/collision/arm/link6_left.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </collision>
+    <visual>
+      <origin xyz="-0.0375 -0 -0.5585" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/visual/arm/link6_0.obj" scale="0.001 -0.001 0.001" />
+      </geometry>
+      <material name="openarm_left_link6_visual_0_mat">
+        <color rgba="0.247059 0.247059 0.247059 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="-0.0375 -0 -0.5585" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/visual/arm/link6_1.obj" scale="0.001 -0.001 0.001" />
+      </geometry>
+      <material name="openarm_left_link6_visual_1_mat">
+        <color rgba="0.796078 0.796078 0.796078 1" />
+      </material>
+    </visual>
+  </link>
+  <joint name="openarm_left_joint6" type="revolute">
+    <parent link="openarm_left_link5" />
+    <child link="openarm_left_link6" />
+    <origin xyz="0.0375 0 0.1205" rpy="0 0 0" />
+    <axis xyz="1 0 0" />
+    <limit lower="-0.785398" upper="0.785398" effort="7" velocity="10" />
+  </joint>
+  <link name="openarm_left_link7">
+    <inertial>
+      <origin xyz="-9.89745e-05 -0.00337244 0.0613892" rpy="-0.381152 0 0" />
+      <mass value="0.405497" />
+      <inertia ixx="0.000363783" iyy="0.000363552" izz="0.000158079" ixy="0" ixz="0" iyz="0" />
+    </inertial>
+    <collision>
+      <origin xyz="0 -0 -0.5585" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/collision/arm/link7_left.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </collision>
+    <visual>
+      <origin xyz="0 -0 -0.5585" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/visual/arm/link7_0.obj" scale="0.001 -0.001 0.001" />
+      </geometry>
+      <material name="openarm_left_link7_visual_0_mat">
+        <color rgba="0.796078 0.796078 0.796078 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="0 -0 -0.5585" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/visual/arm/link7_1.obj" scale="0.001 -0.001 0.001" />
+      </geometry>
+      <material name="openarm_left_link7_visual_1_mat">
+        <color rgba="0.247059 0.247059 0.247059 1" />
+      </material>
+    </visual>
+  </link>
+  <joint name="openarm_left_joint7" type="revolute">
+    <parent link="openarm_left_link6" />
+    <child link="openarm_left_link7" />
+    <origin xyz="-0.0375 0 0" rpy="0 0 0" />
+    <axis xyz="0 -1 0" />
+    <limit lower="-1.5708" upper="1.5708" effort="7" velocity="10" />
+  </joint>
+  <link name="openarm_left_hand">
+    <inertial>
+      <origin xyz="0 0 0.00512294" rpy="3.14159 -1.5708 3.14159" />
+      <mass value="0.172311" />
+      <inertia ixx="0.000290609" iyy="0.000251645" izz="5.48914e-05" ixy="0" ixz="0" iyz="0" />
+    </inertial>
+    <collision>
+      <origin xyz="0 0 -0.6586" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/collision/gripper/hand.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </collision>
+    <visual>
+      <origin xyz="0 0 -0.6586" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/visual/gripper/hand_0.obj" scale="0.001 0.001 0.001" />
+      </geometry>
+      <material name="openarm_left_hand_visual_0_mat">
+        <color rgba="0.796078 0.796078 0.796078 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="0 0 -0.6586" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/visual/gripper/hand_1.obj" scale="0.001 0.001 0.001" />
+      </geometry>
+      <material name="openarm_left_hand_visual_1_mat">
+        <color rgba="0.796078 0.796078 0.796078 1" />
+      </material>
+    </visual>
+  </link>
+  <joint name="openarm_left_link7_to_openarm_left_hand" type="fixed">
+    <parent link="openarm_left_link7" />
+    <child link="openarm_left_hand" />
+    <origin xyz="0 0 0.1001" rpy="0 0 0" />
+  </joint>
+  <link name="openarm_left_hand_tcp" />
+  <joint name="openarm_left_hand_to_openarm_left_hand_tcp" type="fixed">
+    <parent link="openarm_left_hand" />
+    <child link="openarm_left_hand_tcp" />
+    <origin xyz="0 0 0.09" rpy="0 0 0" />
+  </joint>
+  <link name="openarm_left_right_finger">
+    <inertial>
+      <origin xyz="0.0046467 -0.0121789 0.0133529" rpy="-0.233137 0.167221 1.69358" />
+      <mass value="0.07445" />
+      <inertia ixx="4.24078e-05" iyy="3.37383e-05" izz="1.72701e-05" ixy="0" ixz="0" iyz="0" />
+    </inertial>
+    <collision>
+      <origin xyz="0 0.05 -0.673001" rpy="0 0 3.14159" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/collision/gripper/finger.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </collision>
+    <visual>
+      <origin xyz="0 0.05 -0.673001" rpy="0 0 3.14159" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/visual/gripper/finger_0.obj" scale="0.001 0.001 0.001" />
+      </geometry>
+      <material name="openarm_left_right_finger_visual_0_mat">
+        <color rgba="0.7 0.7 0.7 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="0 0.05 -0.673001" rpy="0 0 3.14159" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/visual/gripper/finger_1.obj" scale="0.001 0.001 0.001" />
+      </geometry>
+      <material name="openarm_left_right_finger_visual_1_mat">
+        <color rgba="0.247059 0.247059 0.247059 1" />
+      </material>
+    </visual>
+  </link>
+  <joint name="openarm_left_finger_joint1" type="prismatic">
+    <parent link="openarm_left_hand" />
+    <child link="openarm_left_right_finger" />
+    <origin xyz="0 -0.005 0.015" rpy="0 0 0" />
+    <axis xyz="0 -1 0" />
+    <limit lower="0" upper="0.044" effort="150.75" velocity="0.2" />
+  </joint>
+  <link name="openarm_left_left_finger">
+    <inertial>
+      <origin xyz="-0.0046467 0.0121789 0.0133529" rpy="0.233137 -0.167221 1.69358" />
+      <mass value="0.07445" />
+      <inertia ixx="4.24078e-05" iyy="3.37383e-05" izz="1.72701e-05" ixy="0" ixz="0" iyz="0" />
+    </inertial>
+    <collision>
+      <origin xyz="0 -0.05 -0.673001" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/collision/gripper/finger.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </collision>
+    <visual>
+      <origin xyz="0 -0.05 -0.673001" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/visual/gripper/finger_0.obj" scale="0.001 0.001 0.001" />
+      </geometry>
+      <material name="openarm_left_left_finger_visual_0_mat">
+        <color rgba="0.7 0.7 0.7 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="0 -0.05 -0.673001" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/visual/gripper/finger_1.obj" scale="0.001 0.001 0.001" />
+      </geometry>
+      <material name="openarm_left_left_finger_visual_1_mat">
+        <color rgba="0.247059 0.247059 0.247059 1" />
+      </material>
+    </visual>
+  </link>
+  <joint name="openarm_left_finger_joint2" type="prismatic">
+    <parent link="openarm_left_hand" />
+    <child link="openarm_left_left_finger" />
+    <origin xyz="0 0.005 0.015" rpy="0 0 0" />
+    <axis xyz="0 1 0" />
+    <limit lower="0" upper="0.044" effort="100" velocity="0.2" />
+    <mimic joint="openarm_left_finger_joint1" multiplier="1" offset="0" />
+  </joint>
+  <link name="openarm_right_link0">
+    <inertial>
+      <origin xyz="-0.000948336 0.000158021 0.0307686" rpy="-1.7335 -1.47478 -3.00677" />
+      <mass value="1.14323" />
+      <inertia ixx="0.00147324" iyy="0.00112498" izz="0.000961783" ixy="0" ixz="0" iyz="0" />
+    </inertial>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/collision/arm/link0.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </collision>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/visual/arm/link0_0.obj" scale="0.001 0.001 0.001" />
+      </geometry>
+      <material name="openarm_right_link0_visual_0_mat">
+        <color rgba="0.796078 0.796078 0.796078 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/visual/arm/link0_1.obj" scale="0.001 0.001 0.001" />
+      </geometry>
+      <material name="openarm_right_link0_visual_1_mat">
+        <color rgba="0.247059 0.247059 0.247059 1" />
+      </material>
+    </visual>
+  </link>
+  <joint name="openarm_body_link0_to_openarm_right_link0" type="fixed">
+    <parent link="openarm_body_link0" />
+    <child link="openarm_right_link0" />
+    <origin xyz="0 -0.03 0.697" rpy="1.5708 0 0" />
+  </joint>
+  <link name="openarm_right_link1">
+    <inertial>
+      <origin xyz="0.00114677 3.31999e-05 0.0539528" rpy="0.00347338 0.0524442 -0.00356137" />
+      <mass value="1.14167" />
+      <inertia ixx="0.00156853" iyy="0.001273" izz="0.00101447" ixy="0" ixz="0" iyz="0" />
+    </inertial>
+    <collision>
+      <origin xyz="-0 0 -0.0625" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/collision/arm/link1.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </collision>
+    <visual>
+      <origin xyz="-0 0 -0.0625" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/visual/arm/link1_0.obj" scale="0.001 0.001 0.001" />
+      </geometry>
+      <material name="openarm_right_link1_visual_0_mat">
+        <color rgba="0.247059 0.247059 0.247059 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="-0 0 -0.0625" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/visual/arm/link1_2.obj" scale="0.001 0.001 0.001" />
+      </geometry>
+      <material name="openarm_right_link1_visual_2_mat">
+        <color rgba="0.247059 0.247059 0.247059 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="-0 0 -0.0625" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/visual/arm/link1_3.obj" scale="0.001 0.001 0.001" />
+      </geometry>
+      <material name="openarm_right_link1_visual_3_mat">
+        <color rgba="0.247059 0.247059 0.247059 1" />
+      </material>
+    </visual>
+  </link>
+  <joint name="openarm_right_joint1" type="revolute">
+    <parent link="openarm_right_link0" />
+    <child link="openarm_right_link1" />
+    <origin xyz="0 0 0.0625" rpy="0 0 0" />
+    <axis xyz="0 0 1" />
+    <limit lower="-1.39626" upper="3.49066" effort="40" velocity="10" />
+  </joint>
+  <link name="openarm_right_link2">
+    <inertial>
+      <origin xyz="0.00839629 -2.01451e-08 0.0325665" rpy="0.0112487 0.521584 0.00931631" />
+      <mass value="0.277509" />
+      <inertia ixx="0.000421651" iyy="0.000376006" izz="0.000169343" ixy="0" ixz="0" iyz="0" />
+    </inertial>
+    <collision>
+      <origin xyz="0.0301 0 -0.1225" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/collision/arm/link2.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </collision>
+    <visual>
+      <origin xyz="0.0301 0 -0.1225" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/visual/arm/link2_0.obj" scale="0.001 0.001 0.001" />
+      </geometry>
+      <material name="openarm_right_link2_visual_0_mat">
+        <color rgba="0.247059 0.247059 0.247059 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="0.0301 0 -0.1225" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/visual/arm/link2_1.obj" scale="0.001 0.001 0.001" />
+      </geometry>
+      <material name="openarm_right_link2_visual_1_mat">
+        <color rgba="0.247059 0.247059 0.247059 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="0.0301 0 -0.1225" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/visual/arm/link2_2.obj" scale="0.001 0.001 0.001" />
+      </geometry>
+      <material name="openarm_right_link2_visual_2_mat">
+        <color rgba="0.247059 0.247059 0.247059 1" />
+      </material>
+    </visual>
+  </link>
+  <joint name="openarm_right_joint2" type="revolute">
+    <parent link="openarm_right_link1" />
+    <child link="openarm_right_link2" />
+    <origin xyz="-0.0301 0 0.06" rpy="1.5708 0 0" />
+    <axis xyz="-1 0 0" />
+    <limit lower="-0.174533" upper="3.31613" effort="40" velocity="10" />
+  </joint>
+  <link name="openarm_right_link3">
+    <inertial>
+      <origin xyz="-0.00210475 0.000554909 0.0904747" rpy="-0.00988899 -0.00279929 0.0169494" />
+      <mass value="1.07386" />
+      <inertia ixx="0.00437205" iyy="0.00431934" izz="0.000660613" ixy="0" ixz="0" iyz="0" />
+    </inertial>
+    <collision>
+      <origin xyz="-0 -0 -0.18875" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/collision/arm/link3.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </collision>
+    <visual>
+      <origin xyz="-0 -0 -0.18875" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/visual/arm/link3_0.obj" scale="0.001 0.001 0.001" />
+      </geometry>
+      <material name="openarm_right_link3_visual_0_mat">
+        <color rgba="0.247059 0.247059 0.247059 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="-0 -0 -0.18875" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/visual/arm/link3_1.obj" scale="0.001 0.001 0.001" />
+      </geometry>
+      <material name="openarm_right_link3_visual_1_mat">
+        <color rgba="0.247059 0.247059 0.247059 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="-0 -0 -0.18875" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/visual/arm/link3_2.obj" scale="0.001 0.001 0.001" />
+      </geometry>
+      <material name="openarm_right_link3_visual_2_mat">
+        <color rgba="0.796078 0.796078 0.796078 1" />
+      </material>
+    </visual>
+  </link>
+  <joint name="openarm_right_joint3" type="revolute">
+    <parent link="openarm_right_link2" />
+    <child link="openarm_right_link3" />
+    <origin xyz="0.0301 0 0.06625" rpy="0 0 0" />
+    <axis xyz="0 0 1" />
+    <limit lower="-1.5708" upper="1.5708" effort="27" velocity="10" />
+  </joint>
+  <link name="openarm_right_link4">
+    <inertial>
+      <origin xyz="-0.00290068 -0.0303058 0.0633964" rpy="0.198736 0.069499 -0.0321583" />
+      <mass value="0.634853" />
+      <inertia ixx="0.000624355" iyy="0.000518596" izz="0.000325049" ixy="0" ixz="0" iyz="0" />
+    </inertial>
+    <collision>
+      <origin xyz="0 -0.0315 -0.3425" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/collision/arm/link4.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </collision>
+    <visual>
+      <origin xyz="0 -0.0315 -0.3425" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/visual/arm/link4_0.obj" scale="0.001 0.001 0.001" />
+      </geometry>
+      <material name="openarm_right_link4_visual_0_mat">
+        <color rgba="0.247059 0.247059 0.247059 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="0 -0.0315 -0.3425" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/visual/arm/link4_1.obj" scale="0.001 0.001 0.001" />
+      </geometry>
+      <material name="openarm_right_link4_visual_1_mat">
+        <color rgba="0.796078 0.796078 0.796078 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="0 -0.0315 -0.3425" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/visual/arm/link4_2.obj" scale="0.001 0.001 0.001" />
+      </geometry>
+      <material name="openarm_right_link4_visual_2_mat">
+        <color rgba="0.247059 0.247059 0.247059 1" />
+      </material>
+    </visual>
+  </link>
+  <joint name="openarm_right_joint4" type="revolute">
+    <parent link="openarm_right_link3" />
+    <child link="openarm_right_link4" />
+    <origin xyz="-0 0.0315 0.15375" rpy="0 0 0" />
+    <axis xyz="0 1 0" />
+    <limit lower="0" upper="2.44346" effort="27" velocity="10" />
+  </joint>
+  <link name="openarm_right_link5">
+    <inertial>
+      <origin xyz="-0.00304967 0.00088669 0.0430798" rpy="-0.0390765 0.061133 1.89371" />
+      <mass value="0.615659" />
+      <inertia ixx="0.000448064" iyy="0.000420549" izz="0.000323387" ixy="0" ixz="0" iyz="0" />
+    </inertial>
+    <collision>
+      <origin xyz="-0 -0 -0.438" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/collision/arm/link5.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </collision>
+    <visual>
+      <origin xyz="-0 -0 -0.438" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/visual/arm/link5_0.obj" scale="0.001 0.001 0.001" />
+      </geometry>
+      <material name="openarm_right_link5_visual_0_mat">
+        <color rgba="0.247059 0.247059 0.247059 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="-0 -0 -0.438" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/visual/arm/link5_1.obj" scale="0.001 0.001 0.001" />
+      </geometry>
+      <material name="openarm_right_link5_visual_1_mat">
+        <color rgba="0.796078 0.796078 0.796078 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="-0 -0 -0.438" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/visual/arm/link5_2.obj" scale="0.001 0.001 0.001" />
+      </geometry>
+      <material name="openarm_right_link5_visual_2_mat">
+        <color rgba="0.247059 0.247059 0.247059 1" />
+      </material>
+    </visual>
+  </link>
+  <joint name="openarm_right_joint5" type="revolute">
+    <parent link="openarm_right_link4" />
+    <child link="openarm_right_link5" />
+    <origin xyz="0 -0.0315 0.0955" rpy="0 0 0" />
+    <axis xyz="0 0 1" />
+    <limit lower="-1.5708" upper="1.5708" effort="7" velocity="10" />
+  </joint>
+  <link name="openarm_right_link6">
+    <inertial>
+      <origin xyz="-0.0371366 0.000332305 -9.49837e-05" rpy="1.71441 -1.15617 1.3726" />
+      <mass value="0.475203" />
+      <inertia ixx="0.000159518" iyy="0.000156606" izz="0.000142875" ixy="0" ixz="0" iyz="0" />
+    </inertial>
+    <collision>
+      <origin xyz="-0.0375 -0 -0.5585" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/collision/arm/link6.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </collision>
+    <visual>
+      <origin xyz="-0.0375 -0 -0.5585" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/visual/arm/link6_0.obj" scale="0.001 0.001 0.001" />
+      </geometry>
+      <material name="openarm_right_link6_visual_0_mat">
+        <color rgba="0.247059 0.247059 0.247059 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="-0.0375 -0 -0.5585" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/visual/arm/link6_1.obj" scale="0.001 0.001 0.001" />
+      </geometry>
+      <material name="openarm_right_link6_visual_1_mat">
+        <color rgba="0.796078 0.796078 0.796078 1" />
+      </material>
+    </visual>
+  </link>
+  <joint name="openarm_right_joint6" type="revolute">
+    <parent link="openarm_right_link5" />
+    <child link="openarm_right_link6" />
+    <origin xyz="0.0375 0 0.1205" rpy="0 0 0" />
+    <axis xyz="1 0 0" />
+    <limit lower="-0.785398" upper="0.785398" effort="7" velocity="10" />
+  </joint>
+  <link name="openarm_right_link7">
+    <inertial>
+      <origin xyz="-9.89745e-05 0.00337244 0.0613892" rpy="0.381152 0 0" />
+      <mass value="0.405497" />
+      <inertia ixx="0.000363783" iyy="0.000363552" izz="0.000158079" ixy="0" ixz="0" iyz="0" />
+    </inertial>
+    <collision>
+      <origin xyz="0 -0 -0.5585" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/collision/arm/link7.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </collision>
+    <visual>
+      <origin xyz="0 -0 -0.5585" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/visual/arm/link7_0.obj" scale="0.001 0.001 0.001" />
+      </geometry>
+      <material name="openarm_right_link7_visual_0_mat">
+        <color rgba="0.796078 0.796078 0.796078 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="0 -0 -0.5585" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/visual/arm/link7_1.obj" scale="0.001 0.001 0.001" />
+      </geometry>
+      <material name="openarm_right_link7_visual_1_mat">
+        <color rgba="0.247059 0.247059 0.247059 1" />
+      </material>
+    </visual>
+  </link>
+  <joint name="openarm_right_joint7" type="revolute">
+    <parent link="openarm_right_link6" />
+    <child link="openarm_right_link7" />
+    <origin xyz="-0.0375 0 0" rpy="0 0 0" />
+    <axis xyz="0 1 0" />
+    <limit lower="-1.5708" upper="1.5708" effort="7" velocity="10" />
+  </joint>
+  <link name="openarm_right_hand">
+    <inertial>
+      <origin xyz="0 0 0.00512294" rpy="3.14159 -1.5708 3.14159" />
+      <mass value="0.172311" />
+      <inertia ixx="0.000290609" iyy="0.000251645" izz="5.48914e-05" ixy="0" ixz="0" iyz="0" />
+    </inertial>
+    <collision>
+      <origin xyz="0 0 -0.6586" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/collision/gripper/hand.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </collision>
+    <visual>
+      <origin xyz="0 0 -0.6586" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/visual/gripper/hand_0.obj" scale="0.001 0.001 0.001" />
+      </geometry>
+      <material name="openarm_right_hand_visual_0_mat">
+        <color rgba="0.796078 0.796078 0.796078 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="0 0 -0.6586" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/visual/gripper/hand_1.obj" scale="0.001 0.001 0.001" />
+      </geometry>
+      <material name="openarm_right_hand_visual_1_mat">
+        <color rgba="0.796078 0.796078 0.796078 1" />
+      </material>
+    </visual>
+  </link>
+  <joint name="openarm_right_link7_to_openarm_right_hand" type="fixed">
+    <parent link="openarm_right_link7" />
+    <child link="openarm_right_hand" />
+    <origin xyz="0 0 0.1001" rpy="0 0 0" />
+  </joint>
+  <link name="openarm_right_hand_tcp" />
+  <joint name="openarm_right_hand_to_openarm_right_hand_tcp" type="fixed">
+    <parent link="openarm_right_hand" />
+    <child link="openarm_right_hand_tcp" />
+    <origin xyz="0 0 0.09" rpy="0 0 0" />
+  </joint>
+  <link name="openarm_right_right_finger">
+    <inertial>
+      <origin xyz="0.0046467 -0.0121789 0.0133529" rpy="-0.233137 0.167221 1.69358" />
+      <mass value="0.07445" />
+      <inertia ixx="4.24078e-05" iyy="3.37383e-05" izz="1.72701e-05" ixy="0" ixz="0" iyz="0" />
+    </inertial>
+    <collision>
+      <origin xyz="0 0.05 -0.673001" rpy="0 0 3.14159" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/collision/gripper/finger.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </collision>
+    <visual>
+      <origin xyz="0 0.05 -0.673001" rpy="0 0 3.14159" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/visual/gripper/finger_0.obj" scale="0.001 0.001 0.001" />
+      </geometry>
+      <material name="openarm_right_right_finger_visual_0_mat">
+        <color rgba="0.7 0.7 0.7 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="0 0.05 -0.673001" rpy="0 0 3.14159" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/visual/gripper/finger_1.obj" scale="0.001 0.001 0.001" />
+      </geometry>
+      <material name="openarm_right_right_finger_visual_1_mat">
+        <color rgba="0.247059 0.247059 0.247059 1" />
+      </material>
+    </visual>
+  </link>
+  <joint name="openarm_right_finger_joint1" type="prismatic">
+    <parent link="openarm_right_hand" />
+    <child link="openarm_right_right_finger" />
+    <origin xyz="0 -0.005 0.015" rpy="0 0 0" />
+    <axis xyz="0 -1 0" />
+    <limit lower="0" upper="0.044" effort="150.75" velocity="0.2" />
+  </joint>
+  <link name="openarm_right_left_finger">
+    <inertial>
+      <origin xyz="-0.0046467 0.0121789 0.0133529" rpy="0.233137 -0.167221 1.69358" />
+      <mass value="0.07445" />
+      <inertia ixx="4.24078e-05" iyy="3.37383e-05" izz="1.72701e-05" ixy="0" ixz="0" iyz="0" />
+    </inertial>
+    <collision>
+      <origin xyz="0 -0.05 -0.673001" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/collision/gripper/finger.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </collision>
+    <visual>
+      <origin xyz="0 -0.05 -0.673001" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/visual/gripper/finger_0.obj" scale="0.001 0.001 0.001" />
+      </geometry>
+      <material name="openarm_right_left_finger_visual_0_mat">
+        <color rgba="0.7 0.7 0.7 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="0 -0.05 -0.673001" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_openarm_sim/mjcf/meshes/visual/gripper/finger_1.obj" scale="0.001 0.001 0.001" />
+      </geometry>
+      <material name="openarm_right_left_finger_visual_1_mat">
+        <color rgba="0.247059 0.247059 0.247059 1" />
+      </material>
+    </visual>
+  </link>
+  <joint name="openarm_right_finger_joint2" type="prismatic">
+    <parent link="openarm_right_hand" />
+    <child link="openarm_right_left_finger" />
+    <origin xyz="0 0.005 0.015" rpy="0 0 0" />
+    <axis xyz="0 1 0" />
+    <limit lower="0" upper="0.044" effort="100" velocity="0.2" />
+    <mimic joint="openarm_right_finger_joint1" multiplier="1" offset="0" />
+  </joint>
+  <link name="lidar_link" />
+  <joint name="base_link_to_lidar_link" type="fixed">
+    <parent link="base_link" />
+    <child link="lidar_link" />
+    <origin xyz="0.22 0 0.26" rpy="0 0 0" />
+  </joint>
+  <link name="imu_link" />
+  <joint name="base_link_to_imu_link" type="fixed">
+    <parent link="base_link" />
+    <child link="imu_link" />
+    <origin xyz="0 0 0.095" rpy="0 0 0" />
+  </joint>
+  <link name="head_camera_link" />
+  <joint name="openarm_body_link0_to_head_camera_link" type="fixed">
+    <parent link="openarm_body_link0" />
+    <child link="head_camera_link" />
+    <origin xyz="0.1 0 0.86" rpy="-9.21794e-17 0.872664 9.21794e-17" />
+  </joint>
+  <link name="head_camera_optical_frame" />
+  <joint name="head_camera_link_to_head_camera_optical_frame" type="fixed">
+    <parent link="head_camera_link" />
+    <child link="head_camera_optical_frame" />
+    <origin xyz="0 0 0" rpy="-1.5708 5.55112e-17 -1.5708" />
+  </joint>
+</robot>
