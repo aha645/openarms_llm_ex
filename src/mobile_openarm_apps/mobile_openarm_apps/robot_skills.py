@@ -506,7 +506,10 @@ class RobotSkills(Node):
         """보이는 상자들을 MoveIt 충돌 객체로 추가 (접근 경로가 다른/목표 상자를 치지 않도록).
         exclude_id 상자는 제거 → 직선 접근·파지 때는 손가락이 닿아도 되게."""
         objs = []
+        known = {o["marker_id"] for o in self.objects.values()}
         for mid, (p, yaw) in self.detections(max_age=2.0).items():
+            if mid not in known:
+                continue        # 잘못 검출된 마커(예: id 37 — 팔·그리퍼 무늬를 마커로 오인)는 무시. 팔 위에 가짜 상자가 생겨 계획이 막혔다
             co = CollisionObject()
             co.header.frame_id = BASE
             co.id = f"box_{mid}"
