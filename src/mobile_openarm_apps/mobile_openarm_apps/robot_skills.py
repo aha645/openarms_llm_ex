@@ -404,10 +404,13 @@ class RobotSkills(Node):
         self.log(f"[arm] {group} → '{name}'")
         self.move_joints(group, self.named_states[key], vel)
 
-    def compute_ik(self, side, pos, R, avoid_collisions=True):
+    def compute_ik(self, side, pos, R, avoid_collisions=True, seed=None):
+        """seed: {관절: 값} — IK 반복 계산의 시작점. 주지 않으면 현재 자세에서 시작."""
         req = GetPositionIK.Request()
         req.ik_request.group_name = f"{side}_arm"
         req.ik_request.robot_state.is_diff = True
+        if seed:
+            req.ik_request.robot_state.joint_state = JointState(name=list(seed), position=[float(v) for v in seed.values()])
         req.ik_request.avoid_collisions = avoid_collisions
         req.ik_request.ik_link_name = TCP[side]
         ps = PoseStamped()
@@ -597,26 +600,29 @@ class RobotSkills(Node):
         best = None
         pitches = [self.APPROACH_PITCH] + ([55.0, 65.0] if self.can_strafe else [])   # 이족: 어깨가 높아 더 위에서 내려오는 접근도 시도
         cands = [(p, b, r) for b in (back, 0.07, 0.05) for p in pitches for r in self.ROLL_CANDIDATES]
-        ok = []
-        for pitch, b, roll in cands:
-            R = approach_rotation(pitch, roll)
-            pre = target - R[:, 2] * b
-            q_pre = self.compute_ik(side, pre, R)
-            if q_pre is None or not self.compute_ik(side, target, R, avoid_collisions=False):
-                continue
-            ok.append((pitch, b, roll, R, pre, q_pre))
         # 직선 접근 검사는 실제 접근 때와 같은 장면(목표 상자만 뺀)에서 해야 한다.
         # 목표 상자를 장애물로 둔 채 검사하면 손이 상자에 닿는 마지막 구간이 '충돌'로 판정돼 항상 실패한다.
         if exclude_id is not None:
             self.set_boxes(exclude_id=exclude_id)
         try:
-            for pitch, b, roll, R, pre, q_pre in ok:
-                f = self._cart_fraction(side, q_pre, R, target + R[:, 2] * self.GRASP_DEPTH)
-                if f >= 0.95:
-                    self.log(f"[ik] {side} 접근 자세 pitch={pitch:.0f}° roll={roll}°, {b * 100:.0f} cm 앞에서 직선 접근")
-                    return R, pre, q_pre
-                if best is None or f > best[0]:
-                    best = (f, roll, b)
+            for pitch, b, roll in cands:
+                R = approach_rotation(pitch, roll)
+                pre = target - R[:, 2] * b
+                q_t = self.compute_ik(side, target, R, avoid_collisions=False)
+                if not q_t:
+                    continue
+                # 접근점 IK 를 '목표점 IK' 에서 시작해 풀면 두 자세가 같은 팔 모양(가지)이 되어 직선 경로가 이어진다.
+                # 현재 자세에서 시작하면 관절 한계에 붙은 다른 가지가 나와 직선이 중간에 끊겼다 (이족에서 42~67%).
+                for seed in (q_t, None):
+                    q_pre = self.compute_ik(side, pre, R, seed=seed)
+                    if q_pre is None:
+                        continue
+                    f = self._cart_fraction(side, q_pre, R, target + R[:, 2] * self.GRASP_DEPTH)
+                    if f >= 0.95:
+                        self.log(f"[ik] {side} 접근 자세 pitch={pitch:.0f}° roll={roll}°, {b * 100:.0f} cm 앞에서 직선 접근")
+                        return R, pre, q_pre
+                    if best is None or f > best[0]:
+                        best = (f, roll, b)
         finally:
             if exclude_id is not None:
                 self.set_boxes()
