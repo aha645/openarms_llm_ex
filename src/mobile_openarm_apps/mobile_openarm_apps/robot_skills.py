@@ -274,6 +274,19 @@ class RobotSkills(Node):
         self.cmd_pub.publish(Twist())
         time.sleep(0.5)
 
+    def wait_still(self, tol=0.006, need=3, period=0.5, timeout=20.0):
+        """이족: 팔을 크게 움직이면 몸통이 균형을 잡느라 5~10 cm 출렁인다 (시뮬 측정). 오도메트리 위치가
+        period 마다 tol 미만으로만 바뀌는 상태가 need 번 이어질 때까지 기다린다. 바퀴형은 바로 반환."""
+        if not self.can_strafe:
+            return
+        last, ok, t0 = None, 0, time.time()
+        while time.time() - t0 < timeout and ok < need:
+            p = self.robot_pose("odom")
+            if p is not None and last is not None:
+                ok = ok + 1 if math.hypot(p[0] - last[0], p[1] - last[1]) < tol else 0
+            last = p
+            time.sleep(period)
+
     def strafe_base(self, dy, speed=0.08, timeout=15.0):
         """옆걸음 (+왼쪽). 이족(OPENARM_BIPED=1)만 가능 — 바퀴형(차동 구동)은 옆으로 못 간다. odom TF 폐루프."""
         dy = float(np.clip(dy, -0.25, 0.25))
@@ -693,6 +706,7 @@ class RobotSkills(Node):
                 R, pre, q_pre = self._solve_approach(side, center, exclude_id=mid)
             self.move_joints(f"{side}_arm", q_pre)
             if self.can_strafe:
+                self.wait_still()
                 # 팔을 뻗으면 이족 몸통이 반동으로 몇 cm 밀린다 → 직선 접근 목표를 마지막으로 다시 잰 위치로
                 try:
                     c2 = self.find_marker(mid, samples=3) - np.array([0, 0, self.box_size / 2])
