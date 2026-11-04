@@ -22,15 +22,16 @@ from mobile_openarm_sim import bridge_node as B
 from .biped_core import NOMINAL_BASE_HEIGHT, BipedOpenArmSim
 
 B.MobileOpenArmSim = BipedOpenArmSim
-B.BASE_LINK_Z = NOMINAL_BASE_HEIGHT
+B.BASE_LINK_Z = NOMINAL_BASE_HEIGHT        # 시뮬 생성 뒤 발 형태(pf 0.68 / sf 0.73)에 맞춰 다시 설정
 
 
 class BipedBridge(B.MujocoBridge):
     def __init__(self):
         super().__init__()
+        B.BASE_LINK_Z = self.sim.nominal_height
         self.pub_status = self.create_publisher(String, "/biped/status", 10)
         self.create_timer(0.2, self.publish_status)
-        self.get_logger().info(f"TRON1 보행 정책 사용 (정책 50 Hz, 물리 {self.sim.m.opt.timestep * 1000:.0f} ms)")
+        self.get_logger().info(f"TRON1 보행 정책 사용 (발 형태 {self.sim.foot}, 정책 50 Hz, 물리 {self.sim.m.opt.timestep * 1000:.0f} ms)")
 
     def on_cmd_vel(self, msg):
         # 바퀴형은 linear.x·angular.z 만 쓴다. 이족은 linear.y(옆걸음)도 받는다
@@ -44,7 +45,8 @@ class BipedBridge(B.MujocoBridge):
     def publish_status(self):
         h, tilt = self.sim.base_height_and_tilt()
         msg = String()
-        msg.data = json.dumps({"base_height": round(h, 3), "tilt_deg": round(tilt, 1), "fallen": self.sim.fallen,
+        msg.data = json.dumps({"foot": self.sim.foot, "standing": bool(self.sim.policy.standing),
+                               "base_height": round(h, 3), "tilt_deg": round(tilt, 1), "fallen": self.sim.fallen,
                                "cmd": [round(float(x), 3) for x in self.sim.cmd_eff],
                                "est_vel": [round(float(x), 3) for x in self.sim.policy.estimated_velocity],
                                # 디버그·채점용 정답값(시뮬에서만): 손끝(TCP) 세계 위치 = 손 + 손 z축으로 0.09 m (URDF hand_tcp 와 같음)

@@ -10,17 +10,20 @@ LimX tron1-rl-isaacgym 의 pointfoot_flat 과 같은 관측·행동·보상 규�
 """
 import math
 
+import os
+import sys
+
 import mujoco
 import numpy as np
 from mujoco import rollout
 
-LEG = ["abad_L_joint", "hip_L_joint", "knee_L_joint", "abad_R_joint", "hip_R_joint", "knee_R_joint"]
-KP, KD, TAU_MAX, ACTION_SCALE = 42.0, 3.5, 80.0, 0.25
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src", "tron1_openarm_sim"))
+from tron1_openarm_sim.locomotion_policy import PF, SF, SF_BASE_HEIGHT_CMD  # noqa: E402  관측·행동 규약을 실행기와 공유
+
+ACTION_SCALE = 0.25
 POLICY_DT = 0.02
-GAIT = np.array([2.0, 0.5, 0.5, 0.1], np.float32)
 CMD_SCALE = np.array([2.0, 2.0, 0.25], np.float32)
-OBS_DIM, HIST = 30, 10
-BASE_HEIGHT_TARGET = 0.68
+BASE_HEIGHT_TARGET = {"pf": 0.68, "sf": SF_BASE_HEIGHT_CMD}
 
 ARM_POSES = {   # SRDF(mobile_openarm_moveit_config) 의 이름 자세 — DAY2 앱이 실제로 쓰는 자세들
     "home": ([0, -0.2, 0, 0, 0, 0, 0], [0, 0.2, 0, 0, 0, 0, 0]),   # 이족용 home (팔 벌림)
@@ -38,9 +41,9 @@ def ncdf(x, s=0.05):
     return 0.5 * (1.0 + np.vectorize(math.erf)(x / (s * math.sqrt(2))))
 
 
-def desired_contacts(gait_index):
+def desired_contacts(gait_index, gait):
     """LimX base_task._step_contact_targets 와 같은 식. 반환 (N,2) 왼발·오른발 접지 기대값 0~1."""
-    off, dur = GAIT[1], GAIT[2]
+    off, dur = gait[1], gait[2]
     fi = np.stack([gait_index, gait_index + off + 1.0], 1) % 1.0
     st = fi < dur
     fi = np.where(st, fi * (0.5 / dur), 0.5 + (fi - dur) * (0.5 / (1 - dur)))
@@ -59,8 +62,17 @@ def quat_rot_inv(q, v):
 
 class Tron1OpenArmEnv:
     def __init__(self, xml, num_envs=128, num_models=8, seed=0, nthread=2, randomize=True,
-                 episode_s=20.0, cmd_ranges=None, push=True):
+                 episode_s=20.0, cmd_ranges=None, push=True, foot="pf"):
         self.rng = np.random.default_rng(seed)
+        self.foot = foot
+        self.sp = PF if foot == "pf" else SF
+        LEG = self.sp.joints
+        self.nj = len(LEG)
+        self.n_cmd = self.sp.n_cmd
+        self.obs_dim, self.HIST = self.sp.obs_dim, self.sp.hist
+        self.KP, self.KD, self.TAU = self.sp.kp.astype(np.float64), self.sp.kd.astype(np.float64), self.sp.tau.astype(np.float64)
+        self.q_def = self.sp.default_q.astype(np.float64)
+        self.GAIT = self.sp.gait
         base = mujoco.MjModel.from_xml_path(xml)
         self.dt = base.opt.timestep
         self.nsub = int(round(POLICY_DT / self.dt))
@@ -98,11 +110,16 @@ class Tron1OpenArmEnv:
                 fr = self.rng.uniform(0.4, 1.2)
                 m.geom_friction[:, 0] = np.where(m.geom_contype > 0, fr, m.geom_friction[:, 0])
                 g = self.rng.uniform(0.85, 1.15)
-                for a in self.leg_act:
-                    m.actuator_gainprm[a, 0] = KP * g
-                    m.actuator_biasprm[a, 1] = -KP * g
-                    m.actuator_biasprm[a, 2] = -KD * self.rng.uniform(0.85, 1.15)
+                for i, a in enumerate(self.leg_act):
+                    m.actuator_gainprm[a, 0] = self.KP[i] * g
+                    m.actuator_biasprm[a, 1] = -self.KP[i] * g
+                    m.actuator_biasprm[a, 2] = -self.KD[i] * self.rng.uniform(0.85, 1.15)
             self.models.append(m)
+        # 상반신(OpenArm) 질량 배율 — 무게 커리큘럼용. SF 사전학습 정책은 14.5 kg 상반신을 얹으면 1초 만에 넘어져
+        # (상반신 질량을 0 으로 하면 잘 선다) PPO 가 배울 거리가 없다 → 가벼운 상반신에서 시작해 1.0 까지 올린다
+        self.payload_bodies = [i for i in range(base.nbody) if base.body(i).name.startswith("openarm_")]
+        self._pl_base = [(m.body_mass[self.payload_bodies].copy(), m.body_inertia[self.payload_bodies].copy()) for m in self.models]
+        self.payload = 1.0
         self.model_of_env = np.zeros(self.N, np.int64)      # set_difficulty() 가 변형 모델을 섞음
         self.model_list = [self.models[0]] * self.N
         self.datas = [mujoco.MjData(base) for _ in range(nthread)]
@@ -123,12 +140,15 @@ class Tron1OpenArmEnv:
         self.ctrl = np.zeros((N, self.nu))
         self.ctrl[:, self.finger_act] = 0.044
         self.sens = np.zeros((N, self.nsens))
-        self.last_action = np.zeros((N, 6), np.float32)
-        self.last_action2 = np.zeros((N, 6), np.float32)
-        self.last_target = np.zeros((N, 6))
+        nj = self.nj
+        self.last_action = np.zeros((N, nj), np.float32)
+        self.last_action2 = np.zeros((N, nj), np.float32)
+        self.last_target = np.tile(self.q_def, (N, 1))
         self.gait_index = np.zeros(N)
         self.cmd = np.zeros((N, 3), np.float32)
-        self.hist = np.zeros((N, HIST * OBS_DIM), np.float32)
+        self.want_still = np.zeros(N, bool)     # SF: 제자리 서기 명령 (명령 0 일 때 대부분)
+        self.standing = np.zeros(N, bool)       # SF: 보행 시계를 멈추고 서 있는 중
+        self.hist = np.zeros((N, self.HIST * self.obs_dim), np.float32)
         self.t = np.zeros(N, np.int64)
         self.delay = np.zeros(N, np.int64)
         self.arm_from = np.zeros((N, 14))
@@ -139,6 +159,12 @@ class Tron1OpenArmEnv:
         self.difficulty = 0.0       # 0 → 1: 잡음·지연·밀기·팔 동작 강도 (train_ppo.py 가 낙상률을 보며 올림)
         self.stats = {}
         self.reset(np.arange(N))
+
+    def set_payload(self, s):
+        self.payload = float(np.clip(s, 0.0, 1.0))
+        for m, (bm, bi) in zip(self.models, self._pl_base):
+            m.body_mass[self.payload_bodies] = bm * self.payload
+            m.body_inertia[self.payload_bodies] = bi * self.payload + 1e-6 * (1 - self.payload)
 
     def set_difficulty(self, d):
         self.difficulty = float(np.clip(d, 0, 1))
@@ -185,6 +211,11 @@ class Tron1OpenArmEnv:
         c[(z >= 0.45) & (z < 0.6), 0:2] = 0.0               # 15%: 제자리 회전 (도킹 yaw 보정)
         c[np.abs(c) < 0.05] = 0.0
         self.cmd[idx] = c
+        if self.foot == "sf":
+            # SF: 명령 0 인 경우의 80% 는 '제자리 서기'(발 안 떼기) — 조작할 때 쓰는 모드. 나머지는 제자리 걸음
+            zero = np.all(c == 0, 1)
+            self.want_still[idx] = zero & (self.rng.random(n) < 0.8)
+            self.standing[idx] = False
 
     def reset(self, idx):
         if len(idx) == 0:
@@ -196,7 +227,7 @@ class Tron1OpenArmEnv:
             q = st[k, self.q0:self.q0 + m.nq]
             yaw = self.rng.uniform(-math.pi, math.pi)
             q[3:7] = [math.cos(yaw / 2), 0, 0, math.sin(yaw / 2)]
-            q[self.qadr] += self.rng.uniform(-0.05, 0.05, 6)
+            q[self.qadr] = self.q_def + self.rng.uniform(-0.05, 0.05, self.nj)
             q[self.arm_qadr["left"]] = arm[k, :7]
             q[self.arm_qadr["right"]] = arm[k, 7:]
             st[k, self.q0:self.q0 + m.nq] = q
@@ -211,7 +242,8 @@ class Tron1OpenArmEnv:
         self.arm_T[idx] = 1
         self.last_action[idx] = 0
         self.last_action2[idx] = 0
-        self.last_target[idx] = 0
+        self.last_target[idx] = self.q_def
+        self.ctrl[np.ix_(idx, self.leg_act)] = self.q_def
         self.gait_index[idx] = 0
         self.t[idx] = 0
         self.delay[idx] = self.rng.integers(0, 1 + int(round(3 * self.difficulty)), len(idx)) if self.randomize else 0
@@ -233,15 +265,16 @@ class Tron1OpenArmEnv:
         gyro = S[:, self.s["imu_gyro"]]
         grav = quat_rot_inv(quat, np.tile([0.0, 0.0, -1.0], (self.N, 1)))
         clock = np.stack([np.sin(2 * np.pi * self.gait_index), np.cos(2 * np.pi * self.gait_index)], 1)
-        obs = np.concatenate([gyro * 0.25, grav, q, dq * 0.05, self.last_action, clock,
-                              np.tile(GAIT, (self.N, 1))], 1).astype(np.float32)
+        nj = self.nj
+        obs = np.concatenate([gyro * 0.25, grav, q - self.q_def, dq * 0.05, self.last_action, clock,
+                              np.tile(self.GAIT, (self.N, 1))], 1).astype(np.float32)
         if noise and self.randomize:
-            sc = np.concatenate([np.full(3, 0.2 * 0.25), np.full(3, 0.05), np.full(6, 0.01), np.full(6, 1.5 * 0.05),
-                                 np.zeros(12)]).astype(np.float32)
+            sc = np.concatenate([np.full(3, 0.2 * 0.25), np.full(3, 0.05), np.full(nj, 0.01), np.full(nj, 1.5 * 0.05),
+                                 np.zeros(nj + 6)]).astype(np.float32)
             obs += self.rng.uniform(-1, 1, obs.shape).astype(np.float32) * sc * self.difficulty
         r = self._hist_reset
-        self.hist[r] = np.tile(obs[r], HIST)
-        self.hist[~r] = np.concatenate([self.hist[~r, OBS_DIM:], obs[~r]], 1)
+        self.hist[r] = np.tile(obs[r], self.HIST)
+        self.hist[~r] = np.concatenate([self.hist[~r, self.obs_dim:], obs[~r]], 1)
         self._hist_reset[:] = False
         return obs
 
@@ -249,7 +282,28 @@ class Tron1OpenArmEnv:
         """정책 입력 재료: (obs 30, 관측 기록 300, 명령 3, 특권정보=실제 선속도×2 3)."""
         obs = self._obs()
         lin = self.sens[:, self.s["base_linvel"]] * 2.0
-        return obs, self.hist.copy(), (self.cmd * CMD_SCALE).astype(np.float32), lin.astype(np.float32)
+        return obs, self.hist.copy(), self.command_vector(), lin.astype(np.float32)
+
+    def command_vector(self):
+        c = (self.cmd * CMD_SCALE).astype(np.float32)
+        if self.foot == "pf":
+            return c
+        still = self.standing.astype(np.float32)
+        c = c * (1 - still)[:, None]
+        return np.concatenate([c, np.full((self.N, 1), SF_BASE_HEIGHT_CMD, np.float32), still[:, None]], 1)
+
+    def _advance_clock(self):
+        """SF 제자리 서기: 두 발 다 디딘 위상(0 또는 0.5 근처)에 오면 시계를 멈춘다 (LimX 와 같은 규칙)."""
+        if self.foot == "sf":
+            g = self.gait_index
+            win = self.want_still & ~self.standing & ((g < 0.05) | (g >= 0.95) | ((g >= 0.5) & (g < 0.55)))
+            self.gait_index[win] = np.where((g[win] >= 0.5) & (g[win] < 0.55), 0.5, 0.0)
+            self.standing |= win
+            self.standing &= self.want_still
+            mov = ~self.standing
+            self.gait_index[mov] = (self.gait_index[mov] + POLICY_DT * self.GAIT[0]) % 1.0
+        else:
+            self.gait_index = (self.gait_index + POLICY_DT * self.GAIT[0]) % 1.0
 
     # ------------------------------------------------------------------ step
     def step(self, action):
@@ -257,10 +311,11 @@ class Tron1OpenArmEnv:
         a = np.clip(action, -100, 100).astype(np.float32)
         q = self.state[:, self.q0:][:, self.qadr]
         dq = self.state[:, self.v0:][:, self.vadr]
-        lo = (q + (KD * dq - TAU_MAX) / KP) / ACTION_SCALE
-        hi = (q + (KD * dq + TAU_MAX) / KP) / ACTION_SCALE
+        qd = q - self.q_def
+        lo = (qd + (self.KD * dq - self.TAU) / self.KP) / ACTION_SCALE
+        hi = (qd + (self.KD * dq + self.TAU) / self.KP) / ACTION_SCALE
         a = np.clip(a, lo, hi).astype(np.float32)
-        target = a * ACTION_SCALE
+        target = a * ACTION_SCALE + self.q_def
         # 팔: 3~6초마다 새 자세로 1.5~3초에 걸쳐 이동 (MoveIt 궤적 흉내)
         tsec = self.t * POLICY_DT
         new = ((tsec - self.arm_t0) > self.arm_T) & (self.rng.random(N) < POLICY_DT / 3.0 * max(self.difficulty, 0.6))
@@ -289,7 +344,7 @@ class Tron1OpenArmEnv:
         self.sens = se[:, -1, :].copy()
         self.ctrl[:, self.leg_act] = target
         self.last_target = target
-        self.gait_index = (self.gait_index + POLICY_DT * GAIT[0]) % 1.0
+        self._advance_clock()
         self.t += 1
 
         rew, terms = self._reward(a)
@@ -328,13 +383,15 @@ class Tron1OpenArmEnv:
         fv = np.stack([np.linalg.norm(S[:, self.s["foot_L_vel"]], axis=1),
                        np.linalg.norm(S[:, self.s["foot_R_vel"]], axis=1)], 1)
         fp = S[:, self.s["foot_L_pos"]][:, :2] - S[:, self.s["foot_R_pos"]][:, :2]
-        des = desired_contacts(self.gait_index)
+        des = desired_contacts(self.gait_index, self.GAIT)
+        if self.foot == "sf":
+            des[self.standing] = 1.0       # 서 있을 때는 두 발 모두 디딤 (발 속도 0 이 보상)
         lo, hi = self.jrange[:, 0] * 0.95, self.jrange[:, 1] * 0.95
         t = dict(
             keep_balance=np.ones(self.N),
             tracking_lin_vel=np.exp(-np.sum((self.cmd[:, :2] - lin[:, :2]) ** 2, 1) / 0.05),   # LimX 0.2 → 0.05: 옆 흐름·속도 부족을 더 강하게
             tracking_ang_vel=np.exp(-(self.cmd[:, 2] - gyro[:, 2]) ** 2 / 0.1),
-            base_height=(h - BASE_HEIGHT_TARGET) ** 2,
+            base_height=(h - BASE_HEIGHT_TARGET[self.foot]) ** 2,
             lin_vel_z=lin[:, 2] ** 2,
             ang_vel_xy=np.sum(gyro[:, :2] ** 2, 1),
             torques=np.sum(tau ** 2, 1),

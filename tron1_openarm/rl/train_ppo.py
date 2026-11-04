@@ -54,6 +54,8 @@ def parse():
     ap.add_argument("--max-difficulty", type=float, default=0.5,
                     help="랜덤화 강도 상한. 1.0 이면 LimX 수준 잡음·지연·밀기 (실로봇용), 높을수록 속도 추종이 보수적이 됨")
     ap.add_argument("--resume", default="")
+    ap.add_argument("--payload-start", type=float, default=1.0, help="상반신 질량 배율 시작값 (무게 커리큘럼, 1.0 이면 끔)")
+    ap.add_argument("--foot", choices=["pf", "sf"], default="pf", help="pf = Point-foot, sf = Sole-foot (--xml 도 sf 모델로)")
     ap.add_argument("--train-encoder", type=int, default=1,
                     help="1: PPO 뒤에 인코더를 실제 선속도로 지도학습 (LimX 방식). 0: 사전학습 인코더 고정")
     return ap.parse_args()
@@ -71,25 +73,28 @@ def main():
     a = parse()
     os.makedirs(a.out, exist_ok=True)
     key = jax.random.PRNGKey(a.seed)
-    env = Tron1OpenArmEnv(a.xml, num_envs=a.envs, seed=a.seed, nthread=a.threads)
+    env = Tron1OpenArmEnv(a.xml, num_envs=a.envs, seed=a.seed, nthread=a.threads, foot=a.foot)
+    nj, enc_in, pol_in = env.nj, env.HIST * env.obs_dim, 3 + env.obs_dim + env.n_cmd
 
     if a.resume:
         with open(a.resume, "rb") as fp:
             ck = pickle.load(fp)
         params, critic, log_std, diff0 = ck["params"], ck["critic"], ck["log_std"], ck.get("difficulty", 0.0)
+        a.payload_start = ck.get("payload", a.payload_start)
     else:
         if a.init == "scratch":
             key, k1, k2 = jax.random.split(key, 3)
-            params = {"encoder": P.mlp_init(k1, [300, 256, 128, 3]), "policy": P.mlp_init(k2, [36, 512, 256, 128, 6], 0.01)}
-            log_std = jnp.full(6, np.log(1.0), jnp.float32)
+            params = {"encoder": P.mlp_init(k1, [enc_in, 256, 128, 3]), "policy": P.mlp_init(k2, [pol_in, 512, 256, 128, nj], 0.01)}
+            log_std = jnp.full(nj, np.log(1.0), jnp.float32)
         else:
             npz = np.load(a.init)
             params = {"encoder": P.from_npz(npz, "encoder"), "policy": P.from_npz(npz, "policy")}
-            log_std = jnp.full(6, np.log(a.init_std), jnp.float32)
+            log_std = jnp.full(nj, np.log(a.init_std), jnp.float32)
         key, k3 = jax.random.split(key)
-        critic = P.mlp_init(k3, [39, 512, 256, 128, 1], 1.0)
+        critic = P.mlp_init(k3, [env.obs_dim + 3 + env.n_cmd + 3, 512, 256, 128, 1], 1.0)
         diff0 = 0.0
     env.set_difficulty(diff0)
+    env.set_payload(a.payload_start)
 
     actor_tx = optax.chain(optax.clip_by_global_norm(1.0), optax.inject_hyperparams(optax.adam)(learning_rate=a.lr))
     critic_tx = optax.chain(optax.clip_by_global_norm(1.0), optax.adam(1e-3))
@@ -159,6 +164,7 @@ def main():
     t_start = time.time()
     log = []
     best = -1e9
+    last_pl = 0
     ep_returns, ep_lens, fall_hist = [], [], []
     obs, hist, cmd, lin = env.observe()
     it = 0
@@ -232,23 +238,28 @@ def main():
         fall_hist.append(fall_rate)
         fr = float(np.mean(fall_hist[-10:]))
         # 낙상률(스텝당) 0.0003 = 환경 하나가 평균 67초에 한 번 넘어지는 정도
-        if actor_on and it > a.critic_warmup + 10 and fr < 0.0003 and env.difficulty < a.max_difficulty:
+        # 상반신 무게 커리큘럼: 거의 안 넘어지면 무게를 5% 씩 올린다. 무게가 100% 가 된 뒤에 잡음·지연 난이도를 올린다
+        if env.payload < 1.0:
+            if actor_on and it > a.critic_warmup + 10 and fr < 0.002 and it - last_pl > 10:
+                env.set_payload(env.payload + 0.05)
+                last_pl = it
+        elif actor_on and it > a.critic_warmup + 10 and fr < 0.0003 and env.difficulty < a.max_difficulty:
             env.set_difficulty(env.difficulty + 0.02)
         elif fr > 0.0015 and env.difficulty > 0:
             env.set_difficulty(env.difficulty - 0.02)
         er = float(np.mean(ep_returns[-200:])) if ep_returns else 0.0
         el_ = float(np.mean(ep_lens[-200:])) if ep_lens else 0.0
         rec = dict(it=it, t=round(time.time() - t_start, 1), steps=it * N * T, fall_rate=round(fr, 5),
-                   difficulty=round(env.difficulty, 3), ep_ret=round(er, 3), ep_len=round(el_, 1), kl=round(kl, 5),
+                   difficulty=round(env.difficulty, 3), payload=round(env.payload, 2), ep_ret=round(er, 3), ep_len=round(el_, 1), kl=round(kl, 5),
                    lr=lr, std=[round(float(x), 3) for x in np.exp(np.asarray(log_std))], value_loss=round(float(np.mean(cls)), 4),
                    enc_loss=round(float(np.mean(els)) if els else 0.0, 4),
                    lin_track=round(terms_acc["tracking_lin_vel"], 3), ang_track=round(terms_acc["tracking_ang_vel"], 3))
         log.append(rec)
         if it % 5 == 0 or it == 1:
             print(json.dumps(rec, ensure_ascii=False), flush=True)
-        score = rec["lin_track"] + 0.5 * rec["ang_track"] - 50 * fr + 0.5 * env.difficulty
+        score = rec["lin_track"] + 0.5 * rec["ang_track"] - 50 * fr + 0.5 * env.difficulty - 10 * (1 - env.payload)
         save = {"params": jax.device_get(params), "critic": jax.device_get(critic),
-                "log_std": jax.device_get(log_std), "difficulty": env.difficulty, "it": it}
+                "log_std": jax.device_get(log_std), "difficulty": env.difficulty, "payload": env.payload, "it": it}
         if it % 25 == 0:
             with open(os.path.join(a.out, "last.pkl"), "wb") as fp:
                 pickle.dump(save, fp)

@@ -22,13 +22,17 @@ from mobile_openarm_sim.aruco_utils import ArucoDetector
 from mobile_openarm_sim.sim_core import ARM_JOINTS, GRIPPER_JOINT, MIMIC_JOINT, yaw_of
 
 from .locomotion_policy import JOINTS as LEG_JOINTS
-from .locomotion_policy import POLICY_DT, LocomotionPolicy
+from .locomotion_policy import POLICY_DT, SF_BASE_HEIGHT_CMD, LocomotionPolicy
 
-NOMINAL_BASE_HEIGHT = 0.68
+# 발 형태별 값. pf = Point-foot (발목 없음), sf = Sole-foot (발목 + 평발). 정책 파일로 자동 판별
+NOMINAL = {"pf": 0.68, "sf": SF_BASE_HEIGHT_CMD}       # 서 있는 base_link 높이 [m] (URDF base_footprint→base_link)
+FEET = {"pf": ("foot_L_Link", "foot_R_Link"), "sf": ("ankle_L_Link", "ankle_R_Link")}
+NOMINAL_BASE_HEIGHT = NOMINAL["pf"]                    # 예전 코드 호환
 SPAWN_HEIGHT = NOMINAL_BASE_HEIGHT + 0.03
-FOOT_RADIUS = 0.032            # LimX const.xacro foot_radius
-PUBLISHED_JOINTS = (ARM_JOINTS["left"] + [GRIPPER_JOINT["left"], MIMIC_JOINT["left"]]
-                    + ARM_JOINTS["right"] + [GRIPPER_JOINT["right"], MIMIC_JOINT["right"]] + LEG_JOINTS)
+FOOT_RADIUS = 0.032            # LimX const.xacro foot_radius (pf 의 공 모양 발. sf 는 평발이라 굴림 보정 없음)
+ARM_PUB = (ARM_JOINTS["left"] + [GRIPPER_JOINT["left"], MIMIC_JOINT["left"]]
+           + ARM_JOINTS["right"] + [GRIPPER_JOINT["right"], MIMIC_JOINT["right"]])
+PUBLISHED_JOINTS = ARM_PUB + LEG_JOINTS                # pf 기준 (인스턴스는 self.published_joints 사용)
 # 이족용 home: 팔을 바깥으로 0.2 rad 벌림 (곧게 내리면 손이 TRON1 몸통 옆면에 닿음). SRDF 의 home 과 같은 값
 HOME_ARM = {"left": [0.0, -0.20, 0.0, 0.0, 0.0, 0.0, 0.0], "right": [0.0, 0.20, 0.0, 0.0, 0.0, 0.0, 0.0]}
 CMD_LIMIT = (0.5, 1.0)          # 정책이 학습한 범위 안으로 (vx m/s, wz rad/s)
@@ -63,30 +67,36 @@ class BipedOpenArmSim(W.MobileOpenArmSim):
         self.d = mujoco.MjData(self.m)
         self.lock = threading.RLock()
         m = self.m
+        self.policy = LocomotionPolicy(policy_path or default_policy_path())
+        self.foot = self.policy.spec.name                 # "pf" 또는 "sf"
+        self.leg_joints = list(self.policy.joints)
+        self.published_joints = ARM_PUB + self.leg_joints
+        self.nominal_height = NOMINAL[self.foot]
+        self.spawn_height = self.nominal_height + 0.03
+        self.stand_when_idle = True                       # sf: 명령 0 이면 발을 떼지 않고 선다
         self.base_id = m.body("base_link").id
         self.base_qadr = m.jnt_qposadr[m.joint("base_free").id]
         self.arm_qadr = {s: [m.jnt_qposadr[m.joint(n).id] for n in ARM_JOINTS[s]] for s in ARM_JOINTS}
         self.arm_act = {s: [m.actuator(f"{s}_joint{i}_ctrl").id for i in range(1, 8)] for s in ARM_JOINTS}
         self.grip_qadr = {s: m.jnt_qposadr[m.joint(GRIPPER_JOINT[s]).id] for s in ARM_JOINTS}
         self.grip_act = {s: m.actuator(f"{s}_finger1_ctrl").id for s in ARM_JOINTS}
-        self.pub_qadr = [m.jnt_qposadr[m.joint(n).id] for n in PUBLISHED_JOINTS]
-        self.pub_dadr = [m.jnt_dofadr[m.joint(n).id] for n in PUBLISHED_JOINTS]
+        self.pub_qadr = [m.jnt_qposadr[m.joint(n).id] for n in self.published_joints]
+        self.pub_dadr = [m.jnt_dofadr[m.joint(n).id] for n in self.published_joints]
         self.pub_range = [tuple(m.jnt_range[m.joint(n).id]) if m.jnt_limited[m.joint(n).id] else (-1e9, 1e9)
-                          for n in PUBLISHED_JOINTS]
+                          for n in self.published_joints]
         self.pub_eff_act = {}
         for s in ARM_JOINTS:
             for i, n in enumerate(ARM_JOINTS[s]):
                 self.pub_eff_act[n] = self.arm_act[s][i]
         # ---- 다리 / 보행 정책
-        self.leg_qadr = np.array([m.jnt_qposadr[m.joint(n).id] for n in LEG_JOINTS])
-        self.leg_dadr = np.array([m.jnt_dofadr[m.joint(n).id] for n in LEG_JOINTS])
-        self.leg_act = np.array([m.actuator(n + "_ctrl").id for n in LEG_JOINTS])
-        for i, n in enumerate(LEG_JOINTS):
+        self.leg_qadr = np.array([m.jnt_qposadr[m.joint(n).id] for n in self.leg_joints])
+        self.leg_dadr = np.array([m.jnt_dofadr[m.joint(n).id] for n in self.leg_joints])
+        self.leg_act = np.array([m.actuator(n + "_ctrl").id for n in self.leg_joints])
+        for i, n in enumerate(self.leg_joints):
             self.pub_eff_act[n] = self.leg_act[i]
-        self.policy = LocomotionPolicy(policy_path or default_policy_path())
         self.policy_every = max(1, int(round(POLICY_DT / m.opt.timestep)))
         self._substep = 0
-        self.foot_body = [m.body("foot_L_Link").id, m.body("foot_R_Link").id]
+        self.foot_body = [m.body(n).id for n in FEET[self.foot]]
         self.foot_touch = [m.sensor("foot_L_touch").id, m.sensor("foot_R_touch").id]
         self.gyro_adr = m.sensor_adr[m.sensor("imu_gyro").id]
         self.quat_adr = m.sensor_adr[m.sensor("imu_quat").id]
@@ -158,11 +168,11 @@ class BipedOpenArmSim(W.MobileOpenArmSim):
     def set_base_pose(self, x, y, yaw):
         with self.lock:
             a = self.base_qadr
-            self.d.qpos[a:a + 3] = [x, y, SPAWN_HEIGHT]
+            self.d.qpos[a:a + 3] = [x, y, self.spawn_height]
             self.d.qpos[a + 3:a + 7] = [math.cos(yaw / 2), 0, 0, math.sin(yaw / 2)]
-            self.d.qpos[self.leg_qadr] = 0.0
+            self.d.qpos[self.leg_qadr] = self.policy.spec.default_q
             self.d.qvel[:] = 0
-            self.d.ctrl[self.leg_act] = 0.0
+            self.d.ctrl[self.leg_act] = self.policy.spec.default_q
             mujoco.mj_forward(self.m, self.d)
             self.policy.reset()
             self._substep = 0
@@ -259,6 +269,17 @@ class BipedOpenArmSim(W.MobileOpenArmSim):
             out = np.clip(out, want - CORR_MAX, want + CORR_MAX)
             self.cmd_eff[:] = [float(np.clip(out[0], -0.45, 0.6)), float(np.clip(out[2], -1.2, 1.2))]
             vy = float(np.clip(out[1], -0.45, 0.45))
+            # Sole-foot: 명령이 완전히 0 이면 '제자리 서기' — 두 발을 디딘 위상에서 보행 시계를 멈추고 발목으로 버틴다.
+            # (Point-foot 은 발목이 없어 이 모드가 없다 → 항상 제자리 걸음, 팔을 움직이면 5~10 cm 출렁임)
+            idle = (v == 0.0 and w == 0.0 and vyc == 0.0 and np.all(np.abs(self.cmd_ramp) < 1e-3) and abs(self.vy_ramp) < 1e-3)
+            if self.foot == "sf":
+                self.policy.stand_still = bool(self.stand_when_idle and idle)
+                if self.policy.standing:
+                    # 서 있는 동안은 보정 루프를 멈추고 기준 자세를 현재 자세로 (다시 걸을 때 튀지 않게)
+                    self._vi[:] = 0.0
+                    self._hold = self.odom.copy()
+                    self.cmd_eff[:] = 0.0
+                    vy = 0.0
             gyro = d.sensordata[self.gyro_adr:self.gyro_adr + 3]
             quat = d.sensordata[self.quat_adr:self.quat_adr + 4]
             target = self.policy.act(gyro, quat, d.qpos[self.leg_qadr], d.qvel[self.leg_dadr],
@@ -302,7 +323,8 @@ class BipedOpenArmSim(W.MobileOpenArmSim):
                 w = np.zeros(6)
                 mujoco.mj_objectVelocity(self.m, d, mujoco.mjtObj.mjOBJ_BODY, self.foot_body[st], w, 0)
                 dt_r = t - getattr(self, "_last_roll_t", t)
-                self._anchor = self._anchor + FOOT_RADIUS * np.array([w[1], -w[0]]) * dt_r
+                if self.foot == "pf":
+                    self._anchor = self._anchor + FOOT_RADIUS * np.array([w[1], -w[0]]) * dt_r
             self._est_xy = self._anchor - rel[st][:2]
         dt_s = t - getattr(self, "_last_roll_t", t)
         self._last_roll_t = t
@@ -344,8 +366,8 @@ class BipedOpenArmSim(W.MobileOpenArmSim):
         pos = [float(min(max(d.qpos[a], lo), hi)) for a, (lo, hi) in zip(self.pub_qadr, self.pub_range)]
         vel = [float(d.qvel[a]) for a in self.pub_dadr]
         eff = [float(d.actuator_force[self.pub_eff_act[n]]) if n in self.pub_eff_act else 0.0
-               for n in PUBLISHED_JOINTS]
-        return list(PUBLISHED_JOINTS), pos, vel, eff
+               for n in self.published_joints]
+        return list(self.published_joints), pos, vel, eff
 
     def base_height_and_tilt(self):
         R = self.d.xmat[self.base_id].reshape(3, 3)

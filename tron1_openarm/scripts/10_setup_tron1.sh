@@ -29,6 +29,16 @@ python3 "$WS/src/mobile_openarm_moveit_config/tools/make_srdf.py" --mjcf mjcf/tr
         --out "$T1/src/tron1_openarm_moveit_config/config/tron1_openarm.srdf" --samples 2000
 sed -i 's/<robot name="mobile_openarm">/<robot name="tron1_openarm">/' "$T1/src/tron1_openarm_moveit_config/config/tron1_openarm.srdf"
 python3 tools/patch_srdf_home.py "$T1/src/tron1_openarm_moveit_config/config/tron1_openarm.srdf"   # 이족용 home (팔 벌림)
+# Sole-foot(발목 있음) 변형: 같은 순서로 mjcf/sf, urdf/tron1_openarm_sf.urdf, tron1_openarm_sf.srdf
+python3 tools/build_tron1_openarm.py --foot sf --base-height 0.73 --tron1 "$T1/third_party/tron1-robot-description/pointfoot/SF_TRON1A" \
+        --openarm "$WS/third_party/openarm_mujoco/v1/openarm_bimanual.xml" --out mjcf/sf
+python3 tools/build_world_tron1.py --wheeled-tools "$WS/src/mobile_openarm_sim/tools" --out mjcf/sf --config /tmp/tron1_sf_cfg
+python3 tools/make_urdf_tron1.py --wheeled-tools "$WS/src/mobile_openarm_sim/tools" --mjcf mjcf/sf/tron1_openarm.xml --out urdf/tron1_openarm_sf.urdf \
+        --base-height 0.73 --mesh-prefix package://tron1_openarm_sim/mjcf/sf/
+python3 "$WS/src/mobile_openarm_moveit_config/tools/make_srdf.py" --mjcf mjcf/sf/tron1_openarm.xml \
+        --out "$T1/src/tron1_openarm_moveit_config/config/tron1_openarm_sf.srdf" --samples 2000
+sed -i 's/<robot name="mobile_openarm">/<robot name="tron1_openarm">/' "$T1/src/tron1_openarm_moveit_config/config/tron1_openarm_sf.srdf"
+python3 tools/patch_srdf_home.py "$T1/src/tron1_openarm_moveit_config/config/tron1_openarm_sf.srdf"
 python3 tools/make_nav2_params_tron1.py --src "$WS/src/mobile_openarm_sim/config/nav2_params.yaml" --out config/nav2_params_tron1.yaml
 cp -n "$WS/src/mobile_openarm_sim/maps/"world_map.* maps/ 2>/dev/null || true
 

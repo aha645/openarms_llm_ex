@@ -11,10 +11,18 @@ import os
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, SetEnvironmentVariable, TimerAction
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, OpaqueFunction, SetEnvironmentVariable, TimerAction
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
+
+
+def _srdf_env(context):
+    mv = get_package_share_directory("tron1_openarm_moveit_config")
+    foot = LaunchConfiguration("foot").perform(context)
+    # robot_skills(DAY2 앱)가 이족용 이름 자세(팔을 벌린 home)를 쓰도록
+    return [SetEnvironmentVariable("OPENARM_SRDF", os.path.join(mv, "config", "tron1_openarm.srdf" if foot == "pf"
+                                                                else "tron1_openarm_sf.srdf"))]
 
 
 def generate_launch_description():
@@ -22,20 +30,20 @@ def generate_launch_description():
     mv = get_package_share_directory("tron1_openarm_moveit_config")
     lc = LaunchConfiguration
     return LaunchDescription([
-        # robot_skills(DAY2 앱)가 이족용 이름 자세(팔을 벌린 home)를 쓰도록
-        SetEnvironmentVariable("OPENARM_SRDF", os.path.join(mv, "config", "tron1_openarm.srdf")),
-        SetEnvironmentVariable("OPENARM_BIPED", "1"),      # robot_skills: 옆걸음(strafe) 사용
+        DeclareLaunchArgument("foot", default_value="pf", description="pf = Point-foot, sf = Sole-foot(발목 있음)"),
+        OpaqueFunction(function=_srdf_env),
+        SetEnvironmentVariable("OPENARM_BIPED", "1"),      # robot_skills: 옆걸음(strafe)·출렁임 대기 사용
         DeclareLaunchArgument("planner", default_value="offline"),
         DeclareLaunchArgument("viewer", default_value="true"),
         DeclareLaunchArgument("rviz", default_value="false"),
         DeclareLaunchArgument("world", default_value="world.xml"),
-        DeclareLaunchArgument("policy", default_value=os.path.join(sim, "policies", "tron1_openarm_policy.npz")),
+        DeclareLaunchArgument("policy", default_value="", description="비우면 발 형태별 기본 정책"),
         IncludeLaunchDescription(PythonLaunchDescriptionSource(os.path.join(sim, "launch", "nav.launch.py")),
-                                 launch_arguments={"viewer": lc("viewer"), "rviz": lc("rviz"), "world": lc("world"),
-                                                   "policy": lc("policy")}.items()),
+                                 launch_arguments={"foot": lc("foot"), "viewer": lc("viewer"), "rviz": lc("rviz"),
+                                                   "world": lc("world"), "policy": lc("policy")}.items()),
         TimerAction(period=5.0, actions=[IncludeLaunchDescription(
             PythonLaunchDescriptionSource(os.path.join(mv, "launch", "move_group.launch.py")),
-            launch_arguments={"rviz": "false"}.items())]),
+            launch_arguments={"rviz": "false", "foot": lc("foot")}.items())]),
         TimerAction(period=12.0, actions=[
             Node(package="mobile_openarm_apps", executable="task_manager", output="screen",
                  parameters=[{"planner": lc("planner")}]),

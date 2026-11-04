@@ -50,6 +50,18 @@ CAMERA_PITCH_DEG = 50.0
 CAMERA_FOVY = 70.0
 LEG_JOINTS = ["abad_L_joint", "hip_L_joint", "knee_L_joint", "abad_R_joint", "hip_R_joint", "knee_R_joint"]
 KP, KD, TAU_MAX = 42.0, 3.5, 80.0
+# 발 형태별 설정. pf = Point-foot (발목 없음, 공 모양 발), sf = Sole-foot (발목 관절 + 평발)
+#  sf 값은 LimX tron1-rl-deploy-python/controllers/model/SF_TRON1A/params.yaml (kp 45, kd 3, 발목 kd 1.5, 발목 토크 ±20 Nm)
+FOOT = {
+    "pf": dict(dir="PF_TRON1A", joints=LEG_JOINTS, kp={}, kd={}, tau={}, default_kp=KP, default_kd=KD, default_tau=TAU_MAX,
+               base_height=0.68, feet=("foot_L_Link", "foot_R_Link"), foot_site_size=0.045),
+    "sf": dict(dir="SF_TRON1A",
+               joints=["abad_L_joint", "hip_L_joint", "knee_L_joint", "ankle_L_joint",
+                       "abad_R_joint", "hip_R_joint", "knee_R_joint", "ankle_R_joint"],
+               kp={}, kd={"ankle_L_joint": 1.5, "ankle_R_joint": 1.5}, tau={"ankle_L_joint": 20.0, "ankle_R_joint": 20.0},
+               default_kp=45.0, default_kd=3.0, default_tau=80.0,
+               base_height=None, feet=("ankle_L_Link", "ankle_R_Link"), foot_site_size=0.12),
+}
 
 
 def f(*v):
@@ -69,13 +81,13 @@ def run_xacro(xacro_file, tron1_dir, tmp, mount_x):
     임시 복사본에서 실제 경로로 바꾼 뒤 처리한다 (ROS 워크스페이스에 넣어 빌드했다면 그대로 써도 된다)."""
     import xacro
     desc_root = os.path.dirname(os.path.dirname(os.path.abspath(tron1_dir)))   # .../tron1-robot-description
-    tdir = os.path.join(tmp, "PF")
+    tdir = os.path.join(tmp, os.path.basename(os.path.abspath(tron1_dir)))
     shutil.copytree(tron1_dir, tdir)
     for root, _, files in os.walk(os.path.join(tdir, "xacro")):
         for fn in files:
             p = os.path.join(root, fn)
             s = open(p, encoding="utf-8").read()
-            s = s.replace("$(find robot_description)/pointfoot/PF_TRON1A", tdir)
+            s = s.replace("$(find robot_description)/pointfoot/" + os.path.basename(tdir), tdir)
             s = s.replace("$(find robot_description)", desc_root)
             open(p, "w", encoding="utf-8").write(s)
     doc = xacro.process_file(xacro_file, mappings={"tron1_dir": tdir, "mount_x": str(mount_x)})
@@ -121,7 +133,13 @@ def limx_collisions(limx_xml):
     return out
 
 
-def build(tron1_dir, openarm_xml, out_dir, xacro_file, mount_x=None, shoulder=None):
+def build(tron1_dir, openarm_xml, out_dir, xacro_file, mount_x=None, shoulder=None, foot="pf", base_height=None):
+    global NOMINAL_BASE_HEIGHT
+    F = FOOT[foot]
+    if base_height is not None:
+        NOMINAL_BASE_HEIGHT = base_height
+    elif F["base_height"] is not None:
+        NOMINAL_BASE_HEIGHT = F["base_height"]
     mount_x = MOUNT_X if mount_x is None else mount_x
     SH = SHOULDER_HEIGHT if shoulder is None else shoulder
     os.makedirs(out_dir, exist_ok=True)
@@ -189,7 +207,7 @@ def build(tron1_dir, openarm_xml, out_dir, xacro_file, mount_x=None, shoulder=No
                 g.set("rgba", "0.79 0.82 0.93 1" if "hip" not in name else "0.95 0.95 0.95 1")
                 g.attrib.pop("class", None)
             else:
-                if name.startswith("foot_"):
+                if name in F["feet"] and foot == "pf":
                     g.set("name", name.replace("_Link", "_collision"))
                     g.set("friction", "0.8 0.005 0.0001")
                     g.set("condim", "3")
@@ -202,6 +220,9 @@ def build(tron1_dir, openarm_xml, out_dir, xacro_file, mount_x=None, shoulder=No
             g.set("contype", "1")
             g.set("conaffinity", "1")
             g.set("rgba", "0 0 1 0")
+            if name in F["feet"]:           # sf: 발목 링크 메시(볼록 껍질)가 발바닥 접촉면
+                g.set("friction", "0.8 0.005 0.0001")
+                g.set("condim", "3")
             body.insert(0, g)
         for j in body.findall("joint"):
             j.set("armature", "0.01")
@@ -270,9 +291,10 @@ def build(tron1_dir, openarm_xml, out_dir, xacro_file, mount_x=None, shoulder=No
 
     # ---------------- 다리 구동기 (PD 위치 제어, 토크 제한) + 센서
     act = root.find("actuator")
-    for j in LEG_JOINTS:
-        sub(act, "position", name=f"{j}_ctrl", joint=j, kp=f"{KP:g}", kv=f"{KD:g}",
-            forcelimited="true", forcerange=f(-TAU_MAX, TAU_MAX), ctrllimited="false")
+    for j in F["joints"]:
+        kp, kd, tau = F["kp"].get(j, F["default_kp"]), F["kd"].get(j, F["default_kd"]), F["tau"].get(j, F["default_tau"])
+        sub(act, "position", name=f"{j}_ctrl", joint=j, kp=f"{kp:g}", kv=f"{kd:g}",
+            forcelimited="true", forcerange=f(-tau, tau), ctrllimited="false")
     sens = root.find("sensor")
     if sens is None:
         sens = sub(root, "sensor")
@@ -282,13 +304,13 @@ def build(tron1_dir, openarm_xml, out_dir, xacro_file, mount_x=None, shoulder=No
     sub(sens, "accelerometer", name="imu_acc", site="imu_site")
     sub(sens, "framequat", name="imu_quat", objtype="site", objname="imu_site")
     sub(sens, "velocimeter", name="base_linvel", site="imu_site")          # 학습 보상·인코더 정답용 (몸통 좌표 선속도)
-    for side in ("L", "R"):
-        fb = next(b for b in tbase.iter("body") if b.get("name") == f"foot_{side}_Link")
-        sub(fb, "site", name=f"foot_{side}_site", pos="0 0 0", size="0.045", group="4")
+    for side, fname in zip(("L", "R"), F["feet"]):
+        fb = next(b for b in tbase.iter("body") if b.get("name") == fname)
+        sub(fb, "site", name=f"foot_{side}_site", pos="0 0 0", size=f"{F['foot_site_size']}", group="4")
         sub(sens, "touch", name=f"foot_{side}_touch", site=f"foot_{side}_site")
         sub(sens, "framepos", name=f"foot_{side}_pos", objtype="site", objname=f"foot_{side}_site")
         sub(sens, "framelinvel", name=f"foot_{side}_vel", objtype="site", objname=f"foot_{side}_site")
-    for j in LEG_JOINTS:
+    for j in F["joints"]:
         sub(sens, "actuatorfrc", name=f"{j}_tau", actuator=f"{j}_ctrl")
 
     ET.indent(tree, "  ")
@@ -361,5 +383,8 @@ if __name__ == "__main__":
     ap.add_argument("--xacro", default=os.path.join(here, "..", "urdf", "tron1_openarm.urdf.xacro"))
     ap.add_argument("--mount-x", type=float, default=None, help="상반신 앞뒤 위치 [m] (기본 MOUNT_X)")
     ap.add_argument("--shoulder", type=float, default=None, help="서 있을 때 어깨 높이 [m] (기본 SHOULDER_HEIGHT)")
+    ap.add_argument("--foot", choices=list(FOOT), default="pf", help="pf = Point-foot(PF_TRON1A), sf = Sole-foot(SF_TRON1A, 발목 있음)")
+    ap.add_argument("--base-height", type=float, default=None, help="서 있을 때 base_link 높이 [m] (sf 는 측정해서 지정)")
     a = ap.parse_args()
-    build(os.path.abspath(a.tron1), os.path.abspath(a.openarm), os.path.abspath(a.out), os.path.abspath(a.xacro), a.mount_x, a.shoulder)
+    build(os.path.abspath(a.tron1), os.path.abspath(a.openarm), os.path.abspath(a.out), os.path.abspath(a.xacro), a.mount_x, a.shoulder,
+          a.foot, a.base_height)

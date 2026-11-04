@@ -18,18 +18,19 @@ ap = argparse.ArgumentParser()
 ap.add_argument("--wheeled-tools", required=True)
 ap.add_argument("--mjcf", required=True)
 ap.add_argument("--out", required=True)
-ap.add_argument("--base-height", type=float, default=0.68)
+ap.add_argument("--base-height", type=float, default=0.68, help="pf 0.68, sf 0.73")
+ap.add_argument("--mesh-prefix", default="package://tron1_openarm_sim/mjcf/", help="sf: package://tron1_openarm_sim/mjcf/sf/")
 a = ap.parse_args()
 sys.path.insert(0, os.path.abspath(a.wheeled_tools))
 import mjcf_to_urdf as M  # noqa: E402
 
-M.PKG = "package://tron1_openarm_sim/mjcf/"
+M.PKG = a.mesh_prefix
 M.WHEEL_RADIUS = a.base_height
 M.convert(a.mjcf, a.out)
 s = open(a.out, encoding="utf-8").read()
 s = s.replace('<robot name="mobile_openarm">', '<robot name="tron1_openarm">')
 s = s.replace("자동 생성: tools/mjcf_to_urdf.py (원본 MJCF: mjcf/mobile_openarm.xml)",
-              "자동 생성: tron1_openarm_sim/tools/make_urdf_tron1.py (원본 MJCF: mjcf/tron1_openarm.xml, 하반신 xacro: LimX PF_TRON1A)")
+              "자동 생성: tron1_openarm_sim/tools/make_urdf_tron1.py (원본 MJCF: mjcf/tron1_openarm.xml, 하반신 xacro: LimX TRON1)")
 open(a.out, "w", encoding="utf-8").write(s)
 n_link = len(re.findall("<link ", s))
 n_joint = len(re.findall('<joint name="[^"]+" type="(revolute|continuous|prismatic)"', s))

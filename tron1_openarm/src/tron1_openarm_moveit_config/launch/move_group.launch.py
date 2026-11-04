@@ -7,20 +7,22 @@ import os
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument
+from launch.actions import DeclareLaunchArgument, OpaqueFunction
 from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 from moveit_configs_utils import MoveItConfigsBuilder
 
 
-def generate_launch_description():
+def _setup(context):
+    foot = LaunchConfiguration("foot").perform(context)
     sim_share = get_package_share_directory("tron1_openarm_sim")
-    urdf = os.path.join(sim_share, "urdf", "tron1_openarm.urdf")
+    urdf = os.path.join(sim_share, "urdf", "tron1_openarm.urdf" if foot == "pf" else "tron1_openarm_sf.urdf")
+    srdf = "config/tron1_openarm.srdf" if foot == "pf" else "config/tron1_openarm_sf.srdf"
     mc = (
         MoveItConfigsBuilder("tron1_openarm", package_name="tron1_openarm_moveit_config")
         .robot_description(file_path=urdf)
-        .robot_description_semantic(file_path="config/tron1_openarm.srdf")
+        .robot_description_semantic(file_path=srdf)
         .robot_description_kinematics(file_path="config/kinematics.yaml")
         .joint_limits(file_path="config/joint_limits.yaml")
         .trajectory_execution(file_path="config/moveit_controllers.yaml")
@@ -43,4 +45,10 @@ def generate_launch_description():
                     mc.planning_pipelines, mc.joint_limits, {"use_sim_time": True}],
         condition=IfCondition(LaunchConfiguration("rviz")),
     )
-    return LaunchDescription([DeclareLaunchArgument("rviz", default_value="true"), move_group, rviz])
+    return [move_group, rviz]
+
+
+def generate_launch_description():
+    return LaunchDescription([DeclareLaunchArgument("rviz", default_value="true"),
+                              DeclareLaunchArgument("foot", default_value="pf", description="pf / sf (sim.launch.py 와 같게)"),
+                              OpaqueFunction(function=_setup)])

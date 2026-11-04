@@ -19,7 +19,7 @@ def generate_launch_description():
     lc = LaunchConfiguration
     sim = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(os.path.join(share, "launch", "sim.launch.py")),
-        launch_arguments={"policy": lc("policy"), "viewer": lc("viewer"), "world": lc("world"), "camera": lc("camera"), "move_person": lc("move_person"),
+        launch_arguments={"foot": lc("foot"), "policy": lc("policy"), "viewer": lc("viewer"), "world": lc("world"), "camera": lc("camera"), "move_person": lc("move_person"),
                           "rviz_config": os.path.join(share, "rviz", "nav.rviz"), "rviz": lc("rviz")}.items())
     nav = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(os.path.join(nav2, "launch", "bringup_launch.py")),
@@ -27,7 +27,8 @@ def generate_launch_description():
                           "slam": lc("slam"), "autostart": "True", "use_composition": "True"}.items())
     return LaunchDescription([
         DeclareLaunchArgument("viewer", default_value="true"),
-        DeclareLaunchArgument("policy", default_value=os.path.join(share, "policies", "tron1_openarm_policy.npz")),
+        DeclareLaunchArgument("policy", default_value="", description="비우면 발 형태별 기본 정책"),
+        DeclareLaunchArgument("foot", default_value="pf", description="pf = Point-foot, sf = Sole-foot"),
         DeclareLaunchArgument("world", default_value="world.xml"),
         DeclareLaunchArgument("camera", default_value="true"),
         DeclareLaunchArgument("rviz", default_value="true"),
