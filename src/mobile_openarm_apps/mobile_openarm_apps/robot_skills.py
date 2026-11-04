@@ -83,8 +83,10 @@ class RobotSkills(Node):
             self.DOCK_GAP = float(os.environ.get("OPENARM_DOCK_GAP", 0.32))
             self.IDEAL_REACH = float(os.environ.get("OPENARM_IDEAL_REACH", 0.41))
             # 시뮬 정답 기록: 손끝(TCP)이 목표보다 접근 방향으로 3.5 cm 덜 들어가 상자 앞 모서리만 잡고 미끄러졌다
-            # (팔 처짐 약 1.5 cm + 팔을 뻗을 때 몸통 반동). 그만큼 더 깊이 넣는다.
-            self.GRASP_DEPTH = float(os.environ.get("OPENARM_GRASP_DEPTH", 0.045))
+            # (팔 처짐 약 1.5 cm + 팔을 뻗을 때 몸통 반동). 접근 방향(45° 아래)으로 더 넣으면 손가락이 상판에 걸리므로
+            # 접근은 1.5 cm 까지, 그다음 같은 높이에서 수평으로 3.5 cm 더 민다 (pick 의 GRASP_PUSH)
+            self.GRASP_DEPTH = float(os.environ.get("OPENARM_GRASP_DEPTH", 0.015))
+            self.GRASP_PUSH = float(os.environ.get("OPENARM_GRASP_PUSH", 0.035))   # 그다음 수평으로 더 미는 거리
 
         cb = ReentrantCallbackGroup()
         self.cb = cb
@@ -546,6 +548,14 @@ class RobotSkills(Node):
                 co.primitive_poses = [pose]
                 co.operation = CollisionObject.ADD
             objs.append(co)
+        if exclude_id is not None and exclude_id not in self.detections(max_age=2.0):
+            # 목표 상자가 지금 안 보여도(팔이 마커를 가림) 예전에 넣은 장애물은 반드시 지운다.
+            # 남아 있으면 직선 접근이 상자에 '충돌' 해 중간에 끊긴다 (실제: 27% 에서 멈춤)
+            co = CollisionObject()
+            co.header.frame_id = BASE
+            co.id = f"box_{exclude_id}"
+            co.operation = CollisionObject.REMOVE
+            objs.append(co)
         if objs:
             self._apply_scene(objs)
 
@@ -597,6 +607,7 @@ class RobotSkills(Node):
     # 바퀴형 도킹에서 상자는 보통 팔 쪽으로 0.10~0.15 m. 이족은 AMCL 옆 오차(±0.15 m)로 0.27~0.31 m 가 되어
     # 직선 접근이 64% 에서 막혔다 (실험). 바퀴형은 옆으로 못 가므로 이 단계를 건너뛴다.
     TRANSIT_PAD = 0.03
+    GRASP_PUSH = 0.0
     LATERAL_OK = 0.18
     LATERAL_IDEAL = 0.12
 
@@ -732,6 +743,16 @@ class RobotSkills(Node):
             self.set_boxes(exclude_id=mid)                     # 직선 접근 전에 목표 상자만 제거
             self.cartesian(side, [center + R[:, 2] * self.GRASP_DEPTH], R,   # 더 깊이: 상자가 손가락 안쪽에 오도록
                            min_fraction=self._need_fraction(float(np.linalg.norm(center - pre))))
+            if self.can_strafe and self.GRASP_PUSH > 0:
+                # 이족: 손끝이 상자 중심보다 3.5 cm 앞에서 멈췄다(시뮬 정답 기록: 팔 처짐 + 몸통 반동). 접근 방향으로 더 넣으면
+                # 45° 아래로 내려가 손가락이 상판에 걸리므로, 같은 높이에서 수평으로만 더 민다 (일부만 가도 됨)
+                hdir = np.array([R[0, 2], R[1, 2], 0.0])
+                hdir /= max(np.linalg.norm(hdir), 1e-6)
+                try:
+                    self.cartesian(side, [center + R[:, 2] * self.GRASP_DEPTH + hdir * self.GRASP_PUSH], R,
+                                   min_fraction=0.0, avoid_collisions=False)
+                except SkillError:
+                    pass
             self.close_gripper(side)
             time.sleep(0.5)
             # 파지 확인: 손가락이 끝까지 닫혔으면(물체 없음) 실패 — 실로봇에서도 같은 방법으로 판정
