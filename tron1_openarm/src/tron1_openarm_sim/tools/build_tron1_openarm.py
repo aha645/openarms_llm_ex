@@ -155,6 +155,11 @@ def build(tron1_dir, openarm_xml, out_dir, xacro_file, mount_x=None, shoulder=No
     root.find("compiler").set("meshdir", "meshes")
     opt = root.find("option")
     opt.set("timestep", "0.002")             # 2 ms (정책 50 Hz = 10 스텝)
+    # 타원 마찰뿔 + impratio 10: 기본(피라미드 뿔, impratio 1)에서는 공 모양 발이 디딘 채로 조금씩 미끄러져(creep)
+    # 제자리 걸음 30 s 동안 몸통이 0.19 m 흘렀고, 다리 오도메트리는 그 미끄러짐을 볼 수 없어 0.06 m 만 잡았다.
+    # 바꾼 뒤: 실제 0.06 m / 오도메트리 0.05 m — 발이 미끄러지지 않으니 오도메트리와 실제가 일치 (실제 고무 발에 더 가까움)
+    opt.set("cone", "elliptic")
+    opt.set("impratio", "10")
     world = root.find("worldbody")
     torso = world.find("body[@name='openarm_body_link0']")
     world.remove(torso)

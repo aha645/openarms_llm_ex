@@ -2,7 +2,7 @@
      하반신: LimX TRON1 PF_TRON1A (tron1-robot-description, Apache-2.0) xacro → URDF → MJCF
      상반신: enactic/openarm_mujoco v1 (Apache-2.0), 기둥만 짧게 교체 -->
 <mujoco model="tron1_openarm">
-  <option timestep="0.004" integrator="implicitfast" />
+  <option timestep="0.004" integrator="implicitfast" cone="elliptic" impratio="10" />
   <default>
     <joint stiffness="0" ref="0.0" />
     <default class="robot">

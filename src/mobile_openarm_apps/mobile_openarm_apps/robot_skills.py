@@ -564,15 +564,41 @@ class RobotSkills(Node):
     LATERAL_OK = 0.18
     LATERAL_IDEAL = 0.12
 
+    def _cart_fraction(self, side, q_start, R, goal):
+        """q_start 에서 goal 까지 TCP 직선 경로가 몇 % 가능한지 (실행하지 않고 계산만)."""
+        req = GetCartesianPath.Request()
+        req.header.frame_id = BASE
+        req.start_state.is_diff = True
+        req.start_state.joint_state = JointState(name=list(q_start), position=[float(v) for v in q_start.values()])
+        req.group_name = f"{side}_arm"
+        req.link_name = TCP[side]
+        req.waypoints = [self._pose(goal, R)]
+        req.max_step = 0.01
+        if hasattr(req, "jump_threshold"):
+            req.jump_threshold = 0.0
+        req.avoid_collisions = True
+        return self._call(self.cart_srv, req, "compute_cartesian_path(검사)").fraction
+
     def _solve_approach(self, side, target, back=0.10):
-        """접근 자세 후보(roll)들 중 IK 가 풀리는 것을 찾는다 → (R, pre_pos)."""
-        for roll in self.ROLL_CANDIDATES:
-            R = approach_rotation(self.APPROACH_PITCH, roll)
-            pre = target - R[:, 2] * back
-            q_pre = self.compute_ik(side, pre, R)
-            if q_pre is not None and self.compute_ik(side, target, R, avoid_collisions=False):
-                self.log(f"[ik] {side} 접근 자세 roll={roll}°")
-                return R, pre, q_pre
+        """접근 자세 후보(roll × 물러선 거리)들 중 '접근점 IK + 목표 IK + 접근점→목표 직선 경로' 가 모두 되는 것 → (R, pre, q_pre).
+        직선 경로까지 미리 검사하는 이유: 두 끝점의 IK 가 풀려도 중간에 관절 한계에 걸려 직선이 끊길 수 있다
+        (TRON1 이족에서 실제로 64%·45% 에서 끊김). 그러면 같은 roll 로 더 가까이(0.07, 0.05 m)에서 시작하거나 다른 roll 을 쓴다."""
+        best = None
+        for b in (back, 0.07, 0.05):
+            for roll in self.ROLL_CANDIDATES:
+                R = approach_rotation(self.APPROACH_PITCH, roll)
+                pre = target - R[:, 2] * b
+                q_pre = self.compute_ik(side, pre, R)
+                if q_pre is None or not self.compute_ik(side, target, R, avoid_collisions=False):
+                    continue
+                f = self._cart_fraction(side, q_pre, R, target + R[:, 2] * self.GRASP_DEPTH)
+                if f >= 0.95:
+                    self.log(f"[ik] {side} 접근 자세 roll={roll}°, {b * 100:.0f} cm 앞에서 직선 접근")
+                    return R, pre, q_pre
+                if best is None or f > best[0]:
+                    best = (f, roll, b)
+        if best:
+            raise SkillError(f"{side} 팔 직선 접근 불가 (최대 {best[0] * 100:.0f}%, roll={best[1]}°) — 로봇 위치를 조정하세요")
         raise SkillError(f"{side} 팔로 {np.round(target, 3)} 에 접근하는 IK 해 없음 — 로봇 위치를 조정하세요")
 
     def pick(self, obj, side=None):
@@ -609,6 +635,14 @@ class RobotSkills(Node):
             self.set_boxes()                                   # 계획 중에는 모든 상자가 장애물
             R, pre, q_pre = self._solve_approach(side, center)
             self.move_joints(f"{side}_arm", q_pre)
+            if self.can_strafe:
+                # 팔을 뻗으면 이족 몸통이 반동으로 몇 cm 밀린다 → 직선 접근 목표를 마지막으로 다시 잰 위치로
+                try:
+                    c2 = self.find_marker(mid, samples=3) - np.array([0, 0, self.box_size / 2])
+                    if np.linalg.norm(c2 - center) < 0.06:
+                        center = c2
+                except SkillError:
+                    pass                                       # 팔이 마커를 가리면 이전 측정값 사용
             self.set_boxes(exclude_id=mid)                     # 직선 접근 전에 목표 상자만 제거
             self.cartesian(side, [center + R[:, 2] * self.GRASP_DEPTH], R)   # 1cm 더 깊이: 상자가 손가락 안쪽에 오도록
             self.close_gripper(side)
