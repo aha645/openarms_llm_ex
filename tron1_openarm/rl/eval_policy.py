@@ -22,16 +22,21 @@ import numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, os.path.join(ROOT, "src", "tron1_openarm_sim"))
-from tron1_openarm_sim.locomotion_policy import JOINTS, LocomotionPolicy  # noqa: E402
+from tron1_openarm_sim.locomotion_policy import LocomotionPolicy  # noqa: E402
 
-XML = os.path.join(ROOT, "src/tron1_openarm_sim/mjcf/world_light.xml")
+XML = {"pf": os.path.join(ROOT, "src/tron1_openarm_sim/mjcf/world_light.xml"),
+       "sf": os.path.join(ROOT, "src/tron1_openarm_sim/mjcf/sf/world_light.xml")}
+SPAWN = {"pf": 0.71, "sf": 0.76}
 POSES = {"home": [0, -0.2, 0, 0, 0, 0, 0], "ready": [0, 0, 0, 1.57, 0, 0, 0], "carry": [-0.3, 0, 1.2, 2.0, 0, 0, 0],
          "hands_up": [0, 0, 0, 2.0, 0, 0, 0]}
 
 
 class Runner:
     def __init__(self, npz, seed):
-        self.m = mujoco.MjModel.from_xml_path(XML)
+        self.pol = LocomotionPolicy(npz)
+        foot = self.pol.spec.name
+        JOINTS = self.pol.joints
+        self.m = mujoco.MjModel.from_xml_path(XML[foot])
         self.d = mujoco.MjData(self.m)
         m = self.m
         self.rng = np.random.default_rng(seed)
@@ -48,9 +53,10 @@ class Runner:
         self.person = m.body_mocapid[pm]
         self.d.mocap_pos[self.person] = [-4.5, -3.5, 0]     # 사람은 구석으로 치움
         # 넓은 남쪽 구역(0, -1.0)에서 시작 (기둥·벽과 떨어진 곳)
-        self.d.qpos[0:3] = [0.0, -0.6, 0.71]
+        self.d.qpos[0:3] = [0.0, -0.6, SPAWN[foot]]
+        self.d.qpos[self.jq] = self.pol.spec.default_q
+        self.d.ctrl[self.act] = self.pol.spec.default_q
         mujoco.mj_forward(m, self.d)
-        self.pol = LocomotionPolicy(npz)
         self.fell = False
 
     def arm_to(self, name_l, name_r=None):
@@ -66,6 +72,8 @@ class Runner:
     def run(self, sec, cmd, push=None):
         d = self.d
         log = []
+        # SF: 명령 0 이면 '제자리 서기' (시뮬 브리지와 같은 규칙). PF 는 해당 없음
+        self.pol.stand_still = all(c == 0 for c in cmd)
         for k in range(int(sec / 0.02)):
             t = self.pol.act(d.sensor("imu_gyro").data, d.sensor("imu_quat").data, d.qpos[self.jq], d.qvel[self.jv], cmd)
             d.ctrl[self.act] = t
@@ -94,8 +102,10 @@ def stats(log, skip=1.0):
     fwd = dx * np.cos(yaw0) + dy * np.sin(yaw0)
     side = -dx * np.sin(yaw0) + dy * np.cos(yaw0)
     dyaw = np.unwrap(L[:, 3])
+    # sway: 그 구간 동안 몸통 위치가 움직인 범위(앞뒤·좌우 중 큰 쪽) [m] — 조작 중 '가만히 서 있는가' 의 지표
     return dict(v_fwd=fwd / T, v_side=side / T, w=(dyaw[-1] - dyaw[0]) / T, h=float(L[:, 7].mean()),
-                h_std=float(L[:, 7].std()), tilt=float(L[:, 8].mean()))
+                h_std=float(L[:, 7].std()), tilt=float(L[:, 8].mean()),
+                sway=float(max(np.ptp(L[:, 1]), np.ptp(L[:, 2]))))
 
 
 def evaluate(npz, seeds=(0, 1, 2)):
