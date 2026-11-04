@@ -628,19 +628,6 @@ class RobotSkills(Node):
             self.open_gripper(side)
             # 몸 쪽 carry 자세에서 출발 → 접근점까지의 경로가 상자들 위쪽으로 지나감
             self.move_named(f"{side}_arm", "carry")
-            if self.can_strafe:
-                # 이족은 팔을 움직이는 동안에도 제자리 걸음으로 몸이 1~3 cm 움직인다 → 접근 직전에 다시 잰다.
-                # 단, 팔이 마커 앞을 가리면 깊이 영상이 팔까지의 거리를 줘서 엉뚱한 값이 나온다(실제: z 0.76, 옆 +0.34)
-                # → 이전 값에서 6 cm 넘게 벗어난 측정은 버린다
-                self.set_table()
-                try:
-                    c2 = self.find_marker(mid) - np.array([0, 0, self.box_size / 2])
-                    if np.linalg.norm(c2 - center) < 0.06:
-                        center = c2
-                    else:
-                        self.log(f"[pick] 재측정 {np.round(c2, 3)} 은 이전 값과 너무 달라 버림 (팔이 가렸을 수 있음)")
-                except SkillError:
-                    pass
             self.set_boxes()                                   # 계획 중에는 모든 상자가 장애물
             R, pre, q_pre = self._solve_approach(side, center)
             self.move_joints(f"{side}_arm", q_pre)

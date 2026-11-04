@@ -156,12 +156,18 @@ class Tron1OpenArmEnv:
             if r > arm_level:
                 q = np.zeros(14)
             elif r < 0.7 * arm_level:
-                L, R = ARM_POSES[names[self.rng.integers(len(names))]]
-                q = np.array(L + R, float)
-            else:   # 작업 중 자세 흉내: 이름 자세 두 개 사이 + 무작위
-                a, b = (ARM_POSES[names[j]] for j in self.rng.integers(len(names), size=2))
-                lam = self.rng.random()
-                q = lam * np.array(a[0] + a[1]) + (1 - lam) * np.array(b[0] + b[1])
+                # 왼팔·오른팔 자세를 따로 고른다 (절반). DAY2 앱은 한 팔씩 움직인다(예: 오른팔 carry + 왼팔 home).
+                # 양팔이 항상 같은 자세로만 학습한 v7 은 이런 비대칭 자세에서 옆으로 0.05 m/s 흘러가 버렸다.
+                iL, iR = self.rng.integers(len(names), size=2)
+                if self.rng.random() < 0.5:
+                    iR = iL
+                q = np.array(ARM_POSES[names[iL]][0] + ARM_POSES[names[iR]][1], float)
+            else:   # 작업 중 자세 흉내: 이름 자세 두 개 사이 + 무작위 (팔마다 따로)
+                q = np.zeros(14)
+                for s in (0, 1):
+                    a, b = (ARM_POSES[names[j]][s] for j in self.rng.integers(len(names), size=2))
+                    lam = self.rng.random()
+                    q[7 * s:7 * s + 7] = lam * np.array(a) + (1 - lam) * np.array(b)
                 q += self.rng.normal(0, 0.25, 14)
             lo = np.concatenate([self.arm_range["left"][:, 0], self.arm_range["right"][:, 0]])
             hi = np.concatenate([self.arm_range["left"][:, 1], self.arm_range["right"][:, 1]])

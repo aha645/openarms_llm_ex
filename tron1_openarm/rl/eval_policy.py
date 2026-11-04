@@ -9,6 +9,7 @@
   3. 제자리 회전 0.6 rad/s 15 s      : 실제 회전 속도
   4. 팔 동작 중 제자리 (home→ready→carry→hands_up→home, 각 2 s) : 넘어짐, 흐름
   5. 밀기: 제자리에서 2 s 마다 0.3 m/s 옆으로 밀기 10 회 : 넘어짐
+  6. 한 팔만 carry (오른팔 carry, 왼팔 home) 제자리 20 s : 흐름 — DAY2 앱은 한 팔씩 움직인다
   (모든 항목: 몸통 평균 높이 h, 기울기 tilt[도] — 기울면 머리 카메라·팔 좌표가 틀어진다)
 """
 import json
@@ -24,7 +25,7 @@ sys.path.insert(0, os.path.join(ROOT, "src", "tron1_openarm_sim"))
 from tron1_openarm_sim.locomotion_policy import JOINTS, LocomotionPolicy  # noqa: E402
 
 XML = os.path.join(ROOT, "src/tron1_openarm_sim/mjcf/world_light.xml")
-POSES = {"home": [0] * 7, "ready": [0, 0, 0, 1.57, 0, 0, 0], "carry": [-0.3, 0, 1.2, 2.0, 0, 0, 0],
+POSES = {"home": [0, -0.2, 0, 0, 0, 0, 0], "ready": [0, 0, 0, 1.57, 0, 0, 0], "carry": [-0.3, 0, 1.2, 2.0, 0, 0, 0],
          "hands_up": [0, 0, 0, 2.0, 0, 0, 0]}
 
 
@@ -57,6 +58,8 @@ class Runner:
         R = list(POSES[name_r or name_l])
         if (name_r or name_l) == "carry":
             R = [0.3, 0, -1.2, 2.0, 0, 0, 0]
+        elif (name_r or name_l) == "home":
+            R = [0, 0.2, 0, 0, 0, 0, 0]
         self.d.ctrl[self.arm["left"]] = L
         self.d.ctrl[self.arm["right"]] = R
 
@@ -96,13 +99,14 @@ def stats(log, skip=1.0):
 
 
 def evaluate(npz, seeds=(0, 1, 2)):
-    res = {k: [] for k in ("stand", "walk", "turn", "arms", "push")}
+    res = {k: [] for k in ("stand", "walk", "turn", "arms", "push", "one_arm")}
     falls = {k: 0 for k in res}
     for s in seeds:
         tests = [("stand", lambda r: r.run(30, (0, 0, 0))),
                  ("walk", lambda r: (r.run(2, (0, 0, 0)), r.run(20, (0.3, 0, 0)))[1]),
                  ("turn", lambda r: (r.run(2, (0, 0, 0)), r.run(15, (0, 0, 0.6)))[1]),
-                 ("arms", None), ("push", lambda r: (r.run(2, (0, 0, 0)), r.run(20, (0, 0, 0), push=(100, 0.3)))[1])]
+                 ("arms", None), ("push", lambda r: (r.run(2, (0, 0, 0)), r.run(20, (0, 0, 0), push=(100, 0.3)))[1]),
+                 ("one_arm", lambda r: (r.arm_to("home", "carry"), r.run(3, (0, 0, 0)), r.run(20, (0, 0, 0)))[2])]
         for name, fn in tests:
             r = Runner(npz, s)
             if name == "arms":

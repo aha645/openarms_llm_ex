@@ -237,6 +237,7 @@ class BipedOpenArmSim(W.MobileOpenArmSim):
                 eyaw = math.atan2(math.sin(self.odom[2] - ref[2]), math.cos(self.odom[2] - ref[2]))
                 if math.hypot(bx, by) > 0.4 or abs(eyaw) > 0.6:    # 크게 벗어나면(부딪힘 등) 기준을 현재 자세로 다시 잡음
                     self._hold = self.odom.copy()
+                    self._vi[:] = 0.0                                # 적분항도 비움 (포화된 채 남으면 계속 달려 나감)
                     bx = by = eyaw = 0.0
                 want = np.array([self.cmd_ramp[0] + np.clip(-HOLD_KP * bx, -HOLD_V, HOLD_V),
                                  self.vy_ramp + np.clip(-HOLD_KP * by, -HOLD_V, HOLD_V),
