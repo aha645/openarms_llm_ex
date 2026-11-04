@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>tron1_openarm_sim</name>
+  <version>0.1.0</version>
+  <description>LimX TRON1 Point-foot 하반신 + OpenArm v1 양팔 상반신 MuJoCo 시뮬레이션과 ROS 2 브리지 (보행 RL 정책 포함)</description>
+  <maintainer email="user@example.com">student</maintainer>
+  <license>Apache-2.0</license>
+  <exec_depend>mobile_openarm_sim</exec_depend>
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>robot_state_publisher</exec_depend>
+  <exec_depend>rviz2</exec_depend>
+  <exec_depend>nav2_bringup</exec_depend>
+  <exec_depend>slam_toolbox</exec_depend>
+  <exec_depend>xacro</exec_depend>
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

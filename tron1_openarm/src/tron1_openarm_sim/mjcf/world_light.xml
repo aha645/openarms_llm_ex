@@ -1,0 +1,73 @@
+<mujoco model="tron1_openarm_world">
+  <include file="tron1_openarm_light.xml"/>
+  <statistic center="0 0 0.8" extent="4"/>
+  <visual>
+    <headlight diffuse="0.5 0.5 0.5" ambient="0.35 0.35 0.35" specular="0 0 0"/>
+    <global azimuth="135" elevation="-25" offwidth="1280" offheight="720"/>
+    <quality shadowsize="2048"/>
+  </visual>
+  <asset>
+    <texture type="skybox" builtin="gradient" rgb1="0.6 0.7 0.8" rgb2="0.2 0.2 0.25" width="256" height="1536"/>
+    <texture type="2d" name="floor_tex" builtin="checker" mark="edge" rgb1="0.75 0.75 0.72" rgb2="0.68 0.68 0.65" markrgb="0.5 0.5 0.5" width="300" height="300"/>
+    <material name="floor" texture="floor_tex" texuniform="true" texrepeat="8 8" reflectance="0.05"/>
+    <material name="wall" rgba="0.92 0.9 0.85 1"/>
+    <material name="wood" rgba="0.6 0.45 0.3 1"/>
+    <material name="metal" rgba="0.5 0.5 0.55 1"/>
+    <material name="person" rgba="0.95 0.6 0.2 1"/>
+    <texture type="2d" name="aruco_0_tex" file="textures/aruco_0.png"/>
+    <material name="aruco_0" texture="aruco_0_tex" rgba="1 1 1 1" specular="0" shininess="0"/>
+    <texture type="2d" name="aruco_1_tex" file="textures/aruco_1.png"/>
+    <material name="aruco_1" texture="aruco_1_tex" rgba="1 1 1 1" specular="0" shininess="0"/>
+    <texture type="2d" name="aruco_2_tex" file="textures/aruco_2.png"/>
+    <material name="aruco_2" texture="aruco_2_tex" rgba="1 1 1 1" specular="0" shininess="0"/>
+  </asset>
+  <worldbody>
+    <light pos="0 0 4" dir="0 0 -1" directional="true" diffuse="0.5 0.5 0.5" castshadow="false"/>
+    <geom name="floor" type="plane" size="0 0 0.05" material="floor" group="0"/>
+    <geom name="wall_n" type="box" pos="0 4.05 0.5" size="5.1 0.05 0.5" material="wall" group="0"/>
+    <geom name="wall_s" type="box" pos="0 -4.05 0.5" size="5.1 0.05 0.5" material="wall" group="0"/>
+    <geom name="wall_e" type="box" pos="5.05 0 0.5" size="0.05 4.1 0.5" material="wall" group="0"/>
+    <geom name="wall_w" type="box" pos="-5.05 0 0.5" size="0.05 4.1 0.5" material="wall" group="0"/>
+    <geom name="part_w" type="box" pos="-3.0 1.5 0.5" size="2.0 0.05 0.5" material="wall" group="0"/>
+    <geom name="part_e" type="box" pos="3.0 1.5 0.5" size="2.0 0.05 0.5" material="wall" group="0"/>
+    <geom name="pillar_1" type="box" pos="1.8 -1.6 0.5" size="0.2 0.2 0.5" material="wall" group="0"/>
+    <geom name="pillar_2" type="box" pos="-1.8 -1.6 0.5" size="0.2 0.2 0.5" material="wall" group="0"/>
+    <geom name="shelf_1" type="box" pos="4.6 -1.0 0.6" size="0.35 0.6 0.6" material="wall" group="0"/>
+    <geom name="shelf_2" type="box" pos="-4.6 -1.0 0.6" size="0.35 0.6 0.6" material="wall" group="0"/>
+    <geom name="crate" type="box" pos="0.0 -3.4 0.3" size="0.4 0.3 0.3" material="wall" group="0"/>
+    <body name="pick_table" pos="2.5 3.1 0">
+      <geom name="pick_table_top" type="box" pos="0 0 0.6799999999999999" size="0.45 0.25 0.02" material="wood" group="0"/>
+      <geom name="pick_table_leg0" type="box" pos="0.41000000000000003 0.21 0.32999999999999996" size="0.025 0.025 0.32999999999999996" material="metal" group="0"/>
+      <geom name="pick_table_leg1" type="box" pos="-0.41000000000000003 0.21 0.32999999999999996" size="0.025 0.025 0.32999999999999996" material="metal" group="0"/>
+      <geom name="pick_table_leg2" type="box" pos="0.41000000000000003 -0.21 0.32999999999999996" size="0.025 0.025 0.32999999999999996" material="metal" group="0"/>
+      <geom name="pick_table_leg3" type="box" pos="-0.41000000000000003 -0.21 0.32999999999999996" size="0.025 0.025 0.32999999999999996" material="metal" group="0"/>
+    </body>
+    <body name="place_table" pos="-2.5 3.1 0">
+      <geom name="place_table_top" type="box" pos="0 0 0.6799999999999999" size="0.45 0.25 0.02" material="wood" group="0"/>
+      <geom name="place_table_leg0" type="box" pos="0.41000000000000003 0.21 0.32999999999999996" size="0.025 0.025 0.32999999999999996" material="metal" group="0"/>
+      <geom name="place_table_leg1" type="box" pos="-0.41000000000000003 0.21 0.32999999999999996" size="0.025 0.025 0.32999999999999996" material="metal" group="0"/>
+      <geom name="place_table_leg2" type="box" pos="0.41000000000000003 -0.21 0.32999999999999996" size="0.025 0.025 0.32999999999999996" material="metal" group="0"/>
+      <geom name="place_table_leg3" type="box" pos="-0.41000000000000003 -0.21 0.32999999999999996" size="0.025 0.025 0.32999999999999996" material="metal" group="0"/>
+    </body>
+    <body name="box_0" pos="2.62 2.97 0.726">
+      <freejoint/>
+      <geom name="box_0_geom" type="box" size="0.025 0.025 0.025" rgba="0.85 0.2 0.2 1" mass="0.08" friction="1.5 0.02 0.002" condim="4" group="1" solref="0.005 1"/>
+      <geom name="box_0_marker" type="box" pos="0 0 0.025400000000000002" size="0.0240 0.0240 0.0004" material="aruco_0" contype="0" conaffinity="0" group="1" mass="0"/>
+    </body>
+    <body name="box_1" pos="2.42 2.99 0.726">
+      <freejoint/>
+      <geom name="box_1_geom" type="box" size="0.025 0.025 0.025" rgba="0.2 0.7 0.3 1" mass="0.08" friction="1.5 0.02 0.002" condim="4" group="1" solref="0.005 1"/>
+      <geom name="box_1_marker" type="box" pos="0 0 0.025400000000000002" size="0.0240 0.0240 0.0004" material="aruco_1" contype="0" conaffinity="0" group="1" mass="0"/>
+    </body>
+    <body name="box_2" pos="2.8 3.05 0.726">
+      <freejoint/>
+      <geom name="box_2_geom" type="box" size="0.025 0.025 0.025" rgba="0.2 0.4 0.9 1" mass="0.08" friction="1.5 0.02 0.002" condim="4" group="1" solref="0.005 1"/>
+      <geom name="box_2_marker" type="box" pos="0 0 0.025400000000000002" size="0.0240 0.0240 0.0004" material="aruco_2" contype="0" conaffinity="0" group="1" mass="0"/>
+    </body>
+    <body name="person" mocap="true" pos="-3.0 -1.0 0">
+      <geom name="person_body" type="capsule" fromto="0 0 0.25 0 0 1.45" size="0.22" material="person" group="0"/>
+      <geom name="person_head" type="sphere" pos="0 0 1.62" size="0.12" material="person" group="0"/>
+    </body>
+    <camera name="overview" pos="0 -7.5 7" xyaxes="1 0 0 0 0.68 0.73" fovy="55"/>
+  </worldbody>
+</mujoco>

@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>tron1_openarm_moveit_config</name>
+  <version>0.1.0</version>
+  <description>MoveIt 2 configuration for OpenArm dual 7-DoF arms on a LimX TRON1 point-foot biped.</description>
+  <maintainer email="user@example.com">student</maintainer>
+  <license>Apache-2.0</license>
+  <exec_depend>tron1_openarm_sim</exec_depend>
+  <exec_depend>moveit_ros_move_group</exec_depend>
+  <exec_depend>moveit_configs_utils</exec_depend>
+  <exec_depend>moveit_kinematics</exec_depend>
+  <exec_depend>moveit_planners_ompl</exec_depend>
+  <exec_depend>moveit_simple_controller_manager</exec_depend>
+  <exec_depend>moveit_ros_visualization</exec_depend>
+  <exec_depend>rviz2</exec_depend>
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

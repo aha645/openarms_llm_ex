@@ -1,0 +1,46 @@
+<?xml version="1.0"?>
+<!--
+  하반신: LimX TRON1 Point-foot (PF_TRON1A) — limxdynamics/tron1-robot-description 의 xacro 를 그대로 include
+  상반신 장착부: OpenArm 을 올리기 위한 어댑터(마운트) 링크만 이 파일에서 새로 정의
+
+  이 xacro 는 tools/build_tron1_openarm.py 가 처리한다.
+    1) xacro → URDF  (TRON1 기구학·관성의 정본)
+    2) URDF → MuJoCo 컴파일 → MJCF
+    3) MJCF 에 OpenArm v1 양팔(enactic/openarm_mujoco)을 openarm_mount_link 아래에 접목
+  tron1_dir 인자: .../tron1-robot-description/pointfoot/PF_TRON1A (빌더가 $(find robot_description) 를 실제 경로로 바꾼 임시 복사본)
+-->
+<robot name="tron1_openarm" xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <xacro:arg name="tron1_dir" default=""/>
+  <xacro:include filename="$(arg tron1_dir)/xacro/robot.xacro"/>
+
+  <!-- ===== 상반신 장착 치수 (근거는 doc/tron1/02-model.md) =====
+       mount_z     : TRON1 몸통 윗면 높이. base_Link 원점 기준 base 충돌상자 윗면(+0.023 m) + 판 두께 7 mm
+       mount_x     : 상반신 무게중심을 서 있을 때의 두 발 중간(base 기준 x ≈ -0.017 m) 위에 두기 위한 앞뒤 위치
+       plate_*     : 알루미늄 어댑터 판 (0.20 x 0.24 x 0.014 m, 0.6 kg 가정) -->
+  <xacro:property name="mount_x" value="0.0"/>
+  <xacro:property name="mount_z" value="0.030"/>
+  <xacro:property name="plate_mass" value="0.6"/>
+
+  <joint name="base_Link_to_openarm_mount_link" type="fixed">
+    <parent link="base_Link"/>
+    <child link="openarm_mount_link"/>
+    <origin xyz="${mount_x} 0 ${mount_z}" rpy="0 0 0"/>
+  </joint>
+  <link name="openarm_mount_link">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><box size="0.20 0.24 0.014"/></geometry>
+      <material name="black"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><box size="0.20 0.24 0.014"/></geometry>
+    </collision>
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="${plate_mass}"/>
+      <inertia ixx="${plate_mass*(0.24*0.24+0.014*0.014)/12}" iyy="${plate_mass*(0.20*0.20+0.014*0.014)/12}"
+               izz="${plate_mass*(0.20*0.20+0.24*0.24)/12}" ixy="0" ixz="0" iyz="0"/>
+    </inertial>
+  </link>
+</robot>
