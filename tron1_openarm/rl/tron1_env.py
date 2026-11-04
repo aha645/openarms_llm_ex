@@ -30,7 +30,7 @@ ARM_POSES = {   # SRDF(mobile_openarm_moveit_config) 의 이름 자세 — DAY2 
 }
 REWARD_SCALES = dict(
     keep_balance=1.0, tracking_lin_vel=3.0, tracking_ang_vel=1.5, base_height=-20.0, lin_vel_z=-0.5,
-    ang_vel_xy=-0.05, torques=-8e-5, action_rate=-0.01, action_smooth=-0.01, orientation=-10.0,
+    ang_vel_xy=-0.05, torques=-8e-5, action_rate=-0.01, action_smooth=-0.01, orientation=-60.0,
     dof_pos_limits=-2.0, feet_distance=-100.0, contact_force=-2.0, contact_vel=-2.0, termination=-20.0)
 
 

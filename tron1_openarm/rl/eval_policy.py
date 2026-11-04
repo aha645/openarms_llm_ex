@@ -9,6 +9,7 @@
   3. 제자리 회전 0.6 rad/s 15 s      : 실제 회전 속도
   4. 팔 동작 중 제자리 (home→ready→carry→hands_up→home, 각 2 s) : 넘어짐, 흐름
   5. 밀기: 제자리에서 2 s 마다 0.3 m/s 옆으로 밀기 10 회 : 넘어짐
+  (모든 항목: 몸통 평균 높이 h, 기울기 tilt[도] — 기울면 머리 카메라·팔 좌표가 틀어진다)
 """
 import json
 import os
@@ -72,7 +73,8 @@ class Runner:
                 mujoco.mj_step(self.m, d)
             R = d.xmat[self.b].reshape(3, 3)
             v = R.T @ d.qvel[0:3]
-            log.append([d.time, d.qpos[0], d.qpos[1], np.arctan2(R[1, 0], R[0, 0]), v[0], v[1], d.qvel[5], d.xpos[self.b][2]])
+            log.append([d.time, d.qpos[0], d.qpos[1], np.arctan2(R[1, 0], R[0, 0]), v[0], v[1], d.qvel[5], d.xpos[self.b][2],
+                        np.degrees(np.arccos(min(1.0, R[2, 2])))])
             if d.xpos[self.b][2] < 0.45:
                 self.fell = True
                 break
@@ -90,7 +92,7 @@ def stats(log, skip=1.0):
     side = -dx * np.sin(yaw0) + dy * np.cos(yaw0)
     dyaw = np.unwrap(L[:, 3])
     return dict(v_fwd=fwd / T, v_side=side / T, w=(dyaw[-1] - dyaw[0]) / T, h=float(L[:, 7].mean()),
-                h_std=float(L[:, 7].std()))
+                h_std=float(L[:, 7].std()), tilt=float(L[:, 8].mean()))
 
 
 def evaluate(npz, seeds=(0, 1, 2)):

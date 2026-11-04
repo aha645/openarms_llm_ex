@@ -36,7 +36,7 @@ import numpy as np
 
 # ------------------------------------------------------------------ 치수 (근거: doc/tron1/02-model.md)
 NOMINAL_BASE_HEIGHT = 0.68      # 상반신을 얹고 서 있을 때 base_link 높이 [m] (LimX 학습 목표 base_height_target 0.68 과 같게, 시험 측정값 0.677)
-SHOULDER_HEIGHT = 0.999         # 바퀴형(mobile_openarm)과 같은 어깨(openarm_*_link0) 높이 [m]
+SHOULDER_HEIGHT = 1.08          # 어깨(openarm_*_link0) 높이 [m]. 바퀴형 0.999 보다 8 cm 높게: 내린 손이 엉덩이 모터 위로 지나가도록 (02-model.md 4-1)
 ARM_ORIGIN_Z = 0.697            # OpenArm: body_link0 원점 → 어깨 높이 (openarm_bimanual.xml 의 site arm_origin)
 MOUNT_Z = 0.030                 # urdf/tron1_openarm.urdf.xacro 의 mount_z
 MOUNT_X = 0.08                  # 상반신 앞뒤 위치 [m]. 0 이면 내린 손이 TRON1 엉덩이 모터(abad)에 닿음 → 0.08 에서 2.1 cm 틈 (doc/tron1/02-model.md 4-3)
@@ -121,8 +121,9 @@ def limx_collisions(limx_xml):
     return out
 
 
-def build(tron1_dir, openarm_xml, out_dir, xacro_file, mount_x=None):
+def build(tron1_dir, openarm_xml, out_dir, xacro_file, mount_x=None, shoulder=None):
     mount_x = MOUNT_X if mount_x is None else mount_x
+    SH = SHOULDER_HEIGHT if shoulder is None else shoulder
     os.makedirs(out_dir, exist_ok=True)
     mesh_root = os.path.join(out_dir, "meshes")
     tron_mesh = os.path.join(mesh_root, "tron1")
@@ -210,7 +211,7 @@ def build(tron1_dir, openarm_xml, out_dir, xacro_file, mount_x=None):
 
     # ---------------- 상반신 접목
     mount = next(b for b in tbase.iter("body") if b.get("name") == "openarm_mount_link")
-    body_z = SHOULDER_HEIGHT - ARM_ORIGIN_Z - (NOMINAL_BASE_HEIGHT + MOUNT_Z)   # mount 기준 body_link0 원점 높이 (음수: 몸통 안쪽)
+    body_z = SH - ARM_ORIGIN_Z - (NOMINAL_BASE_HEIGHT + MOUNT_Z)   # mount 기준 body_link0 원점 높이 (음수: 몸통 안쪽)
     torso.set("pos", f(0, 0, body_z))
     # 원본 75 cm 기둥(메시 6개 + 충돌 메시) → 짧은 기둥(상자)
     for g in list(torso.findall("geom")):
@@ -341,7 +342,7 @@ def build(tron1_dir, openarm_xml, out_dir, xacro_file, mount_x=None):
     print(f"    전체 질량 {m.body_subtreemass[0]:.2f} kg = TRON1 {tron_mass - 0.6:.2f} + 어댑터 판 0.6 + 상반신 {m.body_subtreemass[up]:.2f}")
     sh = d.xpos[m.body("openarm_left_link0").id][2]
     cam = d.cam_xpos[m.camera("head_camera").id][2]
-    print(f"    어깨 높이 {sh:.3f} m (목표 {SHOULDER_HEIGHT}), 머리 카메라 {cam:.3f} m, LiDAR {d.site_xpos[m.site('lidar_site').id][2]:.3f} m "
+    print(f"    어깨 높이 {sh:.3f} m (목표 {SH}), 머리 카메라 {cam:.3f} m, LiDAR {d.site_xpos[m.site('lidar_site').id][2]:.3f} m "
           f"(base 높이 {d.xpos[m.body('base_link').id][2]:.3f} m 기준)")
     print("wrote", full)
 
@@ -354,5 +355,6 @@ if __name__ == "__main__":
     ap.add_argument("--out", default=os.path.join(here, "..", "mjcf"))
     ap.add_argument("--xacro", default=os.path.join(here, "..", "urdf", "tron1_openarm.urdf.xacro"))
     ap.add_argument("--mount-x", type=float, default=None, help="상반신 앞뒤 위치 [m] (기본 MOUNT_X)")
+    ap.add_argument("--shoulder", type=float, default=None, help="서 있을 때 어깨 높이 [m] (기본 SHOULDER_HEIGHT)")
     a = ap.parse_args()
-    build(os.path.abspath(a.tron1), os.path.abspath(a.openarm), os.path.abspath(a.out), os.path.abspath(a.xacro), a.mount_x)
+    build(os.path.abspath(a.tron1), os.path.abspath(a.openarm), os.path.abspath(a.out), os.path.abspath(a.xacro), a.mount_x, a.shoulder)

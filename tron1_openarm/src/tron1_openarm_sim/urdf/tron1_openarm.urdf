@@ -313,29 +313,29 @@
   </joint>
   <link name="openarm_body_link0">
     <inertial>
-      <origin xyz="-0.005 0 0.644801" rpy="0 0 0" />
-      <mass value="2.214" />
-      <inertia ixx="0.0322152" iyy="0.0322152" izz="0.006" ixy="0" ixz="0" iyz="0" />
+      <origin xyz="-0.005 0 0.611911" rpy="0 0 0" />
+      <mass value="2.5207" />
+      <inertia ixx="0.0484792" iyy="0.0484792" izz="0.006" ixy="0" ixz="0" iyz="0" />
     </inertial>
     <visual>
-      <origin xyz="0 0 0.5885" rpy="0 0 0" />
+      <origin xyz="0 0 0.548" rpy="0 0 0" />
       <geometry>
-        <box size="0.06 0.06 0.347" />
+        <box size="0.06 0.06 0.428" />
       </geometry>
       <material name="openarm_column_collision_mat">
         <color rgba="0 0 0 0" />
       </material>
     </visual>
     <collision>
-      <origin xyz="0 0 0.5885" rpy="0 0 0" />
+      <origin xyz="0 0 0.548" rpy="0 0 0" />
       <geometry>
-        <box size="0.06 0.06 0.347" />
+        <box size="0.06 0.06 0.428" />
       </geometry>
     </collision>
     <visual>
-      <origin xyz="0 0 0.5885" rpy="0 0 0" />
+      <origin xyz="0 0 0.548" rpy="0 0 0" />
       <geometry>
-        <box size="0.06 0.06 0.347" />
+        <box size="0.06 0.06 0.428" />
       </geometry>
       <material name="openarm_column_vis_mat">
         <color rgba="0.247059 0.247059 0.247059 1" />
@@ -372,7 +372,7 @@
   <joint name="openarm_mount_link_to_openarm_body_link0" type="fixed">
     <parent link="openarm_mount_link" />
     <child link="openarm_body_link0" />
-    <origin xyz="0 0 -0.408" rpy="0 0 0" />
+    <origin xyz="0 0 -0.327" rpy="0 0 0" />
   </joint>
   <link name="openarm_left_link0">
     <inertial>
