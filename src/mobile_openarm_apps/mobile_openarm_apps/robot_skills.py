@@ -485,8 +485,9 @@ class RobotSkills(Node):
             raise SkillError(f"직선 이동 실행 실패 code={res.result.error_code.val}")
 
     # ------------------------------------------------------------------ 플래닝 씬
-    def set_table(self, station=None):
-        """현재 작업대 위치를 MoveIt 충돌 객체로 추가 (base_footprint 기준)."""
+    def set_table(self, station=None, pad=0.0):
+        """현재 작업대 위치를 MoveIt 충돌 객체로 추가 (base_footprint 기준).
+        pad: 이동(transit) 중 여유 [m] — 상판을 그만큼 높이고 넓혀 손이 작업대 근처를 스치지 않게 한다."""
         station = station or self.current_station
         table = self.station_table.get(station)
         if table is None:
@@ -508,7 +509,8 @@ class RobotSkills(Node):
             # 붙어 있으므로 카메라로 잰 상자 위치는 팔 기준으로 정확하지만, 지도에서 가져온 상판 높이는 그만큼 어긋나
             # 상자 중심이 상판 '안'에 있는 것처럼 보였다(IK 충돌). → 카메라로 잰 상자 바닥 높이를 상판 높이로 쓴다
             h = self._table_top_seen - 0.012
-        box.dimensions = [float(t["size"][0]), float(t["size"][1]), float(h)]
+        h += pad
+        box.dimensions = [float(t["size"][0]) + 2 * pad, float(t["size"][1]) + 2 * pad, float(h)]
         p = Pose()
         p.position.x, p.position.y, p.position.z = float(local[0]), float(local[1]), h / 2
         q = yaw_to_quat(-pose[2])          # 작업대 축은 map 축과 평행
@@ -594,6 +596,7 @@ class RobotSkills(Node):
     # 이족 전용: 상자가 옆으로 이만큼 넘게 치우쳐 있으면 옆걸음으로 LATERAL_IDEAL 에 맞춘다.
     # 바퀴형 도킹에서 상자는 보통 팔 쪽으로 0.10~0.15 m. 이족은 AMCL 옆 오차(±0.15 m)로 0.27~0.31 m 가 되어
     # 직선 접근이 64% 에서 막혔다 (실험). 바퀴형은 옆으로 못 가므로 이 단계를 건너뛴다.
+    TRANSIT_PAD = 0.03
     LATERAL_OK = 0.18
     LATERAL_IDEAL = 0.12
 
@@ -686,8 +689,14 @@ class RobotSkills(Node):
         for attempt in (1, 2):
             self.open_gripper(side)
             # 몸 쪽 carry 자세에서 출발 → 접근점까지의 경로가 상자들 위쪽으로 지나감
+            # 이족: 손을 옮기는 동안(home → carry → 접근점)은 작업대에 3 cm 여유를 둔다.
+            # 여유 없이 계획하면 손가락이 상판을 스쳐(시뮬 접촉 기록) 몸통이 밀리고 넘어질 뻔했다 (기울기 18°)
+            if self.can_strafe:
+                self.set_table(pad=self.TRANSIT_PAD)
             self.move_named(f"{side}_arm", "carry")
             self.set_boxes()                                   # 계획 중에는 모든 상자가 장애물
+            if self.can_strafe:
+                self.set_table()                               # 접근 자세 계산은 실제 상판 높이로
             try:
                 R, pre, q_pre = self._solve_approach(side, center, exclude_id=mid)
             except SkillError as e:
@@ -704,8 +713,11 @@ class RobotSkills(Node):
                 self.move_named(f"{side}_arm", "carry")
                 self.set_boxes()
                 R, pre, q_pre = self._solve_approach(side, center, exclude_id=mid)
+            if self.can_strafe:
+                self.set_table(pad=self.TRANSIT_PAD)           # carry → 접근점 이동도 여유를 두고
             self.move_joints(f"{side}_arm", q_pre)
             if self.can_strafe:
+                self.set_table()                               # 직선 접근은 실제 상판 높이로
                 self.wait_still()
                 # 팔을 뻗으면 이족 몸통이 반동으로 몇 cm 밀린다 → 직선 접근 목표를 마지막으로 다시 잰 위치로
                 try:
@@ -736,6 +748,8 @@ class RobotSkills(Node):
             raise SkillError(f"{obj} 파지 실패 (2회)")
         self.clear_boxes()
         self.holding[side] = obj
+        if self.can_strafe:
+            self.set_table(pad=self.TRANSIT_PAD)
         self.move_named(f"{side}_arm", "carry")
         self.log(f"[pick] 완료: {obj}")
         return side
@@ -754,7 +768,11 @@ class RobotSkills(Node):
         target = np.array([fwd, lat, top_h + self.box_size / 2 + 0.01])
         self.log(f"[place] {self.holding[side]} → base {np.round(target, 3)} ({side})")
         R, pre, q_pre = self._solve_approach(side, target + np.array([0, 0, 0.05]), back=0.06)
+        if self.can_strafe:
+            self.set_table(station, pad=self.TRANSIT_PAD)
         self.move_joints(f"{side}_arm", q_pre)
+        if self.can_strafe:
+            self.set_table(station)
         self.cartesian(side, [target], R, avoid_collisions=False)
         self.open_gripper(side)
         time.sleep(0.5)
@@ -768,6 +786,8 @@ class RobotSkills(Node):
         obj = self.holding[side]
         self.holding[side] = None
         # 'ready'(손이 작업대 위)를 거치면 방금 놓은 상자를 칠 수 있으므로, 몸 쪽 carry 를 거쳐 home 으로
+        if self.can_strafe:
+            self.set_table(station, pad=self.TRANSIT_PAD)
         self.move_named(f"{side}_arm", "carry")
         self.move_named(f"{side}_arm", "home")
         self.log(f"[place] 완료: {obj}")
