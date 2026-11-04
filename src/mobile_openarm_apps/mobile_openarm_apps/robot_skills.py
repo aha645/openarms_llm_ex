@@ -595,19 +595,20 @@ class RobotSkills(Node):
         직선 경로까지 미리 검사하는 이유: 두 끝점의 IK 가 풀려도 중간에 관절 한계에 걸려 직선이 끊길 수 있다
         (TRON1 이족에서 실제로 64%·45% 에서 끊김). 그러면 같은 roll 로 더 가까이(0.07, 0.05 m)에서 시작하거나 다른 roll 을 쓴다."""
         best = None
-        for b in (back, 0.07, 0.05):
-            for roll in self.ROLL_CANDIDATES:
-                R = approach_rotation(self.APPROACH_PITCH, roll)
-                pre = target - R[:, 2] * b
-                q_pre = self.compute_ik(side, pre, R)
-                if q_pre is None or not self.compute_ik(side, target, R, avoid_collisions=False):
-                    continue
-                f = self._cart_fraction(side, q_pre, R, target + R[:, 2] * self.GRASP_DEPTH)
-                if f >= 0.95:
-                    self.log(f"[ik] {side} 접근 자세 roll={roll}°, {b * 100:.0f} cm 앞에서 직선 접근")
-                    return R, pre, q_pre
-                if best is None or f > best[0]:
-                    best = (f, roll, b)
+        pitches = [self.APPROACH_PITCH] + ([55.0, 65.0] if self.can_strafe else [])   # 이족: 어깨가 높아 더 위에서 내려오는 접근도 시도
+        cands = [(p, b, r) for b in (back, 0.07, 0.05) for p in pitches for r in self.ROLL_CANDIDATES]
+        for pitch, b, roll in cands:
+            R = approach_rotation(pitch, roll)
+            pre = target - R[:, 2] * b
+            q_pre = self.compute_ik(side, pre, R)
+            if q_pre is None or not self.compute_ik(side, target, R, avoid_collisions=False):
+                continue
+            f = self._cart_fraction(side, q_pre, R, target + R[:, 2] * self.GRASP_DEPTH)
+            if f >= 0.95:
+                self.log(f"[ik] {side} 접근 자세 pitch={pitch:.0f}° roll={roll}°, {b * 100:.0f} cm 앞에서 직선 접근")
+                return R, pre, q_pre
+            if best is None or f > best[0]:
+                best = (f, roll, b)
         if best:
             raise SkillError(f"{side} 팔 직선 접근 불가 (최대 {best[0] * 100:.0f}%, roll={best[1]}°) — 로봇 위치를 조정하세요")
         raise SkillError(f"{side} 팔로 {np.round(target, 3)} 에 접근하는 IK 해 없음 — 로봇 위치를 조정하세요")
