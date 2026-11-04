@@ -68,6 +68,10 @@ class Tron1OpenArmEnv:
         self.KP, self.KD, self.TAU = self.sp.kp.astype(np.float64), self.sp.kd.astype(np.float64), self.sp.tau.astype(np.float64)
         self.q_def = self.sp.default_q.astype(np.float64)
         self.GAIT = self.sp.gait
+        self.rs = dict(REWARD_SCALES)
+        if foot == "sf":
+            # SF 1차 미세조정은 회전 추종이 약했다(0.6 rad/s 명령에 0.08) → 회전 추종 보상을 2배
+            self.rs["tracking_ang_vel"] = 3.0
         base = mujoco.MjModel.from_xml_path(xml)
         self.dt = base.opt.timestep
         self.nsub = int(round(POLICY_DT / self.dt))
@@ -350,7 +354,7 @@ class Tron1OpenArmEnv:
         upz = 1 - 2 * (quat[:, 1] ** 2 + quat[:, 2] ** 2)
         fell = (h < 0.45) | (upz < 0.7) | ~np.isfinite(self.state).all(1)
         timeout = self.t >= self.ep_len
-        rew = rew + fell * REWARD_SCALES["termination"]
+        rew = rew + fell * self.rs["termination"]
         self.ep_ret += rew
         done = fell | timeout
         # 명령 재설정 (5초마다)
@@ -398,5 +402,5 @@ class Tron1OpenArmEnv:
             contact_force=np.mean((1 - des) * (1 - np.exp(-F ** 2 / 25.0)), 1),
             contact_vel=np.mean(des * (1 - np.exp(-fv ** 2 / 0.25)), 1),
         )
-        r = sum(REWARD_SCALES[k] * v for k, v in t.items()) * POLICY_DT
+        r = sum(self.rs[k] * v for k, v in t.items()) * POLICY_DT
         return r, t
