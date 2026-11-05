@@ -253,7 +253,10 @@ class RobotSkills(Node):
         common = [i for i in others0 if i in now]
         if not common:
             return None, 0
-        shift = np.mean([now[i] - others0[i] for i in common], axis=0)
+        shifts = np.array([now[i] - others0[i] for i in common])
+        shift = np.median(shifts, axis=0)
+        if np.linalg.norm(shift) > 0.15 or (len(common) > 1 and np.ptp(shifts, axis=0).max() > 0.05):
+            return None, 0          # 너무 크게 움직였거나 마커끼리 안 맞으면(몸통이 크게 돎·오검출) 믿지 않음 (SF 시험 7: 53 cm)
         return p0 + shift, len(common)
 
     def _remember_marker(self, marker_id, p_base):
