@@ -346,7 +346,7 @@ class RobotSkills(Node):
             time.sleep(period)
 
     # ------------------------------------------------------------------ 손목 마커 시각 피드백 (이족)
-    SERVO_ITERS = 3         # 보정 이동 최대 횟수
+    SERVO_ITERS = 4         # 보정 이동 최대 횟수
     SERVO_TOL = 0.010       # 손끝-목표 오차가 이보다 작으면 보정 끝 [m]
     SERVO_MAX_STEP = 0.05   # 한 번에 보정하는 최대 거리 [m] (잘못 잰 값으로 크게 튀지 않게)
     SERVO_DEPTH = 0.010     # 손끝(TCP)을 상자 중심보다 접근 방향으로 이만큼 더 넣는다 [m]
@@ -453,6 +453,11 @@ class RobotSkills(Node):
                 break
             n = np.linalg.norm(err)
             step = err if n <= self.SERVO_MAX_STEP else err * (self.SERVO_MAX_STEP / n)
+            lat = err - R[:, 2] * float(err @ R[:, 2])       # 접근 방향에 수직인 성분
+            if np.linalg.norm(lat) > 0.02:
+                # 옆으로 크게 어긋났으면 옆으로만 가지 말고 접근 방향 뒤로 물러나며 옮긴다.
+                # 손이 상자 옆에 붙은 채 옆으로 가면 손가락이 상자를 밀고 간다 (시험 14: 8 cm 밀림)
+                step = step - R[:, 2] * 0.04
             goal = goal + step
             if floor_z is not None:
                 goal[2] = max(goal[2], floor_z)
@@ -971,11 +976,13 @@ class RobotSkills(Node):
                     self.log(f"[pick] 접근점으로 가기 전 상자 {np.round(c3, 3)} (계획 때와 차이 {np.round(shift * 100, 1)} cm)")
                     if np.linalg.norm(shift) > 0.02:
                         # 상자가 몸통 기준으로 옮겨졌으면 접근점도 같이 옮긴다 (그대로 가면 손이 상자를 친다: 시험 11)
-                        q2 = self.compute_ik(side, pre + shift, R, seed=q_pre)
+                        q2 = self.compute_ik(side, pre + shift, R, seed=q_pre) or self.compute_ik(side, pre + shift, R)
                         if q2 is not None:
                             pre, q_pre = pre + shift, q2
                         else:
-                            self.log("[pick] 옮긴 접근점 IK 실패 → 원래 접근점 사용 (시각 보정에 맡김)")
+                            # 원래 접근점으로 가면 손이 상자 옆에 붙어 상자를 밀었다 (시험 14: 14 cm 어긋난 접근점) → 접근 자세를 새로 푼다
+                            self.log("[pick] 옮긴 접근점 IK 실패 → 지금 상자 위치로 접근 자세를 다시 푼다")
+                            R, pre, q_pre = self._solve_approach(side, c3, exclude_id=mid)
                     center = c3
                 except SkillError:
                     pass
