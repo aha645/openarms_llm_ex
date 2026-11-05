@@ -81,6 +81,8 @@ class RobotSkills(Node):
         self.named_states = self._load_srdf_states(srdf)
         # 옆걸음이 되는 하반신(이족 tron1_openarm)이면 1. 바퀴형은 설정하지 않음 → 기존 동작 그대로
         self.can_strafe = os.environ.get("OPENARM_BIPED", "0") == "1"
+        if self.can_strafe:
+            self.FRESH_S = 2.0          # 이족 전체 시스템: 카메라 프레임 간격이 0.5 s 를 넘음
         self._table_top_seen = None      # 이족: 카메라로 잰 상판 높이 (base_footprint 명목 좌표)
         self._box_seen_fwd = None        # 이족: 카메라로 잰 목표 상자의 전방 거리 (작업대 앞 모서리 상한 계산용)
         if self.can_strafe:
@@ -210,6 +212,10 @@ class RobotSkills(Node):
         with self._det_lock:
             return {i: (p, yaw) for i, (t, p, yaw) in self._detections.items() if now - t < max_age}
 
+    # 카메라 검출을 '새 프레임' 으로 볼 최대 나이 [s]. 바퀴형 시뮬은 0.5 s 로 충분했지만 이족 전체 시스템(시뮬+Nav2+MoveIt)은
+    # 실시간의 0.3 배까지 느려져 카메라 프레임 간격이 0.5 s 를 넘었고, 상자가 보이는데도 '마커를 찾지 못함' 이 났다 (SF 미션 15)
+    FRESH_S = 0.5
+
     def find_marker(self, marker_id, samples=5, timeout=5.0):
         """여러 프레임 평균한 마커 위치 (base_footprint)."""
         pts = []
@@ -219,7 +225,7 @@ class RobotSkills(Node):
         while len(pts) < samples and time.time() - t0 < timeout:
             with self._det_lock:
                 item = self._detections.get(marker_id)
-            if item and item[0] != last_t and time.time() - item[0] < 0.5:
+            if item and item[0] != last_t and time.time() - item[0] < self.FRESH_S:
                 last_t = item[0]
                 pts.append(item[1])
             time.sleep(0.05)
@@ -230,10 +236,11 @@ class RobotSkills(Node):
         self._snapshot(marker_id, p)
         return p
 
-    def _other_markers(self, exclude, max_age=0.5):
+    def _other_markers(self, exclude, max_age=None):
         """지금 보이는 '다른' 물체 마커들 (id → base 위치). 손목 마커·exclude 는 뺀다."""
         known = {o["marker_id"] for o in self.objects.values()}
         now = time.time()
+        max_age = self.FRESH_S if max_age is None else max_age
         with self._det_lock:
             return {i: v[1].copy() for i, v in self._detections.items()
                     if i in known and i != exclude and now - v[0] < max_age}
@@ -435,7 +442,7 @@ class RobotSkills(Node):
             with self._det_lock:
                 items = dict(self._detections)
             tf7 = self._tf_matrix(f"openarm_{side}_link7")
-            fresh = [(i, items[i]) for i in WRIST.IDS[side] if i in items and time.time() - items[i][0] < 0.5]
+            fresh = [(i, items[i]) for i in WRIST.IDS[side] if i in items and time.time() - items[i][0] < self.FRESH_S]
             if tf7 is not None and fresh:
                 stamp = max(v[0] for _, v in fresh)
                 if stamp not in seen:
@@ -463,11 +470,12 @@ class RobotSkills(Node):
         return (np.median(np.array(tcps), axis=0), np.median(np.array(boxes), axis=0) if boxes else None,
                 None if fk is None else fk[0], "손목 마커")
 
-    def visual_servo(self, side, box_id, R, goal, center, offset, floor_z=None, label=""):
+    def visual_servo(self, side, box_id, R, goal, center, offset, floor_z=None, label="", peek=False):
         """손끝이 '상자 중심 + offset' 에 오도록 카메라로 재며 고친다 (closed-loop).
         goal: 지금까지 MoveIt 에 명령한 손끝 목표. 팔이 중력에 처지는 만큼 실제 손끝은 목표에 못 미치므로
         '명령 목표' 를 오차만큼 누적해서 옮긴다 (적분) → 처짐이 매번 같으면 2~3 번에 수렴.
         반환: (최종 명령 목표, 최신 상자 중심)"""
+        peeked = False
         for it in range(1, self.SERVO_ITERS + 1):
             self.wait_still(timeout=8.0)
             try:
@@ -475,6 +483,26 @@ class RobotSkills(Node):
             except SkillError as e:
                 self.log(f"[servo{label}] {e} → 보정 생략")
                 break
+            if box is None and peek and not peeked:
+                # 파지 위치에서 상자 마커가 손에 가려졌으면 손을 잠깐 위·뒤로 빼서 상자를 직접 다시 잰다.
+                # 다른 마커로만 추정하면 손이 상자를 민 것을 못 봐, 오차 0.6 cm 로 '맞췄는데' 빈손으로 닫혔다 (SF 미션 15: 상자 4.4 cm 밀림)
+                peeked = True
+                tf = self._tf_matrix(TCP[side])
+                if tf is not None:
+                    try:
+                        self.cartesian(side, [tf[0] + np.array([0, 0, 0.06]) - R[:, 2] * 0.05], R, vel=0.1,
+                                       min_fraction=0.0, avoid_collisions=False)
+                        top = self.find_marker(box_id, samples=3)
+                        center = top - np.array([0, 0, self.box_size / 2])
+                        self._snapshot(box_id, top)
+                        self.log(f"[servo{label}] 손을 빼고 다시 잰 상자 {np.round(center, 3)}")
+                    except SkillError as e:
+                        self.log(f"[servo{label}] 손을 빼고 다시 재기 실패: {e}")
+                    try:
+                        self.cartesian(side, [goal], R, vel=0.1, min_fraction=0.0, avoid_collisions=False)
+                    except SkillError:
+                        pass
+                    continue
             stale = ""
             top_ok = self._table_top_seen is None or box is None or \
                 abs(box[2] - self.box_size / 2 - self._table_top_seen) < 0.045
@@ -1054,7 +1082,7 @@ class RobotSkills(Node):
         while len(vals) < samples and time.time() - t0 < timeout:
             with self._det_lock:
                 it = self._detections.get(mid)
-            if it and it[0] != last and time.time() - it[0] < 0.5:
+            if it and it[0] != last and time.time() - it[0] < self.FRESH_S:
                 last = it[0]
                 y = (it[2] + math.pi / 4) % (math.pi / 2) - math.pi / 4
                 vals.append(y)
@@ -1258,7 +1286,7 @@ class RobotSkills(Node):
                         continue
                 # 시각 피드백 2단계 (파지 위치): 손끝이 상자 중심(+1 cm 안쪽)에 올 때까지 재고 고친다
                 goal, center = self.visual_servo(side, mid, R, goal, center, R[:, 2] * self.SERVO_DEPTH,
-                                                 floor_z=floor_z, label=" 파지")
+                                                 floor_z=floor_z, label=" 파지", peek=True)
             else:
                 self.cartesian(side, [goal], R,   # 더 깊이: 상자가 손가락 안쪽에 오도록
                                min_fraction=need, start_q=q_pre if self.can_strafe else None)
