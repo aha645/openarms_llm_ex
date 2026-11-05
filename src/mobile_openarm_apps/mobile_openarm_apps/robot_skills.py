@@ -82,6 +82,7 @@ class RobotSkills(Node):
         # 옆걸음이 되는 하반신(이족 tron1_openarm)이면 1. 바퀴형은 설정하지 않음 → 기존 동작 그대로
         self.can_strafe = os.environ.get("OPENARM_BIPED", "0") == "1"
         self._table_top_seen = None      # 이족: 카메라로 잰 상판 높이 (base_footprint 명목 좌표)
+        self._box_seen_fwd = None        # 이족: 카메라로 잰 목표 상자의 전방 거리 (작업대 앞 모서리 상한 계산용)
         if self.can_strafe:
             # 이족(TRON1) 작업대 거리. 예전 어깨 1.08 m 설계에서는 상자가 팔 길이 끝이라 0.32/0.41 로 붙어 섰지만,
             # 어깨를 몸통 위로 낮춘 지금은 팔을 앞으로 든 carry 자세의 팔뚝이 앞 0.36 m 까지 나와 붙어 서면 상판 모서리에 걸린다
@@ -476,6 +477,7 @@ class RobotSkills(Node):
     def dock(self, station=None):
         """Nav2 도착 후 작업대 앞까지 직진 접근 (DOCK_GAP 맞추기)."""
         station = station or self.current_station
+        self._box_seen_fwd = None       # 새 작업대 — 이전 작업대에서 잰 상자 거리는 쓰지 않음
         pose = self.robot_pose()
         if pose is None or station not in self.locations:
             return
@@ -687,6 +689,14 @@ class RobotSkills(Node):
             # (SF: 손가락-작업대 접촉 뒤 몸통이 45° 돌고 0.53 m 로 주저앉음) → 실제 높이 + 0.5 cm 로 두어 스치지 않는 접근만 고른다
             h = self._table_top_seen + 0.005
         h += pad
+        if self.can_strafe and self._box_seen_fwd is not None:
+            # 이족: 지도·오도메트리로 계산한 작업대 위치가 실제보다 9 cm 멀었다(시험 10: 실제 모서리 0.33 m, 계획 0.42 m —
+            # 제자리 걸음 미끄러짐). 그래서 home→carry 경로의 손가락이 상판 모서리를 쳤다. 카메라로 잰 상자는 정확하므로
+            # '상자는 모서리에서 최소 BOX_EDGE_MIN 안쪽에 있다' 는 가정으로 모서리 위치의 상한을 둔다 (가까운 쪽으로만 옮김).
+            edge_map = float(local[0] - t["size"][1] / 2)
+            edge_cam = self._box_seen_fwd - self.BOX_EDGE_MIN
+            if edge_cam < edge_map:
+                local = np.array([local[0] + edge_cam - edge_map, local[1]])
         box.dimensions = [float(t["size"][0]) + 2 * pad, float(t["size"][1]) + 2 * pad, float(h)]
         p = Pose()
         p.position.x, p.position.y, p.position.z = float(local[0]), float(local[1]), h / 2
@@ -782,6 +792,7 @@ class RobotSkills(Node):
     # 바퀴형 도킹에서 상자는 보통 팔 쪽으로 0.10~0.15 m. 이족은 AMCL 옆 오차(±0.15 m)로 0.27~0.31 m 가 되어
     # 직선 접근이 64% 에서 막혔다 (실험). 바퀴형은 옆으로 못 가므로 이 단계를 건너뛴다.
     TRANSIT_PAD = 0.03
+    BOX_EDGE_MIN = 0.10     # 이족: 상자는 작업대 앞 모서리에서 적어도 이만큼 안쪽에 놓여 있다고 가정 [m] (시뮬 월드 0.12~0.20)
     GRASP_PUSH = 0.0
     LATERAL_OK = 0.18
     LATERAL_IDEAL = 0.12
@@ -854,6 +865,7 @@ class RobotSkills(Node):
         top = self.find_marker(mid)                         # 상자 윗면 마커 (base_footprint)
         center = top - np.array([0, 0, self.box_size / 2])
         self._table_top_seen = float(top[2] - self.box_size)
+        self._box_seen_fwd = float(top[0])
         self.set_table()                                    # 이족: 잰 상판 높이로 작업대 충돌 객체 갱신
         side = side or ("right" if center[1] < 0 else "left")
         if self.holding[side]:
@@ -865,6 +877,7 @@ class RobotSkills(Node):
             self.set_table()
             center = self.find_marker(mid) - np.array([0, 0, self.box_size / 2])
             self._table_top_seen = float(center[2] - self.box_size / 2)
+            self._box_seen_fwd = float(center[0])
             self.set_table()
             self.log(f"[pick] 보정 후 상자 위치 base {np.round(center, 3)}")
         if self.can_strafe and abs(center[1]) > self.LATERAL_OK:
@@ -872,6 +885,7 @@ class RobotSkills(Node):
             self.set_table()
             center = self.find_marker(mid) - np.array([0, 0, self.box_size / 2])
             self._table_top_seen = float(center[2] - self.box_size / 2)
+            self._box_seen_fwd = float(center[0])
             self.set_table()
             self.log(f"[pick] 옆걸음 후 상자 위치 base {np.round(center, 3)}")
         for attempt in (1, 2):
@@ -897,6 +911,7 @@ class RobotSkills(Node):
                 self.set_table()
                 center = self.find_marker(mid) - np.array([0, 0, self.box_size / 2])
                 self._table_top_seen = float(center[2] - self.box_size / 2)
+                self._box_seen_fwd = float(center[0])
                 self.set_table()
                 self.move_named(f"{side}_arm", "carry")
                 self.set_boxes()
