@@ -1068,8 +1068,14 @@ class RobotSkills(Node):
             raise SkillError(f"{side} 손에 이미 {self.holding[side]} 를 들고 있음")
         self.log(f"[pick] {obj}(id {mid}) @ base {np.round(center, 3)} → {side} 팔")
         # 카메라로 잰 상자 거리로 베이스 위치를 정밀 보정 (AMCL 오차 ±5cm 를 지각 기반으로 제거)
-        if abs(center[0] - self.IDEAL_REACH) > 0.03:
+        # 이족은 미세 이동이 명령보다 덜/더 가므로(SF 미션 시험 4: +0.40 m 명령에 실제 +0.22 m) 카메라로 재며 최대 4 번 반복.
+        # 바퀴형은 한 번이면 충분하다 (그대로 1 번)
+        for _ in range(4 if self.can_strafe else 1):
+            if abs(center[0] - self.IDEAL_REACH) <= 0.03:
+                break
             self.nudge_base(center[0] - self.IDEAL_REACH)
+            if self.can_strafe:
+                self.wait_still(timeout=8.0)
             self.set_table()
             center = self.find_marker(mid) - np.array([0, 0, self.box_size / 2])
             self._table_top_seen = float(center[2] - self.box_size / 2)
