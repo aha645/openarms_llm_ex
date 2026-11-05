@@ -24,10 +24,13 @@ a = ap.parse_args()
 p = yaml.safe_load(open(a.src))
 
 amcl = p["amcl"]["ros__parameters"]
-# 이족 다리 오도메트리는 바퀴보다 부정확하다 (SF 곡선 주행에서 실제보다 20 % 넘게 많이 읽음, 미션 시험 2) →
-# 오도메트리를 덜 믿고(alpha 0.4 → 0.8) 라이다로 더 자주 고친다 (0.25 m / 0.2 rad 마다 → 0.1 m / 0.1 rad)
-for k in ("alpha1", "alpha2", "alpha3", "alpha4"):
-    amcl[k] = 0.8
+# 이족 오도메트리: 방향(yaw)은 IMU 라 정확하지만 이동 거리는 바퀴보다 부정확하다 (SF 곡선 주행에서 20 % 넘게 많이 읽음).
+# 넷 다 0.8 로 올렸더니(미션 시험 6·7) 회전 잡음까지 커져 라이다 매칭이 방향을 11~40° 잘못 바꾸다 위치를 잃었다 →
+# 회전→회전(alpha1)은 믿고, 이동→이동(alpha3)만 덜 믿는다. 라이다로 더 자주 고친다 (0.1 m / 0.1 rad 마다)
+amcl["alpha1"] = 0.1      # 회전이 회전에 주는 잡음
+amcl["alpha2"] = 0.2      # 이동이 회전에 주는 잡음
+amcl["alpha3"] = 0.8      # 이동이 이동에 주는 잡음
+amcl["alpha4"] = 0.3      # 회전이 이동에 주는 잡음
 amcl["update_min_d"] = 0.1
 amcl["update_min_a"] = 0.1
 c = p["controller_server"]["ros__parameters"]

@@ -1,10 +1,10 @@
 # 자동 생성: tools/make_nav2_params_tron1.py (원본: mobile_openarm_sim/config/nav2_params.yaml)
 amcl:
   ros__parameters:
-    alpha1: 0.8
-    alpha2: 0.8
+    alpha1: 0.1
+    alpha2: 0.2
     alpha3: 0.8
-    alpha4: 0.8
+    alpha4: 0.3
     alpha5: 0.2
     base_frame_id: base_footprint
     beam_skip_distance: 0.5
