@@ -905,6 +905,25 @@ class RobotSkills(Node):
             raise SkillError(f"{side} 팔 직선 접근 불가 (최대 {best[0] * 100:.0f}%, roll={best[1]}°) — 로봇 위치를 조정하세요")
         raise SkillError(f"{side} 팔로 {np.round(target, 3)} 에 접근하는 IK 해 없음 — 로봇 위치를 조정하세요")
 
+    def _refind_box(self, side, mid):
+        """재시도용: 팔을 carry 로 접고 상자를 다시 잰다. 안 보이면(팔·몸통 회전에 가려짐) home 으로 내려 한 번 더."""
+        self.move_named(f"{side}_arm", "carry")
+        self.wait_still(timeout=8.0)
+        try:
+            top = self.find_marker(mid)
+        except SkillError:
+            self.log("[pick] carry 자세에서 상자가 안 보임 → 팔을 내리고 다시 찾음")
+            self.move_named(f"{side}_arm", "home")
+            self.wait_still(timeout=8.0)
+            top = self.find_marker(mid, timeout=10.0)
+            self.move_named(f"{side}_arm", "carry")
+        center = top - np.array([0, 0, self.box_size / 2])
+        if self.can_strafe:
+            self._table_top_seen = float(center[2] - self.box_size / 2)
+            self._box_seen_fwd = float(center[0])
+            self.set_table()
+        return center
+
     def pick(self, obj, side=None):
         if obj not in self.objects:
             raise SkillError(f"알 수 없는 물체 '{obj}' (가능: {list(self.objects)})")
@@ -1033,10 +1052,7 @@ class RobotSkills(Node):
                         if attempt == 2:
                             raise
                         self.log(f"[pick] 직선 접근 불가({e2}) → carry 로 돌아가 다시 인식 {attempt}/2")
-                        self.move_named(f"{side}_arm", "carry")
-                        center = self.find_marker(mid) - np.array([0, 0, self.box_size / 2])
-                        self._table_top_seen = float(center[2] - self.box_size / 2)
-                        self._box_seen_fwd = float(center[0])
+                        center = self._refind_box(side, mid)
                         continue
                 # 시각 피드백 2단계 (파지 위치): 손끝이 상자 중심(+1 cm 안쪽)에 올 때까지 재고 고친다
                 goal, center = self.visual_servo(side, mid, R, goal, center, R[:, 2] * self.SERVO_DEPTH,
@@ -1064,8 +1080,7 @@ class RobotSkills(Node):
                 break
             self.log(f"[pick] 파지 실패(손가락 {opening:.3f} m) → 다시 인식해서 재시도 {attempt}/2")
             self.open_gripper(side)
-            self.move_named(f"{side}_arm", "carry")
-            center = self.find_marker(mid) - np.array([0, 0, self.box_size / 2])
+            center = self._refind_box(side, mid)
         else:
             raise SkillError(f"{obj} 파지 실패 (2회)")
         self.clear_boxes()
