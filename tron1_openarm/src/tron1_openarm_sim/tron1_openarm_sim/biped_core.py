@@ -42,6 +42,7 @@ SLIP_GAIN = float(__import__("os").environ.get("TRON1_SLIP_GAIN", 0.18))   # 제
 # 오프라인 30 s 측정(home/pre/carry): 0 → −40~−50 cm, 0.2 → +1~3 cm, 0.6 → +12~16 cm, 1.0 → +13~18 cm
 SLIP_GAIN_WALK = 1.0             # 걸을 때(명령 ≠ 0)는 전부 반영: 2 m 직진 오차 1.3 % (0.18 이면 3.5 %)
 IDLE_VY_SLIP = float(__import__("os").environ.get("TRON1_IDLE_VY_SLIP", -0.0015))   # PF 제자리 옆 미끄러짐 보정 [m/s]
+SF_ENCODER_ODOM = __import__("os").environ.get("TRON1_SF_ENCODER_ODOM", "1") == "1"   # SF: 속도 추정기 적분 오도메트리
 SLIP_TAU = 3.0                   # 발 미끄러짐 보정 저역통과 시간상수 [s]
 VY_LIMIT, VY_ACCEL = 0.15, 0.5   # 옆걸음 최대 속도·가속 (학습 범위 ±0.2 m/s 안)
 CMD_ACCEL = (0.8, 2.0)          # 명령 변화율 제한 (m/s², rad/s²) — 이족은 급가속에 약함
@@ -338,6 +339,19 @@ class BipedOpenArmSim(W.MobileOpenArmSim):
         F = [d.sensordata[self.m.sensor_adr[s]] for s in self.foot_touch]
         st = int(np.argmax(F)) if max(F) > 20.0 else None
         t = d.time
+        use_enc = self.foot == "sf" and SF_ENCODER_ODOM and self.policy is not None
+        if use_enc:
+            # SF(평발): 디딘 발이 발끝·뒤꿈치 쪽으로 구르며 발 기준점이 움직여, '디딘 발 고정' 기구학 오도메트리는
+            # 실제 이동의 67~90 % 만 읽었다 (0.03~0.25 m/s 오프라인 측정). 보행 정책의 속도 추정기(학습 때 실제 속도로
+            # 지도학습)를 적분하면 +3~11 % 로 훨씬 정확했다 → 걸을 때는 추정 속도를 적분, 발을 디딘 채 서 있으면 0
+            dt_e = t - getattr(self, "_last_roll_t", t)
+            if dt_e > 0 and not self.policy.standing:
+                yw = yaw_of(d.xquat[self.base_id])
+                e = self.policy.estimated_velocity
+                c_, s_ = math.cos(yw), math.sin(yw)
+                self._est_xy = self._est_xy + dt_e * np.array([c_ * e[0] - s_ * e[1], s_ * e[0] + c_ * e[1]])
+            st = None
+            self._anchor = None
         if st is not None:
             if st != self._stance or self._anchor is None:
                 self._stance = st
@@ -363,7 +377,7 @@ class BipedOpenArmSim(W.MobileOpenArmSim):
             # 멈추지 않으면 속도 추정기의 치우침이 계속 쌓여, 실제로는 0 cm 인데 오도메트리가 30 s 에 57 cm 움직였다고 읽었고
             # (오프라인 측정) 미세 이동·제자리 유지·wait_still 이 모두 이 가짜 움직임을 따라가 몸통을 엉뚱하게 움직였다 (SF 집기 시험 7)
             self._slip_vx = 0.0
-        if dt_s > 0 and self.policy is not None and not planted:
+        if dt_s > 0 and self.policy is not None and not planted and not use_enc:
             enc_vx = float(self.policy.estimated_velocity[0])
             a = min(1.0, dt_s / SLIP_TAU)
             self._slip_vx += a * ((enc_vx - (self.odom_vel[0] - self._slip_vx)) - self._slip_vx)   # 다리 기구학만의 속도와 비교
