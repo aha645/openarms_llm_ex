@@ -78,10 +78,11 @@ class RobotSkills(Node):
         self.can_strafe = os.environ.get("OPENARM_BIPED", "0") == "1"
         self._table_top_seen = None      # 이족: 카메라로 잰 상판 높이 (base_footprint 명목 좌표)
         if self.can_strafe:
-            # 이족(TRON1)은 어깨가 1.08 m 로 바퀴형(1.0 m)보다 높아, 0.52 m 앞 상자는 팔 길이(약 0.63 m)의 끝에 걸려
-            # 직선 접근이 40~90% 에서 끊겼다. 작업대에 8 cm 더 붙어 서서(앞 여유 8 cm) 상자를 0.44 m 앞에 둔다.
-            self.DOCK_GAP = float(os.environ.get("OPENARM_DOCK_GAP", 0.32))
-            self.IDEAL_REACH = float(os.environ.get("OPENARM_IDEAL_REACH", 0.41))
+            # 이족(TRON1) 작업대 거리. 예전 어깨 1.08 m 설계에서는 상자가 팔 길이 끝이라 0.32/0.41 로 붙어 섰지만,
+            # 어깨를 몸통 위로 낮춘 지금은 팔을 앞으로 든 carry 자세의 팔뚝이 앞 0.36 m 까지 나와 붙어 서면 상판 모서리에 걸린다
+            # (시뮬 접촉 기록). 어깨→상자 거리는 0.45 m 로 팔 길이(0.63 m) 안이므로 바퀴형과 비슷하게 떨어져 선다
+            self.DOCK_GAP = float(os.environ.get("OPENARM_DOCK_GAP", 0.42))
+            self.IDEAL_REACH = float(os.environ.get("OPENARM_IDEAL_REACH", 0.52))
             # 시뮬 정답 기록: 손끝(TCP)이 목표보다 접근 방향으로 3.5 cm 덜 들어가 상자 앞 모서리만 잡고 미끄러졌다
             # (팔 처짐 약 1.5 cm + 팔을 뻗을 때 몸통 반동). 접근 방향(45° 아래)으로 더 넣으면 손가락이 상판에 걸리므로
             # 접근은 1.5 cm 까지, 그다음 같은 높이에서 수평으로 3.5 cm 더 민다 (pick 의 GRASP_PUSH)
@@ -352,14 +353,8 @@ class RobotSkills(Node):
         # 1) 작업대와 정면으로 마주 보도록 yaw 보정 (Nav2 yaw 허용오차 ±7° 보정)
         want = math.radians(self.locations[station][2])
         self.rotate_base(math.atan2(math.sin(want - pose[2]), math.cos(want - pose[2])))
-        # 이족: 어깨가 상판 바로 위(0.78~0.83 m)라, 작업대에 붙은 뒤 내린 팔(home)을 carry 로 올리면 손이 상판 모서리를
-        # 쓸고 지나간다(시뮬 접촉 기록, 몸통 기울기 16°). → 다가가기 전에 빈 팔을 미리 carry 로 올려 둔다
         if self.can_strafe:
-            self.set_table(station, pad=self.TRANSIT_PAD)   # 팔을 올리는 경로가 작업대를 피하도록 먼저 충돌 객체를 넣는다
-            for s in ("left", "right"):
-                if not self.holding[s]:
-                    self.move_named(f"{s}_arm", "carry")
-            self.wait_still()
+            self.set_table(station, pad=self.TRANSIT_PAD)   # 이후 팔 이동 경로가 작업대를 피하도록 먼저 충돌 객체를 넣는다
         # 2) 작업대 앞 모서리까지 DOCK_GAP 이 되도록 직진
         d = self.table_edge_distance(station)
         if d is not None:
