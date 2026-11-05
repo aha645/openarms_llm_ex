@@ -459,7 +459,7 @@ class RobotSkills(Node):
                 break
             stale = ""
             top_ok = self._table_top_seen is None or box is None or \
-                abs(box[2] - self.box_size / 2 - self._table_top_seen) < 0.02
+                abs(box[2] - self.box_size / 2 - self._table_top_seen) < 0.045
             if box is not None and top_ok:
                 center = box                    # 같은 프레임에서 본 상자가 우선
                 self._remember_marker(box_id, box + np.array([0, 0, self.box_size / 2]))
@@ -467,7 +467,8 @@ class RobotSkills(Node):
             else:
                 # 카메라로 본 상자는 정답과 1 cm 안으로 맞았다(시험 11 정답 기록) — 손에 밀려 9 cm 움직인 것도 정확히 잡음.
                 # 반대로 odom 으로 옮긴 옛 위치는 제자리 걸음 미끄러짐을 몰라 9 cm 틀렸다. 그래서 보이면 항상 카메라 값을 쓰고,
-                # 높이가 상판과 2 cm 넘게 안 맞는 측정(손가락에 가려 깊이를 손가락에서 읽은 경우)만 버린다.
+                # 높이가 상판과 4.5 cm 넘게 안 맞는 측정(손가락에 가려 깊이를 손가락에서 읽은 경우)만 버린다.
+                # (2 cm 로 두었더니 SF 가 팔을 뻗어 몸통이 숙여질 때 생기는 3 cm 높이 차이로 올바른 측정까지 버렸다: SF 시험 8)
                 # 상자가 가려졌으면 마지막 카메라 측정을 그대로 쓴다. odom 으로 옮기는 방법도 시험했지만(시험 11·12)
                 # 다리 오도메트리가 제자리 걸음 중의 회전·미끄러짐을 못 봐서 오히려 7~9 cm 더 틀렸다.
                 # 그래서 접근점(상자가 손에 가려지는 곳)보다 파지 위치(상자가 다시 보이는 곳)에서의 보정이 핵심이다.
@@ -891,6 +892,7 @@ class RobotSkills(Node):
     # 직선 접근이 64% 에서 막혔다 (실험). 바퀴형은 옆으로 못 가므로 이 단계를 건너뛴다.
     TRANSIT_PAD = 0.03
     BIPED_ARM_VEL = 0.15    # 이족: 팔 관절 이동 기본 속도 배율 (바퀴형 0.3)
+    PRE_LIFT = 0.04         # 이족: 접근점을 이만큼 위에 둠 [m]
     HOLD_VEL = 0.1          # 이족: 물체를 쥔 팔을 움직이는 속도 배율 (보통 0.3)
     BOX_EDGE_MIN = 0.10     # 이족: 상자는 작업대 앞 모서리에서 적어도 이만큼 안쪽에 놓여 있다고 가정 [m] (시뮬 월드 0.12~0.20)
     GRASP_PUSH = 0.0
@@ -934,6 +936,10 @@ class RobotSkills(Node):
             for pitch, b, roll in cands:
                 R = approach_rotation(pitch, roll)
                 pre = target - R[:, 2] * b
+                if self.can_strafe:
+                    # 이족: 팔을 뻗으면 몸통이 앞으로 숙여져(SF 최대 7°) 손이 3~5 cm 내려가 접근점에서 손가락이 상판에 닿았다
+                    # (SF 시험 8). 접근점을 PRE_LIFT 만큼 위에 두고 비스듬히 내려가며 들어간다
+                    pre = pre + np.array([0.0, 0.0, self.PRE_LIFT])
                 q_t = self.compute_ik(side, target, R, avoid_collisions=False)
                 if not q_t:
                     continue
