@@ -390,8 +390,6 @@ class RobotSkills(Node):
                 self.log(f"[servo{label}] {e} → 보정 생략")
                 break
             stale = ""
-            ref = self.recall_marker(box_id)    # 마지막으로 믿은 상자 위치를 지금 몸통 기준으로
-            ref = center if ref is None else ref - np.array([0, 0, self.box_size / 2])
             top_ok = self._table_top_seen is None or box is None or \
                 abs(box[2] - self.box_size / 2 - self._table_top_seen) < 0.02
             if box is not None and top_ok:
@@ -401,10 +399,10 @@ class RobotSkills(Node):
                 # 카메라로 본 상자는 정답과 1 cm 안으로 맞았다(시험 11 정답 기록) — 손에 밀려 9 cm 움직인 것도 정확히 잡음.
                 # 반대로 odom 으로 옮긴 옛 위치는 제자리 걸음 미끄러짐을 몰라 9 cm 틀렸다. 그래서 보이면 항상 카메라 값을 쓰고,
                 # 높이가 상판과 2 cm 넘게 안 맞는 측정(손가락에 가려 깊이를 손가락에서 읽은 경우)만 버린다.
-                # 상자가 가려졌으면 마지막으로 본 위치(odom)를 지금 몸통 기준으로 옮겨 쓴다.
-                # (시험 9: 옛 base 좌표를 그대로 써서 손을 상자 옆 10 cm 에 '정확히' 맞췄다)
-                center = ref
-                stale = " [상자 가려짐: 마지막 위치를 odom 으로 옮겨 사용]" if box is None else f" [상자 측정 {np.round(box, 3)} 이 너무 달라 버림]"
+                # 상자가 가려졌으면 마지막 카메라 측정을 그대로 쓴다. odom 으로 옮기는 방법도 시험했지만(시험 11·12)
+                # 다리 오도메트리가 제자리 걸음 중의 회전·미끄러짐을 못 봐서 오히려 7~9 cm 더 틀렸다.
+                # 그래서 접근점(상자가 손에 가려지는 곳)보다 파지 위치(상자가 다시 보이는 곳)에서의 보정이 핵심이다.
+                stale = " [상자 가려짐: 마지막 측정 사용]" if box is None else f" [상자 측정 {np.round(box, 3)} 높이가 상판과 안 맞아 버림]"
             want = center + offset
             err = want - tcp
             fk_s = "" if fk is None or src != "손목 마커" else f", 정기구학과 차이 {np.round((tcp - fk) * 100, 1)} cm"
@@ -980,7 +978,19 @@ class RobotSkills(Node):
                     self.cartesian(side, [goal], R, min_fraction=need)
                 except SkillError as e:
                     self.log(f"[pick] 직선 접근 {e} → 충돌 검사 없이 (손 높이는 카메라로 확인한 값)")
-                    self.cartesian(side, [goal], R, min_fraction=need, avoid_collisions=False)
+                    try:
+                        self.cartesian(side, [goal], R, min_fraction=need, avoid_collisions=False)
+                    except SkillError as e2:
+                        # 보정한 접근점에서는 팔 관절 한계로 직선이 끊길 수 있다(시험 12: 17%) → 이번 시도는 버리고
+                        # carry 로 돌아가 상자를 다시 재서 접근 자세부터 다시 푼다
+                        if attempt == 2:
+                            raise
+                        self.log(f"[pick] 직선 접근 불가({e2}) → carry 로 돌아가 다시 인식 {attempt}/2")
+                        self.move_named(f"{side}_arm", "carry")
+                        center = self.find_marker(mid) - np.array([0, 0, self.box_size / 2])
+                        self._table_top_seen = float(center[2] - self.box_size / 2)
+                        self._box_seen_fwd = float(center[0])
+                        continue
                 # 시각 피드백 2단계 (파지 위치): 손끝이 상자 중심(+1 cm 안쪽)에 올 때까지 재고 고친다
                 goal, center = self.visual_servo(side, mid, R, goal, center, R[:, 2] * self.SERVO_DEPTH,
                                                  floor_z=floor_z, label=" 파지")
