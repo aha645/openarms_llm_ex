@@ -511,8 +511,11 @@ class RobotSkills(Node):
                 # 옆·위아래로 어긋났으면 앞으로 더 들어가지 않고, 접근 방향 뒤로 2 cm 물러난 자리에서 옆만 맞춘다.
                 # 앞으로 같이 가면 손가락이 상자 옆면을 밀어 상자가 계속 밀려나고 보정이 그것을 쫓는다
                 # (PF 시험 14: 8 cm, SF 시험 12: 앞·옆으로 9 cm). 손가락 사이 여유는 ±1.9 cm (벌림 8.8 cm − 상자 5 cm)
+                # (물러나기를 매번 2 cm 씩 더했더니 옆 오차가 1~2 cm 로 남는 동안 계속 누적돼 손이 상자 6 cm 뒤에서
+                #  손가락을 닫았다: SF 미션 시험 8 → 앞으로는 안 가고, 너무 깊이 들어간 경우에만 뒤로)
                 n_l = np.linalg.norm(lat)
-                step = (lat if n_l <= self.SERVO_MAX_STEP else lat * (self.SERVO_MAX_STEP / n_l)) - R[:, 2] * 0.02
+                along = float(err @ R[:, 2])
+                step = (lat if n_l <= self.SERVO_MAX_STEP else lat * (self.SERVO_MAX_STEP / n_l)) + R[:, 2] * min(along, 0.0)
             goal = goal + step
             if floor_z is not None:
                 goal[2] = max(goal[2], floor_z)
