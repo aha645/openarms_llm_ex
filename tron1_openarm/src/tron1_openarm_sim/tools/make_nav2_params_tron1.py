@@ -35,7 +35,14 @@ amcl["update_min_d"] = 0.1
 amcl["update_min_a"] = 0.1
 c = p["controller_server"]["ros__parameters"]
 c["progress_checker"]["required_movement_radius"] = 0.25
-c["progress_checker"]["movement_time_allowance"] = 30.0
+c["progress_checker"]["movement_time_allowance"] = 60.0   # 이족은 회전·출발이 느려 30 s 안에 0.25 m 를 못 가는 경우가 있었다
+# 충돌 감시기(collision_monitor)의 '접근 감속'(1.2 s 앞 충돌 예측) 끄기: 반응이 느린 이족은 작업대 근처에서 계속 감속·정지되어
+# '진행 못 함' 5번 뒤 25 분 동안 명령 0 으로 멈췄다 (SF 미션 시험 13). 장애물 회피는 비용 지도 + MPPI 가 계속 맡는다
+cm = p["collision_monitor"]["ros__parameters"]
+cm["FootprintApproach"]["enabled"] = False
+bsp = p["behavior_server"]["ros__parameters"]
+if "spin" in bsp and isinstance(bsp["spin"], dict):
+    bsp["spin"]["time_allowance"] = 30.0
 # 목표 근처의 아주 작은 명령에서 이족은 방향이 ±25° 출렁여 0.15 m / 0.2 rad 안에 못 들어갔다 (SF 미션 시험 2, 600 s 시간 초과).
 # 도착 뒤에는 도킹(yaw 보정 + 카메라로 상자 거리 보정)이 위치를 다시 맞추므로 목표 허용 범위를 넓힌다
 c["general_goal_checker"]["xy_goal_tolerance"] = 0.25
