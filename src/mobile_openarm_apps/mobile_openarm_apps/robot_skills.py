@@ -109,6 +109,7 @@ class RobotSkills(Node):
         self.tf_listener = TransformListener(self.tf_buffer, self)
 
         self._det_lock = threading.Lock()
+        self._marker_odom = {}          # id → odom 좌표 (가려졌을 때 몸통 흐름을 보정해 다시 쓰기)
         self._detections = {}           # id → (t_wall, position[3], yaw)
         self._attached = {"left": None, "right": None}
         self.create_subscription(String, "/aruco/detections", self._on_det, 10, callback_group=cb)
@@ -222,7 +223,24 @@ class RobotSkills(Node):
             time.sleep(0.05)
         if not pts:
             raise SkillError(f"마커 {marker_id} 를 카메라에서 찾지 못함")
-        return np.median(np.array(pts), axis=0)
+        p = np.median(np.array(pts), axis=0)
+        self._remember_marker(marker_id, p)
+        return p
+
+    def _remember_marker(self, marker_id, p_base):
+        """잰 마커 위치를 odom 좌표로도 기억 — 이족은 제자리에서도 몸통이 1분에 10 cm 넘게 흘러(시험 9: 12 cm)
+        base_footprint 기준 옛 측정값은 금방 틀린다. 나중에 가려져 못 볼 때 odom 으로 현재 base 좌표를 다시 계산한다."""
+        T = self._tf_pair("odom", BASE)
+        if T is not None:
+            self._marker_odom[marker_id] = T[1] @ np.asarray(p_base) + T[0]
+
+    def recall_marker(self, marker_id):
+        """기억한 마커(odom)를 지금의 base_footprint 좌표로. 없으면 None."""
+        q = self._marker_odom.get(marker_id)
+        T = self._tf_pair(BASE, "odom")
+        if q is None or T is None:
+            return None
+        return T[1] @ q + T[0]
 
     # ------------------------------------------------------------------ Nav2
     def navigate(self, target, timeout=600.0, retries=1):
@@ -303,8 +321,12 @@ class RobotSkills(Node):
 
     def _tf_matrix(self, child):
         """BASE → child 변환 (p[3], R[3x3]). 없으면 None."""
+        return self._tf_pair(BASE, child)
+
+    def _tf_pair(self, target, source):
+        """source 좌표의 점을 target 좌표로: p_target = R @ p_source + t → (t, R). 없으면 None."""
         try:
-            t = self.tf_buffer.lookup_transform(BASE, child, rclpy.time.Time())
+            t = self.tf_buffer.lookup_transform(target, source, rclpy.time.Time())
         except Exception:  # noqa: BLE001
             return None
         tr, q = t.transform.translation, t.transform.rotation
@@ -336,6 +358,7 @@ class RobotSkills(Node):
                     b = items.get(box_id)
                     if b is not None and b[0] == stamp:
                         boxes.append(b[1] - np.array([0, 0, self.box_size / 2]))
+                        self._remember_marker(box_id, b[1])
             time.sleep(0.05)
         if not tcps and allow_fk:
             # 손목 마커가 손·상자에 가려 안 보이면(파지 위치에서 자주) 측정된 관절각의 정기구학 손끝을 쓴다.
@@ -366,14 +389,22 @@ class RobotSkills(Node):
             except SkillError as e:
                 self.log(f"[servo{label}] {e} → 보정 생략")
                 break
-            if box is not None and np.linalg.norm(box - center) < 0.08:
-                center = box
+            stale = ""
+            if box is not None and np.linalg.norm(box - center) < 0.20:
+                center = box                    # 같은 프레임에서 본 상자가 언제나 우선
+            else:
+                # 상자가 가려졌으면 마지막으로 본 위치(odom)를 지금 몸통 기준으로 옮겨 쓴다.
+                # (시험 9: 옛 base 좌표를 그대로 써서 손을 상자 옆 10 cm 에 '정확히' 맞췄다)
+                r = self.recall_marker(box_id)
+                if r is not None:
+                    center = r - np.array([0, 0, self.box_size / 2])
+                stale = " [상자 가려짐: 마지막 위치를 odom 으로 옮겨 사용]" if box is None else f" [상자 측정 {np.round(box, 3)} 이 너무 달라 버림]"
             want = center + offset
             err = want - tcp
             fk_s = "" if fk is None or src != "손목 마커" else f", 정기구학과 차이 {np.round((tcp - fk) * 100, 1)} cm"
             self.log(f"[servo{label}] {it}: 손끝({src}) {np.round(tcp, 3)} → 목표 {np.round(want, 3)}, "
                      f"오차 {np.round(err * 100, 1)} cm (|{np.linalg.norm(err) * 100:.1f}|){fk_s}"
-                     + ("" if box is not None else " [상자 가려짐: 이전 위치 사용]"))
+                     + stale)
             if np.linalg.norm(err) < self.SERVO_TOL:
                 break
             n = np.linalg.norm(err)
