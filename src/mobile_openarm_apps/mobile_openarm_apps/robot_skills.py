@@ -359,7 +359,6 @@ class RobotSkills(Node):
                     b = items.get(box_id)
                     if b is not None and b[0] == stamp:
                         boxes.append(b[1] - np.array([0, 0, self.box_size / 2]))
-                        self._remember_marker(box_id, b[1])
             time.sleep(0.05)
         if not tcps and allow_fk:
             # 손목 마커가 손·상자에 가려 안 보이면(파지 위치에서 자주) 측정된 관절각의 정기구학 손끝을 쓴다.
@@ -391,14 +390,19 @@ class RobotSkills(Node):
                 self.log(f"[servo{label}] {e} → 보정 생략")
                 break
             stale = ""
-            if box is not None and np.linalg.norm(box - center) < 0.20:
-                center = box                    # 같은 프레임에서 본 상자가 언제나 우선
+            ref = self.recall_marker(box_id)    # 마지막으로 믿은 상자 위치를 지금 몸통 기준으로
+            ref = center if ref is None else ref - np.array([0, 0, self.box_size / 2])
+            top_ok = self._table_top_seen is None or box is None or \
+                abs(box[2] - self.box_size / 2 - self._table_top_seen) < 0.02
+            if box is not None and np.linalg.norm(box - ref) < 0.08 and top_ok:
+                center = box                    # 같은 프레임에서 본 상자가 우선
+                self._remember_marker(box_id, box + np.array([0, 0, self.box_size / 2]))
             else:
+                # 손가락이 마커 일부를 가리면 깊이값이 손가락에서 읽혀 상자가 19 cm 엉뚱한 곳으로 잡혔다(시험 11).
+                # 상자는 밀려도 몇 cm 이므로, 마지막 위치에서 8 cm 넘게 벗어나거나 높이가 상판과 안 맞으면 버린다.
                 # 상자가 가려졌으면 마지막으로 본 위치(odom)를 지금 몸통 기준으로 옮겨 쓴다.
                 # (시험 9: 옛 base 좌표를 그대로 써서 손을 상자 옆 10 cm 에 '정확히' 맞췄다)
-                r = self.recall_marker(box_id)
-                if r is not None:
-                    center = r - np.array([0, 0, self.box_size / 2])
+                center = ref
                 stale = " [상자 가려짐: 마지막 위치를 odom 으로 옮겨 사용]" if box is None else f" [상자 측정 {np.round(box, 3)} 이 너무 달라 버림]"
             want = center + offset
             err = want - tcp
