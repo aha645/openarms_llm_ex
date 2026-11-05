@@ -314,10 +314,10 @@ class RobotSkills(Node):
                       [2 * (x * z - y * w), 2 * (y * z + x * w), 1 - 2 * (x * x + y * y)]])
         return np.array([tr.x, tr.y, tr.z]), R
 
-    def measure_hand_and_box(self, side, box_id, samples=4, timeout=5.0):
+    def measure_hand_and_box(self, side, box_id, samples=4, timeout=5.0, allow_fk=True):
         """같은 카메라 프레임에서 '손목 마커로 잰 손끝' 과 '상자 중심' 을 함께 잰다 (base_footprint).
         둘 다 같은 카메라로 같은 순간에 재므로 카메라 위치 오차·몸통 출렁임이 상대 오차에서 거의 지워진다.
-        반환: (tcp_cam, box_center 또는 None, tcp_fk) — 손목 마커가 안 보이면 SkillError"""
+        반환: (손끝, box_center 또는 None, tcp_fk, 손끝 출처) — 손목 마커도 정기구학도 없으면 SkillError"""
         if WRIST is None:
             raise SkillError("손목 마커 정의(tron1_openarm_sim.wrist_markers) 없음")
         time.sleep(0.6)
@@ -337,13 +337,22 @@ class RobotSkills(Node):
                     if b is not None and b[0] == stamp:
                         boxes.append(b[1] - np.array([0, 0, self.box_size / 2]))
             time.sleep(0.05)
+        if not tcps and allow_fk:
+            # 손목 마커가 손·상자에 가려 안 보이면(파지 위치에서 자주) 측정된 관절각의 정기구학 손끝을 쓴다.
+            # 시뮬에서 카메라로 잰 손끝과 정기구학 손끝 차이는 0.1~0.6 cm (시험 7·9) → 처짐 보정에는 충분.
+            fk = self._tf_matrix(TCP[side])
+            with self._det_lock:
+                b = self._detections.get(box_id)
+            box = None if b is None or time.time() - b[0] > 1.0 else b[1] - np.array([0, 0, self.box_size / 2])
+            if fk is not None:
+                return fk[0], box, fk[0], "정기구학"
         if not tcps:
             with self._det_lock:
                 ages = {i: round(time.time() - v[0], 1) for i, v in self._detections.items()}
             raise SkillError(f"{side} 손목 마커가 카메라에 안 보임 (최근 검출 id:경과초 {ages}, link7 TF {'있음' if tf7 is not None else '없음'})")
         fk = self._tf_matrix(TCP[side])
         return (np.median(np.array(tcps), axis=0), np.median(np.array(boxes), axis=0) if boxes else None,
-                None if fk is None else fk[0])
+                None if fk is None else fk[0], "손목 마커")
 
     def visual_servo(self, side, box_id, R, goal, center, offset, floor_z=None, label=""):
         """손끝이 '상자 중심 + offset' 에 오도록 카메라로 재며 고친다 (closed-loop).
@@ -353,7 +362,7 @@ class RobotSkills(Node):
         for it in range(1, self.SERVO_ITERS + 1):
             self.wait_still(timeout=8.0)
             try:
-                tcp, box, fk = self.measure_hand_and_box(side, box_id)
+                tcp, box, fk, src = self.measure_hand_and_box(side, box_id)
             except SkillError as e:
                 self.log(f"[servo{label}] {e} → 보정 생략")
                 break
@@ -361,8 +370,8 @@ class RobotSkills(Node):
                 center = box
             want = center + offset
             err = want - tcp
-            fk_s = "" if fk is None else f", 정기구학과 차이 {np.round((tcp - fk) * 100, 1)} cm"
-            self.log(f"[servo{label}] {it}: 손끝(카메라) {np.round(tcp, 3)} → 목표 {np.round(want, 3)}, "
+            fk_s = "" if fk is None or src != "손목 마커" else f", 정기구학과 차이 {np.round((tcp - fk) * 100, 1)} cm"
+            self.log(f"[servo{label}] {it}: 손끝({src}) {np.round(tcp, 3)} → 목표 {np.round(want, 3)}, "
                      f"오차 {np.round(err * 100, 1)} cm (|{np.linalg.norm(err) * 100:.1f}|){fk_s}"
                      + ("" if box is not None else " [상자 가려짐: 이전 위치 사용]"))
             if np.linalg.norm(err) < self.SERVO_TOL:
