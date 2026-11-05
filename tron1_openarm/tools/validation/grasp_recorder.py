@@ -19,9 +19,17 @@ def bs(m):
         tcp_b = [tf.transform.translation.x, tf.transform.translation.y, tf.transform.translation.z]
     except Exception:
         tcp_b = None
+    try:
+        tm = buf.lookup_transform("map", "base_footprint", rclpy.time.Time())
+        q = tm.transform.rotation
+        import math
+        map_pose = [round(tm.transform.translation.x, 4), round(tm.transform.translation.y, 4),
+                    round(math.atan2(2 * (q.w * q.z + q.x * q.y), 1 - 2 * (q.y * q.y + q.z * q.z)), 4)]
+    except Exception:
+        map_pose = None
     if o: out.write(json.dumps({"t": time.time(), "tcp": b["tcp_world"]["right"], "box0": o["box_0"], "tcp_b": tcp_b, "det0": st.get("det0"),
                                 "tilt": b["tilt_deg"], "h": b["base_height"], "ac": b.get("arm_contacts"), "st": b.get("standing"),
-                                "gt": b.get("gt_pose"), "odom": b.get("odom"), "cmd": b.get("cmd")}) + "\n"); out.flush()
+                                "gt": b.get("gt_pose"), "odom": b.get("odom"), "cmd": b.get("cmd"), "map": map_pose}) + "\n"); out.flush()
 n.create_subscription(String, "/sim/objects", ob, 10); n.create_subscription(String, "/biped/status", bs, 10)
 n.create_subscription(String, "/aruco/detections", det, 10)
 rclpy.spin(n)
