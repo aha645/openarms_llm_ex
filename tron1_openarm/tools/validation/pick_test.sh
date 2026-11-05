@@ -11,7 +11,7 @@ SR=tron1_openarm.srdf; [ $foot = sf ] && SR=tron1_openarm_sf.srdf
 export OPENARM_BIPED=1 OPENARM_SRDF=$(ros2 pkg prefix tron1_openarm_moveit_config)/share/tron1_openarm_moveit_config/config/$SR
 timeout 1500 ros2 run mobile_openarm_apps pick_place --ros-args -p object:=box_0 > $S/${foot}pk${tag}.log 2>&1
 echo "=== $foot"; grep -vE "RTPS|^\s*$" $S/${foot}pk${tag}.log | grep -E "\] \[|ERROR|완료" | sed 's/.*\]: //'
-ps -eo pid,args | grep -E "tron1_bridge|move_group|robot_state_publisher|ros2 launch|rec2.py" | grep -v grep | awk '{print $1}' | xargs -r kill -9; sleep 3
+ps -eo pid,args | grep -E "tron1_bridge|move_group|robot_state_publisher|ros2 launch|grasp_recorder" | grep -v grep | awk '{print $1}' | xargs -r kill -9; sleep 3
 python3 - <<PY
 import json, numpy as np
 L=[json.loads(l) for l in open('$S/rec_${foot}${tag}.jsonl')]
