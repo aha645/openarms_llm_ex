@@ -329,7 +329,7 @@ class RobotSkills(Node):
         self.cmd_pub.publish(Twist())
         time.sleep(0.5)
 
-    def wait_still(self, tol=0.006, need=3, period=0.5, timeout=20.0):
+    def wait_still(self, tol=0.006, need=3, period=0.5, timeout=20.0, yaw_tol=0.006):
         """이족: 팔을 크게 움직이면 몸통이 균형을 잡느라 5~10 cm 출렁인다 (시뮬 측정). 오도메트리 위치가
         period 마다 tol 미만으로만 바뀌는 상태가 need 번 이어질 때까지 기다린다. 바퀴형은 바로 반환."""
         if not self.can_strafe:
@@ -338,7 +338,10 @@ class RobotSkills(Node):
         while time.time() - t0 < timeout and ok < need:
             p = self.robot_pose("odom")
             if p is not None and last is not None:
-                ok = ok + 1 if math.hypot(p[0] - last[0], p[1] - last[1]) < tol else 0
+                # 위치뿐 아니라 방향(yaw)도 멈춰야 한다: 팔을 뻗은 PF 몸통은 제자리에서 천천히 좌우로 돌며(±5°, 수십 초 주기)
+                # 0.45 m 앞의 상자가 몸통 기준으로 10 cm 넘게 옆으로 움직였다 (시험 14 카메라 기록)
+                dyaw = abs(math.atan2(math.sin(p[2] - last[2]), math.cos(p[2] - last[2])))
+                ok = ok + 1 if (math.hypot(p[0] - last[0], p[1] - last[1]) < tol and dyaw < yaw_tol) else 0
             last = p
             time.sleep(period)
 
