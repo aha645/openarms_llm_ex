@@ -41,7 +41,8 @@ c["progress_checker"]["movement_time_allowance"] = 30.0
 c["general_goal_checker"]["xy_goal_tolerance"] = 0.25
 c["general_goal_checker"]["yaw_goal_tolerance"] = 0.35
 f = c["FollowPath"]
-f.update(vx_max=0.35, vx_min=-0.20, wz_max=0.8, ax_max=0.8, ax_min=-1.0, az_max=1.5, vx_std=0.15, wz_std=0.3)
+# wz_max 0.8 → 0.5: SF 는 회전 응답이 늦어 큰 회전 명령에서 방향이 ±60° 출렁이며 경로를 크게 돌아갔다 (SF 미션 시험 10)
+f.update(vx_max=0.35, vx_min=-0.20, wz_max=0.5, ax_max=0.8, ax_min=-1.0, az_max=1.0, vx_std=0.15, wz_std=0.2)
 for cm in ("local_costmap", "global_costmap"):
     cp = p[cm][cm]["ros__parameters"]
     cp["footprint"] = FOOTPRINT

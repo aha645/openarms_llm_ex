@@ -326,6 +326,9 @@ class RobotSkills(Node):
     # ------------------------------------------------------------------ Nav2
     def navigate(self, target, timeout=600.0, retries=1):
         """target: locations.yaml 이름 또는 (x, y, yaw_deg)."""
+        if self.can_strafe:
+            # 이족 시뮬은 실시간보다 느리고(카메라 렌더 포함 0.3~0.5 배) 걸음도 느려, 6 m 이동이 600 s 를 넘겼다 (SF 미션 시험 10)
+            timeout = max(timeout, 1500.0)
         if isinstance(target, str):
             if target not in self.locations:
                 raise SkillError(f"알 수 없는 위치 '{target}' (가능: {list(self.locations)})")
