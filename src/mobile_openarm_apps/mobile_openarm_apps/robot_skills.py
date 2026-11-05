@@ -994,6 +994,41 @@ class RobotSkills(Node):
         except SkillError as e:
             self.log(f"[pick] 손 들어 올리기 일부만: {e}")
 
+    def _box_yaw(self, mid, samples=5, timeout=5.0):
+        """상자 마커의 yaw (base 기준). 상자는 작업대와 나란히 놓여 있으므로 90° 주기로 접어 ±45° 로."""
+        vals, t0, last = [], time.time(), None
+        while len(vals) < samples and time.time() - t0 < timeout:
+            with self._det_lock:
+                it = self._detections.get(mid)
+            if it and it[0] != last and time.time() - it[0] < 0.5:
+                last = it[0]
+                y = (it[2] + math.pi / 4) % (math.pi / 2) - math.pi / 4
+                vals.append(y)
+            time.sleep(0.05)
+        return float(np.median(vals)) if vals else None
+
+    def _visual_dock(self, mid, top):
+        """이족: Nav2 도착 오차(SF 미션 시험 3: 옆 0.36 m, 방향 20°)를 카메라로 바로잡는 도킹.
+        ① 상자 마커 방향으로 몸통 방향을 작업대와 직각으로 맞춘다 (상자는 작업대와 나란히 놓여 있다고 가정)
+        ② 상자가 옆으로 많이 벗어나 있으면 앞으로 다가가기 '전에' 옆걸음으로 맞춘다
+           (먼저 다가가면 상자가 카메라 시야 밖으로 나가 '마커를 찾지 못함' 으로 실패했다)"""
+        for _ in range(3):
+            yaw = self._box_yaw(mid)
+            if yaw is None or abs(yaw) < math.radians(4):
+                break
+            self.log(f"[dock] 상자 마커 기준 방향 오차 {math.degrees(yaw):+.1f}° → 회전")
+            self.rotate_base(yaw)
+            self.wait_still(timeout=8.0)
+            top = self.find_marker(mid)
+        for _ in range(4):
+            if abs(top[1]) <= self.LATERAL_OK:
+                break
+            self.strafe_base(top[1] - math.copysign(self.LATERAL_IDEAL, top[1]))
+            self.wait_still(timeout=8.0)
+            top = self.find_marker(mid)
+            self.log(f"[dock] 옆걸음 뒤 상자 base {np.round(top, 3)}")
+        return top
+
     def _refind_box(self, side, mid):
         """재시도용: 팔을 carry 로 접고 상자를 다시 잰다. 안 보이면(팔·몸통 회전에 가려짐) home 으로 내려 한 번 더."""
         if self.can_strafe:
@@ -1022,6 +1057,8 @@ class RobotSkills(Node):
         self.dock()
         self.set_table()
         top = self.find_marker(mid)                         # 상자 윗면 마커 (base_footprint)
+        if self.can_strafe:
+            top = self._visual_dock(mid, top)
         center = top - np.array([0, 0, self.box_size / 2])
         self._table_top_seen = float(top[2] - self.box_size)
         self._box_seen_fwd = float(top[0])
