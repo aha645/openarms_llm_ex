@@ -620,6 +620,10 @@ class RobotSkills(Node):
         return True
 
     def move_joints(self, group, joint_values, vel=0.3):
+        if self.can_strafe:
+            # 이족: 팔을 빨리 옮기면 반동으로 PF 몸통이 옆으로 7~12 cm 밀렸다가 제자리 유지가 되돌린다(시험 17 정답 기록).
+            # 06장 실험: 팔을 느리게 하면 흔들림이 준다 → 기본 속도를 절반으로
+            vel = min(vel, self.BIPED_ARM_VEL)
         if self.can_strafe and self._move_joints_direct(group, joint_values, vel):
             return
         c = Constraints()
@@ -840,6 +844,7 @@ class RobotSkills(Node):
     # 바퀴형 도킹에서 상자는 보통 팔 쪽으로 0.10~0.15 m. 이족은 AMCL 옆 오차(±0.15 m)로 0.27~0.31 m 가 되어
     # 직선 접근이 64% 에서 막혔다 (실험). 바퀴형은 옆으로 못 가므로 이 단계를 건너뛴다.
     TRANSIT_PAD = 0.03
+    BIPED_ARM_VEL = 0.15    # 이족: 팔 관절 이동 기본 속도 배율 (바퀴형 0.3)
     HOLD_VEL = 0.1          # 이족: 물체를 쥔 팔을 움직이는 속도 배율 (보통 0.3)
     BOX_EDGE_MIN = 0.10     # 이족: 상자는 작업대 앞 모서리에서 적어도 이만큼 안쪽에 놓여 있다고 가정 [m] (시뮬 월드 0.12~0.20)
     GRASP_PUSH = 0.0
