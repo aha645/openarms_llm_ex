@@ -24,13 +24,19 @@ a = ap.parse_args()
 p = yaml.safe_load(open(a.src))
 
 amcl = p["amcl"]["ros__parameters"]
+# 이족 다리 오도메트리는 바퀴보다 부정확하다 (SF 곡선 주행에서 실제보다 20 % 넘게 많이 읽음, 미션 시험 2) →
+# 오도메트리를 덜 믿고(alpha 0.4 → 0.8) 라이다로 더 자주 고친다 (0.25 m / 0.2 rad 마다 → 0.1 m / 0.1 rad)
 for k in ("alpha1", "alpha2", "alpha3", "alpha4"):
-    amcl[k] = 0.4
+    amcl[k] = 0.8
+amcl["update_min_d"] = 0.1
+amcl["update_min_a"] = 0.1
 c = p["controller_server"]["ros__parameters"]
 c["progress_checker"]["required_movement_radius"] = 0.25
 c["progress_checker"]["movement_time_allowance"] = 30.0
-c["general_goal_checker"]["xy_goal_tolerance"] = 0.15
-c["general_goal_checker"]["yaw_goal_tolerance"] = 0.20
+# 목표 근처의 아주 작은 명령에서 이족은 방향이 ±25° 출렁여 0.15 m / 0.2 rad 안에 못 들어갔다 (SF 미션 시험 2, 600 s 시간 초과).
+# 도착 뒤에는 도킹(yaw 보정 + 카메라로 상자 거리 보정)이 위치를 다시 맞추므로 목표 허용 범위를 넓힌다
+c["general_goal_checker"]["xy_goal_tolerance"] = 0.25
+c["general_goal_checker"]["yaw_goal_tolerance"] = 0.35
 f = c["FollowPath"]
 f.update(vx_max=0.35, vx_min=-0.20, wz_max=0.8, ax_max=0.8, ax_min=-1.0, az_max=1.5, vx_std=0.15, wz_std=0.3)
 for cm in ("local_costmap", "global_costmap"):
