@@ -243,6 +243,40 @@ class RobotSkills(Node):
         다른 마커들이 몸통 기준으로 얼마나 움직였는지(= 몸통이 흐른 양)로 목표의 지금 위치를 추정한다 (시각 오도메트리)."""
         self._snaps[marker_id] = (np.asarray(p_top, float).copy(), self._other_markers(marker_id))
 
+    def station_keep(self, ref, tol=0.015, timeout=30.0, gain=0.8, vmax=0.05, label=""):
+        """시각 제자리 유지: 작업대 위 마커들(ref: id → base 위치)이 처음 자리로 돌아오도록 몸통을 천천히 옮긴다.
+        PF 는 팔을 뻗은 채 서 있으면 다리 오도메트리가 못 보는 흐름(1분에 수~수십 cm)이 생긴다(정답 기록·오프라인 측정).
+        오도메트리 대신 카메라로 본 고정 마커를 기준으로 삼으면 실로봇에서도 같은 방식으로 쓸 수 있다.
+        마커가 base 기준으로 s 만큼 옮겨 보이면 몸통이 −s 만큼 간 것 → +s 방향으로 걷는다."""
+        if not self.can_strafe or not ref:
+            return False
+        t0, msg, last_s = time.time(), Twist(), None
+        moved = False
+        while time.time() - t0 < timeout:
+            now = self._other_markers(exclude=None)
+            common = [i for i in ref if i in now]
+            if not common:
+                time.sleep(0.1)
+                continue
+            sh = np.median(np.array([now[i] - ref[i] for i in common]), axis=0)
+            last_s = sh
+            if np.linalg.norm(sh[:2]) < tol:
+                break
+            if np.linalg.norm(sh[:2]) > 0.25:
+                self.log(f"[station{label}] 마커 이동 {np.round(sh * 100, 1)} cm 가 너무 커서 믿지 않음")
+                break
+            moved = True
+            v = np.clip(gain * sh[:2], -vmax, vmax)
+            msg.linear.x, msg.linear.y = float(v[0]), float(v[1])
+            self.cmd_pub.publish(msg)
+            time.sleep(0.1)
+        self.cmd_pub.publish(Twist())
+        if moved:
+            self.log(f"[station{label}] 마커 기준 제자리 복귀 (남은 차이 {np.round(last_s * 100, 1) if last_s is not None else '?'} cm)")
+            time.sleep(0.5)
+            self.wait_still(timeout=8.0)
+        return True
+
     def predict_hidden(self, marker_id):
         """가려진 목표 마커의 지금 위치(base) 추정: 마지막 측정 + 다른 마커들의 평균 이동. 공통 마커가 없으면 None."""
         snap = self._snaps.get(marker_id)
@@ -995,10 +1029,12 @@ class RobotSkills(Node):
             if self.can_strafe:
                 self.set_table(pad=self.TRANSIT_PAD)           # carry → 접근점 이동도 여유를 두고
             servo = self.can_strafe and WRIST is not None
+            station_ref = None
             if servo:
                 # 접근 자세를 푸는 동안(수십 초) 몸통이 흘러 있다 → 팔이 상자를 가리기 전에 상자를 한 번 더 잰다
                 try:
                     c3 = self.find_marker(mid, samples=3) - np.array([0, 0, self.box_size / 2])
+                    station_ref = self._other_markers(exclude=None)
                     shift = c3 - center
                     self.log(f"[pick] 접근점으로 가기 전 상자 {np.round(c3, 3)} (계획 때와 차이 {np.round(shift * 100, 1)} cm)")
                     if np.linalg.norm(shift) > 0.02:
@@ -1020,6 +1056,7 @@ class RobotSkills(Node):
                 self.set_table()                               # 직선 접근은 실제 상판 높이로
                 self.wait_still()
             if servo:
+                self.station_keep(station_ref, label=" 접근점")    # 팔을 뻗는 동안 흐른 몸통을 마커 기준으로 되돌림
                 # 시각 피드백 1단계 (접근점): 팔 처짐·몸통 반동으로 손이 접근점에서 몇 cm 벗어나 있다.
                 # 손목 마커와 상자 마커를 함께 재서 '상자 기준' 접근점에 손을 맞춘 뒤 직선으로 들어간다.
                 top = self._table_top_seen if self._table_top_seen is not None else self.table_h
@@ -1048,6 +1085,7 @@ class RobotSkills(Node):
                 # 실제로는 닿지 않는데도 '작업대 충돌' 로 직선이 끊겼다 (실험: 75%·67%). 실제 손 높이는 카메라로 재서
                 # floor_z 위로 지키고 있으므로, 충돌 검사로 안 되면 검사 없이 같은 직선을 간다.
                 goal[2] = max(goal[2], floor_z)
+                self.station_keep(station_ref, label=" 직선 접근 전")
                 try:
                     self.cartesian(side, [goal], R, min_fraction=need)
                 except SkillError as e:
