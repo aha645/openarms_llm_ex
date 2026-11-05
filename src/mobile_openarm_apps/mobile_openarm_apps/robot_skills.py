@@ -394,12 +394,13 @@ class RobotSkills(Node):
             ref = center if ref is None else ref - np.array([0, 0, self.box_size / 2])
             top_ok = self._table_top_seen is None or box is None or \
                 abs(box[2] - self.box_size / 2 - self._table_top_seen) < 0.02
-            if box is not None and np.linalg.norm(box - ref) < 0.08 and top_ok:
+            if box is not None and top_ok:
                 center = box                    # 같은 프레임에서 본 상자가 우선
                 self._remember_marker(box_id, box + np.array([0, 0, self.box_size / 2]))
             else:
-                # 손가락이 마커 일부를 가리면 깊이값이 손가락에서 읽혀 상자가 19 cm 엉뚱한 곳으로 잡혔다(시험 11).
-                # 상자는 밀려도 몇 cm 이므로, 마지막 위치에서 8 cm 넘게 벗어나거나 높이가 상판과 안 맞으면 버린다.
+                # 카메라로 본 상자는 정답과 1 cm 안으로 맞았다(시험 11 정답 기록) — 손에 밀려 9 cm 움직인 것도 정확히 잡음.
+                # 반대로 odom 으로 옮긴 옛 위치는 제자리 걸음 미끄러짐을 몰라 9 cm 틀렸다. 그래서 보이면 항상 카메라 값을 쓰고,
+                # 높이가 상판과 2 cm 넘게 안 맞는 측정(손가락에 가려 깊이를 손가락에서 읽은 경우)만 버린다.
                 # 상자가 가려졌으면 마지막으로 본 위치(odom)를 지금 몸통 기준으로 옮겨 쓴다.
                 # (시험 9: 옛 base 좌표를 그대로 써서 손을 상자 옆 10 cm 에 '정확히' 맞췄다)
                 center = ref
@@ -922,8 +923,24 @@ class RobotSkills(Node):
                 R, pre, q_pre = self._solve_approach(side, center, exclude_id=mid)
             if self.can_strafe:
                 self.set_table(pad=self.TRANSIT_PAD)           # carry → 접근점 이동도 여유를 두고
-            self.move_joints(f"{side}_arm", q_pre)
             servo = self.can_strafe and WRIST is not None
+            if servo:
+                # 접근 자세를 푸는 동안(수십 초) 몸통이 흘러 있다 → 팔이 상자를 가리기 전에 상자를 한 번 더 잰다
+                try:
+                    c3 = self.find_marker(mid, samples=3) - np.array([0, 0, self.box_size / 2])
+                    shift = c3 - center
+                    self.log(f"[pick] 접근점으로 가기 전 상자 {np.round(c3, 3)} (계획 때와 차이 {np.round(shift * 100, 1)} cm)")
+                    if np.linalg.norm(shift) > 0.02:
+                        # 상자가 몸통 기준으로 옮겨졌으면 접근점도 같이 옮긴다 (그대로 가면 손이 상자를 친다: 시험 11)
+                        q2 = self.compute_ik(side, pre + shift, R, seed=q_pre)
+                        if q2 is not None:
+                            pre, q_pre = pre + shift, q2
+                        else:
+                            self.log("[pick] 옮긴 접근점 IK 실패 → 원래 접근점 사용 (시각 보정에 맡김)")
+                    center = c3
+                except SkillError:
+                    pass
+            self.move_joints(f"{side}_arm", q_pre)
             bias = np.zeros(3)
             floor_z = None
             if self.can_strafe:
