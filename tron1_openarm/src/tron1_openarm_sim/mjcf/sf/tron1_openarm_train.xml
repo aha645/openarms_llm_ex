@@ -258,9 +258,9 @@
         </body>
       </body>
       <site name="imu_site" pos="0 0 0" size="0.01" group="4" />
-      <site name="lidar_site" pos="0.17 0 -0.13" size="0.02" rgba="0.1 0.1 0.1 1" group="4" />
-      <geom name="lidar_vis" type="cylinder" size="0.035 0.025" pos="0.17 0 -0.14" rgba="0.1 0.1 0.1 1" contype="0" conaffinity="0" group="2" mass="0" />
-      <geom name="lidar_bracket_vis" type="box" size="0.03 0.03 0.05" pos="0.13 0 -0.09" rgba="0.3 0.3 0.3 1" contype="0" conaffinity="0" group="2" mass="0" />
+      <site name="lidar_site" pos="0.17 0 -0.18" size="0.02" rgba="0.1 0.1 0.1 1" group="4" />
+      <geom name="lidar_vis" type="cylinder" size="0.035 0.025" pos="0.17 0 -0.19" rgba="0.1 0.1 0.1 1" contype="0" conaffinity="0" group="2" mass="0" />
+      <geom name="lidar_bracket_vis" type="box" size="0.03 0.03 0.05" pos="0.13 0 -0.14" rgba="0.3 0.3 0.3 1" contype="0" conaffinity="0" group="2" mass="0" />
     </body>
   <geom name="floor" type="plane" size="0 0 0.05" rgba="0.6 0.6 0.6 1" friction="0.8 0.005 0.0001" /></worldbody>
   <tendon>

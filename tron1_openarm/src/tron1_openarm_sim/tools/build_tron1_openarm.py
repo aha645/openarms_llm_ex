@@ -60,13 +60,16 @@ KP, KD, TAU_MAX = 42.0, 3.5, 80.0
 #  sf 값은 LimX tron1-rl-deploy-python/controllers/model/SF_TRON1A/params.yaml (kp 45, kd 3, 발목 kd 1.5, 발목 토크 ±20 Nm)
 FOOT = {
     "pf": dict(dir="PF_TRON1A", joints=LEG_JOINTS, kp={}, kd={}, tau={}, default_kp=KP, default_kd=KD, default_tau=TAU_MAX,
-               base_height=0.68, feet=("foot_L_Link", "foot_R_Link"), foot_site_size=0.045),
+               base_height=0.68, feet=("foot_L_Link", "foot_R_Link"), foot_site_size=0.045, lidar_z=-0.13),
     "sf": dict(dir="SF_TRON1A",
                joints=["abad_L_joint", "hip_L_joint", "knee_L_joint", "ankle_L_joint",
                        "abad_R_joint", "hip_R_joint", "knee_R_joint", "ankle_R_joint"],
                kp={}, kd={"ankle_L_joint": 1.5, "ankle_R_joint": 1.5}, tau={"ankle_L_joint": 20.0, "ankle_R_joint": 20.0},
                default_kp=45.0, default_kd=3.0, default_tau=80.0,
-               base_height=None, feet=("ankle_L_Link", "ankle_R_Link"), foot_site_size=0.12),
+               base_height=None, feet=("ankle_L_Link", "ankle_R_Link"), foot_site_size=0.12,
+               # SF 는 서 있을 때 몸통이 0.76 m 로 PF 보다 8 cm 높아 LiDAR 가 0.63 m — 지도(PF 로 작성)에 있는 0.6 m 상자 더미 위를
+               # 지나가 스캔과 지도가 안 맞았다(AMCL 0.8 m 오차, SF 미션 시험 5) → 서 있을 때 지면 0.58 m 가 되게 내린다
+               lidar_z=-0.18),
 }
 
 
@@ -308,12 +311,13 @@ def build(tron1_dir, openarm_xml, out_dir, xacro_file, mount_x=None, shoulder=No
 
     # ---------------- 센서
     sub(tbase, "site", name="imu_site", pos="0 0 0", size="0.01", group="4")
-    sub(tbase, "site", name="lidar_site", pos=f(*LIDAR_POS), size="0.02", rgba="0.1 0.1 0.1 1", group="4")
+    lidar_pos = (LIDAR_POS[0], LIDAR_POS[1], F.get("lidar_z", LIDAR_POS[2]))
+    sub(tbase, "site", name="lidar_site", pos=f(*lidar_pos), size="0.02", rgba="0.1 0.1 0.1 1", group="4")
     sub(tbase, "geom", name="lidar_vis", type="cylinder", size="0.035 0.025",
-        pos=f(LIDAR_POS[0], 0, LIDAR_POS[2] - 0.01), rgba="0.1 0.1 0.1 1",
+        pos=f(lidar_pos[0], 0, lidar_pos[2] - 0.01), rgba="0.1 0.1 0.1 1",
         contype="0", conaffinity="0", group="2", mass="0")
     sub(tbase, "geom", name="lidar_bracket_vis", type="box", size="0.03 0.03 0.05",
-        pos=f(LIDAR_POS[0] - 0.04, 0, LIDAR_POS[2] + 0.04), rgba="0.3 0.3 0.3 1",
+        pos=f(lidar_pos[0] - 0.04, 0, lidar_pos[2] + 0.04), rgba="0.3 0.3 0.3 1",
         contype="0", conaffinity="0", group="2", mass="0")
 
     # 상반신 기둥·판 ↔ TRON1 몸통 은 서로 겹쳐 있으므로 충돌 제외
