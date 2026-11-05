@@ -1131,6 +1131,8 @@ class RobotSkills(Node):
             self._box_seen_fwd = float(center[0])
             self.set_table()
             self.log(f"[pick] 옆걸음 후 상자 위치 base {np.round(center, 3)}")
+        # 이족: 도킹을 마친 자세를 기준으로 기억 — 팔을 들 때 몸통이 밀리면(SF 미션 11: 뒤로 9 cm) 이 자세로 되돌린다
+        dock_ref = self._other_markers(exclude=None) if self.can_strafe else None
         for attempt in (1, 2):
             self.open_gripper(side)
             # 몸 쪽 carry 자세에서 출발 → 접근점까지의 경로가 상자들 위쪽으로 지나감
@@ -1139,6 +1141,14 @@ class RobotSkills(Node):
             if self.can_strafe:
                 self.set_table(pad=self.TRANSIT_PAD)
             self.move_named(f"{side}_arm", "carry")
+            if self.can_strafe and dock_ref:
+                self.wait_still(timeout=8.0)
+                self.station_keep(dock_ref, label=" carry 뒤")
+                try:
+                    center = self.find_marker(mid, samples=3) - np.array([0, 0, self.box_size / 2])
+                    self._box_seen_fwd = float(center[0])
+                except SkillError:
+                    pass
             self.set_boxes()                                   # 계획 중에는 모든 상자가 장애물
             if self.can_strafe:
                 self.set_table()                               # 접근 자세 계산은 실제 상판 높이로
