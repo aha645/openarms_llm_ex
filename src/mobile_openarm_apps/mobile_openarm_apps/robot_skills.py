@@ -680,7 +680,16 @@ class RobotSkills(Node):
         if key not in self.named_states:
             raise SkillError(f"SRDF 에 {group}/{name} 자세가 없음")
         self.log(f"[arm] {group} → '{name}'")
-        self.move_joints(group, self.named_states[key], vel)
+        try:
+            self.move_joints(group, self.named_states[key], vel)
+        except SkillError as e:
+            if not self.can_strafe:
+                raise
+            # 이족: 이동용 여유(TRANSIT_PAD)로 부풀린 작업대 때문에 계획이 막히는 경우가 있다(시험 19: carry 계획 실패 −2)
+            # → 여유 없이 실제 상판으로 한 번 더 계획
+            self.log(f"[arm] {e} → 작업대 여유 없이 다시 계획")
+            self.set_table()
+            self.move_joints(group, self.named_states[key], vel)
 
     def compute_ik(self, side, pos, R, avoid_collisions=True, seed=None):
         """seed: {관절: 값} — IK 반복 계산의 시작점. 주지 않으면 현재 자세에서 시작."""
