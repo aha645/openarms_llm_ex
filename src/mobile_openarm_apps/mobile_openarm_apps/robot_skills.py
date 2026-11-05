@@ -338,7 +338,9 @@ class RobotSkills(Node):
                         boxes.append(b[1] - np.array([0, 0, self.box_size / 2]))
             time.sleep(0.05)
         if not tcps:
-            raise SkillError(f"{side} 손목 마커가 카메라에 안 보임")
+            with self._det_lock:
+                ages = {i: round(time.time() - v[0], 1) for i, v in self._detections.items()}
+            raise SkillError(f"{side} 손목 마커가 카메라에 안 보임 (최근 검출 id:경과초 {ages}, link7 TF {'있음' if tf7 is not None else '없음'})")
         fk = self._tf_matrix(TCP[side])
         return (np.median(np.array(tcps), axis=0), np.median(np.array(boxes), axis=0) if boxes else None,
                 None if fk is None else fk[0])

@@ -40,15 +40,19 @@ class BipedBridge(B.MujocoBridge):
     def _tcp_world(self, side):
         d, m = self.sim.d, self.sim.m
         h = m.body(f"openarm_{side}_hand").id
-        return d.xpos[h] + d.xmat[h].reshape(3, 3) @ [0.0, 0.0, 0.09]
+        with self.sim.lock:
+            return d.xpos[h] + d.xmat[h].reshape(3, 3) @ [0.0, 0.0, 0.09]
 
     def _arm_contacts(self):
         """디버그: 팔·손이 로봇 밖의 물체(작업대·상자·벽)와 닿아 있는 접촉 목록."""
         m, d = self.sim.m, self.sim.d
         out = set()
-        for i in range(d.ncon):
-            c = d.contact[i]
-            b1, b2 = m.body(m.geom_bodyid[c.geom1]).name, m.body(m.geom_bodyid[c.geom2]).name
+        # 시뮬 스레드가 동시에 mj_step 을 돌리므로 잠금 안에서 접촉 쌍만 복사한다.
+        # 잠금 없이 d.contact[i] 를 읽다가 그사이 접촉 수가 줄어 IndexError 로 브리지가 죽었다 (집기 시험 8)
+        with self.sim.lock:
+            pairs = [(int(d.contact[i].geom1), int(d.contact[i].geom2)) for i in range(d.ncon)]
+        for g1, g2 in pairs:
+            b1, b2 = m.body(m.geom_bodyid[g1]).name, m.body(m.geom_bodyid[g2]).name
             for a, b in ((b1, b2), (b2, b1)):
                 if a.startswith("openarm_") and not b.startswith(("openarm_", "base", "abad", "hip", "knee", "ankle", "foot")):
                     out.add(f"{a}-{b or 'world'}")
