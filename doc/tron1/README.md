@@ -15,6 +15,7 @@
 | 5 | [05-limits-real-robot.md](05-limits-real-robot.md) | 검증 범위·한계·실로봇으로 갈 때 |
 | 6 | [06-sway-analysis.md](06-sway-analysis.md) | 몸통 흔들림 원인 분석 (팔 반동·정책·팔 처짐·기둥 길이 분해 실험) |
 | 7 | [07-implementation-walkthrough.md](07-implementation-walkthrough.md) | **구현 과정 전체 해설** — 자료·수정 내용·보상 함수·추론 제어·SLAM/Nav2/MoveIt/LLM 시험 방법과 결과 |
+| 8 | [08-visual-servo.md](08-visual-servo.md) | 손목 마커 시각 피드백 집기 — 구현, 시험 7~20 기록, 제자리 흐름 원인 분석, 남은 문제 |
 
 약어는 각 문서 맨 앞 "이 장에 나오는 용어"와 [용어집](../labs/glossary.md)에 풀어 두었습니다.
 
