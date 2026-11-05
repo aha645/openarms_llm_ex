@@ -78,6 +78,12 @@ class Tron1OpenArmEnv:
             # → 회전 추종 보상을 더 키우고 허용 폭을 좁혀(0.1 → 0.05) 작은 회전 오차도 벌점이 되게 한다
             self.rs["tracking_ang_vel"] = 5.0
             self.ang_sigma = 0.05
+            # SF 4차(sf_v4): sf_v3 은 직진 중 방향 흐름은 고쳤지만(−13° → +5°) 제자리 회전은 여전히 못 했다(0.6 명령에 0.01 rad/s).
+            # 허용 폭 0.05 에서는 회전 못 하는 상태의 보상이 거의 0 이라 '조금 더 도는 쪽' 으로 가는 기울기가 없었다 →
+            # 허용 폭을 넓히고(0.25, LimX 기본) 가중치를 더 키우고, 제자리 회전 명령 비율을 15 → 30% 로
+            if os.environ.get("TRON1_SF_STAGE", "4") == "4":
+                self.rs["tracking_ang_vel"] = 6.0
+                self.ang_sigma = 0.25
         base = mujoco.MjModel.from_xml_path(xml)
         self.dt = base.opt.timestep
         self.nsub = int(round(POLICY_DT / self.dt))
@@ -215,6 +221,11 @@ class Tron1OpenArmEnv:
         c[(z >= 0.25) & (z < 0.45), 1:] = 0.0               # 20%: 직진만 (가장 흔한 주행)
         c[(z >= 0.45) & (z < 0.6), 0:2] = 0.0               # 15%: 제자리 회전 (도킹 yaw 보정)
         if self.foot == "sf":
+            turn = (z >= 0.75) & (z < 0.9)                  # SF: 제자리 회전 15% 더 (합 30%), 크기 0.3~0.9 rad/s
+            k = int(turn.sum())
+            if k:
+                c[turn] = np.stack([np.zeros(k), np.zeros(k),
+                                    self.rng.uniform(0.3, 0.9, k) * self.rng.choice([-1.0, 1.0], k)], 1)
             # SF: 15% 는 느린 미세 이동 (도킹·옆걸음·작은 회전, |vx| ≤ 0.12, |vy| ≤ 0.08, |wz| ≤ 0.3).
             # 예전에는 |명령| < 0.05 를 0 으로 바꿔 느린 명령을 학습한 적이 없었다 → 0.04~0.08 m/s 에서 거의 안 움직임
             slow = (z >= 0.6) & (z < 0.75)
