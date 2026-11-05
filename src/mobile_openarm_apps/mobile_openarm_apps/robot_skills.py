@@ -893,11 +893,15 @@ class RobotSkills(Node):
             need = self._need_fraction(float(np.linalg.norm(center - pre)))
             if servo:
                 # 보정 이동으로 팔이 q_pre 에서 조금 벗어났으므로 현재 관절각에서 계획, 안 되면 q_pre 에서
+                # 보정 이동 뒤 MoveIt 안의 손 위치(명령 관절각 기준)는 처짐을 보정한 만큼 상판 쪽으로 내려가 있어
+                # 실제로는 닿지 않는데도 '작업대 충돌' 로 직선이 끊겼다 (실험: 75%·67%). 실제 손 높이는 카메라로 재서
+                # floor_z 위로 지키고 있으므로, 충돌 검사로 안 되면 검사 없이 같은 직선을 간다.
+                goal[2] = max(goal[2], floor_z)
                 try:
                     self.cartesian(side, [goal], R, min_fraction=need)
                 except SkillError as e:
-                    self.log(f"[pick] 현재 자세에서 직선 접근 {e} → 접근점 관절각에서 다시 계획")
-                    self.cartesian(side, [goal], R, min_fraction=need, start_q=q_pre)
+                    self.log(f"[pick] 직선 접근 {e} → 충돌 검사 없이 (손 높이는 카메라로 확인한 값)")
+                    self.cartesian(side, [goal], R, min_fraction=need, avoid_collisions=False)
                 # 시각 피드백 2단계 (파지 위치): 손끝이 상자 중심(+1 cm 안쪽)에 올 때까지 재고 고친다
                 goal, center = self.visual_servo(side, mid, R, goal, center, R[:, 2] * self.SERVO_DEPTH,
                                                  floor_z=floor_z, label=" 파지")
