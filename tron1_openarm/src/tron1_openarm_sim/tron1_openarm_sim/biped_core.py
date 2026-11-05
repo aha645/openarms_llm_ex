@@ -36,6 +36,12 @@ PUBLISHED_JOINTS = ARM_PUB + LEG_JOINTS                # pf 기준 (인스턴스
 # 이족용 home: 팔을 바깥으로 0.2 rad 벌림 (곧게 내리면 손이 TRON1 몸통 옆면에 닿음). SRDF 의 home 과 같은 값 (arm_poses.py)
 from .arm_poses import HOME_ARM  # noqa: E402
 CMD_LIMIT = (0.5, 1.0)          # 정책이 학습한 범위 안으로 (vx m/s, wz rad/s)
+SLIP_GAIN = float(__import__("os").environ.get("TRON1_SLIP_GAIN", 0.18))   # 제자리(명령 0)일 때
+# 미끄러짐 보정 비율. 1.0(추정기와 다리 기구학 차이를 전부 반영)이면 팔을 뻗었을 때 추정기가 뒤로 −1.7 cm/s 를 잘못 내서
+# 제자리 유지가 앞으로 0.5~0.6 cm/s 걸어 나갔다(1분에 35 cm, 집기 실패의 주원인). 0 이면 실제 미끄러짐(−1.3 cm/s)을 못 봄.
+# 오프라인 30 s 측정(home/pre/carry): 0 → −40~−50 cm, 0.2 → +1~3 cm, 0.6 → +12~16 cm, 1.0 → +13~18 cm
+SLIP_GAIN_WALK = 1.0             # 걸을 때(명령 ≠ 0)는 전부 반영: 2 m 직진 오차 1.3 % (0.18 이면 3.5 %)
+IDLE_VY_SLIP = float(__import__("os").environ.get("TRON1_IDLE_VY_SLIP", -0.0015))   # PF 제자리 옆 미끄러짐 보정 [m/s]
 SLIP_TAU = 3.0                   # 발 미끄러짐 보정 저역통과 시간상수 [s]
 VY_LIMIT, VY_ACCEL = 0.15, 0.5   # 옆걸음 최대 속도·가속 (학습 범위 ±0.2 m/s 안)
 CMD_ACCEL = (0.8, 2.0)          # 명령 변화율 제한 (m/s², rad/s²) — 이족은 급가속에 약함
@@ -345,7 +351,12 @@ class BipedOpenArmSim(W.MobileOpenArmSim):
             a = min(1.0, dt_s / SLIP_TAU)
             self._slip_vx += a * ((enc_vx - (self.odom_vel[0] - self._slip_vx)) - self._slip_vx)   # 다리 기구학만의 속도와 비교
             yw = yaw_of(d.xquat[self.base_id])
-            self._slip_off += np.array([math.cos(yw), math.sin(yw)]) * self._slip_vx * dt_s
+            idle = bool(np.all(np.abs(self.cmd_ramp) < 1e-3) and abs(self.vy_ramp) < 1e-3)
+            gain = SLIP_GAIN if idle else SLIP_GAIN_WALK
+            self._slip_off += np.array([math.cos(yw), math.sin(yw)]) * gain * self._slip_vx * dt_s
+            if self.foot == "pf" and idle:
+                # 제자리(명령 0)일 때 옆으로 일정하게 미끄러지는 몫 (오프라인 측정 −0.2 cm/s, 팔 자세와 무관)
+                self._slip_off += np.array([-math.sin(yw), math.cos(yw)]) * IDLE_VY_SLIP * dt_s
         yaw = yaw_of(d.xquat[self.base_id]) - self._origin_yaw
         c, s = math.cos(-self._origin_yaw), math.sin(-self._origin_yaw)
         dxy = self._est_xy + self._slip_off - self._origin_xy
