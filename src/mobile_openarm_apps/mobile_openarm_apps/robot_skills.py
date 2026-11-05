@@ -700,6 +700,15 @@ class RobotSkills(Node):
             c.joint_constraints.append(jc)
         res = self._send_action(self.move_group, self._plan_request(group, c, vel, vel), f"move_joints({group})", 60.0)
         code = res.result.error_code.val
+        if code == MoveItErrorCodes.START_STATE_IN_COLLISION and self.can_strafe:
+            # 이족: 몸통이 흔들려 MoveIt 안의 손이 부풀린 작업대·상자 장애물과 겹친 채로 시작하면 계획을 거부한다
+            # (SF 미션 시험 14: carry → 접근점 −10) → 상자 장애물을 빼고 여유 없는 실제 상판으로 한 번 더
+            self.log(f"[arm] 시작 자세가 장애물과 겹침(−10) → 상자 장애물·작업대 여유 없이 다시 계획")
+            self.clear_boxes()
+            self.set_table()
+            res = self._send_action(self.move_group, self._plan_request(group, c, vel, vel), f"move_joints({group})", 60.0)
+            code = res.result.error_code.val
+            self.set_boxes()
         if code != MoveItErrorCodes.SUCCESS:
             raise SkillError(f"MoveIt {group} 실패 (error_code={code})")
 
