@@ -110,6 +110,7 @@ class RobotSkills(Node):
         self.tf_listener = TransformListener(self.tf_buffer, self)
 
         self._det_lock = threading.Lock()
+        self._snaps = {}                # id → (그때 위치, 함께 보인 다른 마커 위치들) — 가려졌을 때 시각 오도메트리용
         self._marker_odom = {}          # id → odom 좌표 (가려졌을 때 몸통 흐름을 보정해 다시 쓰기)
         self._detections = {}           # id → (t_wall, position[3], yaw)
         self._attached = {"left": None, "right": None}
@@ -226,7 +227,34 @@ class RobotSkills(Node):
             raise SkillError(f"마커 {marker_id} 를 카메라에서 찾지 못함")
         p = np.median(np.array(pts), axis=0)
         self._remember_marker(marker_id, p)
+        self._snapshot(marker_id, p)
         return p
+
+    def _other_markers(self, exclude, max_age=0.5):
+        """지금 보이는 '다른' 물체 마커들 (id → base 위치). 손목 마커·exclude 는 뺀다."""
+        known = {o["marker_id"] for o in self.objects.values()}
+        now = time.time()
+        with self._det_lock:
+            return {i: v[1].copy() for i, v in self._detections.items()
+                    if i in known and i != exclude and now - v[0] < max_age}
+
+    def _snapshot(self, marker_id, p_top):
+        """목표 마커를 잰 순간, 함께 보인 다른 마커들의 위치를 같이 저장 — 나중에 목표가 손에 가려지면
+        다른 마커들이 몸통 기준으로 얼마나 움직였는지(= 몸통이 흐른 양)로 목표의 지금 위치를 추정한다 (시각 오도메트리)."""
+        self._snaps[marker_id] = (np.asarray(p_top, float).copy(), self._other_markers(marker_id))
+
+    def predict_hidden(self, marker_id):
+        """가려진 목표 마커의 지금 위치(base) 추정: 마지막 측정 + 다른 마커들의 평균 이동. 공통 마커가 없으면 None."""
+        snap = self._snaps.get(marker_id)
+        if snap is None:
+            return None, 0
+        p0, others0 = snap
+        now = self._other_markers(marker_id)
+        common = [i for i in others0 if i in now]
+        if not common:
+            return None, 0
+        shift = np.mean([now[i] - others0[i] for i in common], axis=0)
+        return p0 + shift, len(common)
 
     def _remember_marker(self, marker_id, p_base):
         """잰 마커 위치를 odom 좌표로도 기억 — 이족은 제자리에서도 몸통이 1분에 10 cm 넘게 흘러(시험 9: 12 cm)
@@ -395,6 +423,7 @@ class RobotSkills(Node):
             if box is not None and top_ok:
                 center = box                    # 같은 프레임에서 본 상자가 우선
                 self._remember_marker(box_id, box + np.array([0, 0, self.box_size / 2]))
+                self._snapshot(box_id, box + np.array([0, 0, self.box_size / 2]))
             else:
                 # 카메라로 본 상자는 정답과 1 cm 안으로 맞았다(시험 11 정답 기록) — 손에 밀려 9 cm 움직인 것도 정확히 잡음.
                 # 반대로 odom 으로 옮긴 옛 위치는 제자리 걸음 미끄러짐을 몰라 9 cm 틀렸다. 그래서 보이면 항상 카메라 값을 쓰고,
@@ -402,7 +431,15 @@ class RobotSkills(Node):
                 # 상자가 가려졌으면 마지막 카메라 측정을 그대로 쓴다. odom 으로 옮기는 방법도 시험했지만(시험 11·12)
                 # 다리 오도메트리가 제자리 걸음 중의 회전·미끄러짐을 못 봐서 오히려 7~9 cm 더 틀렸다.
                 # 그래서 접근점(상자가 손에 가려지는 곳)보다 파지 위치(상자가 다시 보이는 곳)에서의 보정이 핵심이다.
-                stale = " [상자 가려짐: 마지막 측정 사용]" if box is None else f" [상자 측정 {np.round(box, 3)} 높이가 상판과 안 맞아 버림]"
+                # 대신 함께 보이는 다른 상자 마커(작업대 위에 가만히 있음)가 몸통 기준으로 움직인 양만큼 옮긴다 (시각 오도메트리).
+                # 시험 13: 목표 마커가 손에 가려진 1분 동안 몸통이 흘러, 옛 측정으로 '오차 0.5 cm' 라 판단했지만 실제로는
+                # 손이 상자를 10 cm 밀고 손끝이 상자 2~5 cm 옆에 있었다.
+                pred, n = self.predict_hidden(box_id)
+                if pred is not None:
+                    center = pred - np.array([0, 0, self.box_size / 2])
+                why = "가려짐" if box is None else f"측정 {np.round(box, 3)} 높이가 상판과 안 맞음"
+                stale = (f" [상자 {why}: 다른 마커 {n}개의 이동으로 추정]" if pred is not None
+                         else f" [상자 {why}: 마지막 측정 사용]")
             want = center + offset
             err = want - tcp
             fk_s = "" if fk is None or src != "손목 마커" else f", 정기구학과 차이 {np.round((tcp - fk) * 100, 1)} cm"
