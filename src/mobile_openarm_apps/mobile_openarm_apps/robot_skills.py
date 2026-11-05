@@ -507,10 +507,12 @@ class RobotSkills(Node):
             n = np.linalg.norm(err)
             step = err if n <= self.SERVO_MAX_STEP else err * (self.SERVO_MAX_STEP / n)
             lat = err - R[:, 2] * float(err @ R[:, 2])       # 접근 방향에 수직인 성분
-            if np.linalg.norm(lat) > 0.02:
-                # 옆으로 크게 어긋났으면 옆으로만 가지 말고 접근 방향 뒤로 물러나며 옮긴다.
-                # 손이 상자 옆에 붙은 채 옆으로 가면 손가락이 상자를 밀고 간다 (시험 14: 8 cm 밀림)
-                step = step - R[:, 2] * 0.04
+            if np.linalg.norm(lat) > 0.012:
+                # 옆·위아래로 어긋났으면 앞으로 더 들어가지 않고, 접근 방향 뒤로 2 cm 물러난 자리에서 옆만 맞춘다.
+                # 앞으로 같이 가면 손가락이 상자 옆면을 밀어 상자가 계속 밀려나고 보정이 그것을 쫓는다
+                # (PF 시험 14: 8 cm, SF 시험 12: 앞·옆으로 9 cm). 손가락 사이 여유는 ±1.9 cm (벌림 8.8 cm − 상자 5 cm)
+                n_l = np.linalg.norm(lat)
+                step = (lat if n_l <= self.SERVO_MAX_STEP else lat * (self.SERVO_MAX_STEP / n_l)) - R[:, 2] * 0.02
             goal = goal + step
             if floor_z is not None:
                 goal[2] = max(goal[2], floor_z)
@@ -1174,6 +1176,12 @@ class RobotSkills(Node):
             self.log(f"[pick] 파지 실패(손가락 {opening:.3f} m) → 다시 인식해서 재시도 {attempt}/2")
             self.open_gripper(side)
             center = self._refind_box(side, mid)
+            other = "left" if side == "right" else "right"
+            if (center[1] > 0.05 if side == "right" else center[1] < -0.05) and not self.holding[other]:
+                # 상자가 밀리거나 몸통이 돌아 반대쪽으로 갔으면(SF 시험 12: 오른팔 쪽 −0.10 → +0.20 m) 반대 팔로 바꾼다
+                self.log(f"[pick] 상자가 반대쪽({center[1]:+.2f} m)으로 가서 {other} 팔로 바꿈")
+                self.move_named(f"{side}_arm", "home")
+                side = other
         else:
             raise SkillError(f"{obj} 파지 실패 (2회)")
         self.clear_boxes()
