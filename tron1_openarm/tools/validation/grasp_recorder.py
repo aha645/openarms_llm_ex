@@ -20,7 +20,8 @@ def bs(m):
     except Exception:
         tcp_b = None
     if o: out.write(json.dumps({"t": time.time(), "tcp": b["tcp_world"]["right"], "box0": o["box_0"], "tcp_b": tcp_b, "det0": st.get("det0"),
-                                "tilt": b["tilt_deg"], "h": b["base_height"], "ac": b.get("arm_contacts"), "st": b.get("standing")}) + "\n"); out.flush()
+                                "tilt": b["tilt_deg"], "h": b["base_height"], "ac": b.get("arm_contacts"), "st": b.get("standing"),
+                                "gt": b.get("gt_pose"), "odom": b.get("odom"), "cmd": b.get("cmd")}) + "\n"); out.flush()
 n.create_subscription(String, "/sim/objects", ob, 10); n.create_subscription(String, "/biped/status", bs, 10)
 n.create_subscription(String, "/aruco/detections", det, 10)
 rclpy.spin(n)

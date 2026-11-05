@@ -67,7 +67,10 @@ class BipedBridge(B.MujocoBridge):
                                "est_vel": [round(float(x), 3) for x in self.sim.policy.estimated_velocity],
                                # 디버그·채점용 정답값(시뮬에서만): 손끝(TCP) 세계 위치 = 손 + 손 z축으로 0.09 m (URDF hand_tcp 와 같음)
                                "tcp_world": {s: [round(float(v), 4) for v in self._tcp_world(s)] for s in ("left", "right")},
-                               "arm_contacts": self._arm_contacts()})
+                               "arm_contacts": self._arm_contacts(),
+                               # 디버그: 몸통 정답 자세(map=world 원점 기준)와 다리 오도메트리 (제자리 흐름 분석용)
+                               "gt_pose": [round(float(v), 4) for v in self.sim.ground_truth_pose()],
+                               "odom": [round(float(v), 4) for v in self.sim.odom]})
         self.pub_status.publish(msg)
         if self.sim.fallen:
             self.get_logger().error("로봇이 넘어졌습니다 → ros2 service call /sim/reset std_srvs/srv/Trigger",
