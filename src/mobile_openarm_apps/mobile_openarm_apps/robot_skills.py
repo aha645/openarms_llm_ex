@@ -25,8 +25,8 @@ from control_msgs.action import FollowJointTrajectory
 from geometry_msgs.msg import Pose, PoseStamped, Twist
 from moveit_msgs.action import ExecuteTrajectory, MoveGroup
 from moveit_msgs.msg import (CollisionObject, Constraints, JointConstraint, MoveItErrorCodes,
-                             PlanningScene, RobotState)
-from moveit_msgs.srv import ApplyPlanningScene, GetCartesianPath, GetPositionIK
+                             PlanningScene, RobotState, RobotTrajectory)
+from moveit_msgs.srv import ApplyPlanningScene, GetCartesianPath, GetPositionIK, GetStateValidity
 from nav2_msgs.action import NavigateToPose
 from rclpy.action import ActionClient
 from rclpy.callback_groups import ReentrantCallbackGroup
@@ -410,7 +410,44 @@ class RobotSkills(Node):
         goal.planning_options.planning_scene_diff.robot_state.is_diff = True
         return goal
 
+    def _move_joints_direct(self, group, joint_values, vel=0.3, n=30):
+        """이족 전용: 지금 관절각에서 목표까지 관절 공간 직선(모든 관절을 함께 같은 비율로)으로 움직인다.
+        OMPL(RRTConnect)은 팔을 옆·앞으로 크게 돌려 가는 경로를 자주 만들었고(손이 몸 옆 0.6 m 까지 나감),
+        어깨가 상판 바로 위인 이족에서는 그 경로가 작업대 모서리를 쓸거나 몸통을 크게 흔들었다.
+        중간 자세 n 개를 MoveIt 충돌 검사(/check_state_validity)로 확인해 모두 안전할 때만 쓰고, 아니면 False."""
+        names = list(joint_values)
+        cur = [self._joints.get(nm) for nm in names]
+        if any(v is None for v in cur):
+            return False
+        cur, goal = np.array(cur), np.array([joint_values[nm] for nm in names])
+        if not hasattr(self, "_valid_srv"):
+            self._valid_srv = self.create_client(GetStateValidity, "/check_state_validity")
+        for s in np.linspace(0, 1, n)[1:]:
+            req = GetStateValidity.Request()
+            req.group_name = group
+            req.robot_state.is_diff = True
+            req.robot_state.joint_state = JointState(name=names, position=[float(v) for v in cur + (goal - cur) * s])
+            if not self._call(self._valid_srv, req, "check_state_validity").valid:
+                return False
+        dur = max(1.5, float(np.max(np.abs(goal - cur))) / (1.0 * vel))     # 가장 많이 도는 관절 기준 1 rad/s × vel
+        traj = RobotTrajectory()
+        traj.joint_trajectory.joint_names = names
+        for s in np.linspace(0, 1, n):
+            pt = JointTrajectoryPoint()
+            sm = s * s * (3 - 2 * s)                                          # 부드럽게 출발·정지
+            pt.positions = [float(v) for v in cur + (goal - cur) * sm]
+            pt.time_from_start = _dur(dur * s)
+            traj.joint_trajectory.points.append(pt)
+        g = ExecuteTrajectory.Goal()
+        g.trajectory = traj
+        res = self._send_action(self.exec_traj, g, f"move_direct({group})", 180.0)
+        if res.result.error_code.val != MoveItErrorCodes.SUCCESS:
+            raise SkillError(f"직접 관절 이동 {group} 실패 (error_code={res.result.error_code.val})")
+        return True
+
     def move_joints(self, group, joint_values, vel=0.3):
+        if self.can_strafe and self._move_joints_direct(group, joint_values, vel):
+            return
         c = Constraints()
         for n, v in joint_values.items():
             jc = JointConstraint()
