@@ -243,7 +243,7 @@ class RobotSkills(Node):
         다른 마커들이 몸통 기준으로 얼마나 움직였는지(= 몸통이 흐른 양)로 목표의 지금 위치를 추정한다 (시각 오도메트리)."""
         self._snaps[marker_id] = (np.asarray(p_top, float).copy(), self._other_markers(marker_id))
 
-    def station_keep(self, ref, tol=0.015, timeout=30.0, gain=0.8, vmax=0.05, label=""):
+    def station_keep(self, ref, tol=0.015, timeout=30.0, gain=0.8, vmax=0.05, label="", yaw_tol=math.radians(1.5)):
         """시각 제자리 유지: 작업대 위 마커들(ref: id → base 위치)이 처음 자리로 돌아오도록 몸통을 천천히 옮긴다.
         PF 는 팔을 뻗은 채 서 있으면 다리 오도메트리가 못 보는 흐름(1분에 수~수십 cm)이 생긴다(정답 기록·오프라인 측정).
         오도메트리 대신 카메라로 본 고정 마커를 기준으로 삼으면 실로봇에서도 같은 방식으로 쓸 수 있다.
@@ -259,8 +259,22 @@ class RobotSkills(Node):
                 time.sleep(0.1)
                 continue
             sh = np.median(np.array([now[i] - ref[i] for i in common]), axis=0)
+            # 방향(yaw): 마커 2개 이상이면 마커들을 잇는 선이 base 기준으로 돈 각도 = 몸통이 반대로 돈 각도.
+            # SF 는 팔을 carry 로 옮길 때 몸통이 몇 도 돌아 상자가 옆으로 8 cm 옮겨 보였다 (SF 시험 8·9)
+            dth = 0.0
+            if len(common) >= 2:
+                a, b = common[0], common[-1]
+                v0, v1 = ref[b][:2] - ref[a][:2], now[b][:2] - now[a][:2]
+                if np.linalg.norm(v0) > 0.08:
+                    dth = math.atan2(v0[0] * v1[1] - v0[1] * v1[0], float(v0 @ v1))
+                    # 회전으로 생긴 겉보기 이동은 빼고 남은 것만 평행 이동으로
+                    c0 = np.mean([ref[i][:2] for i in common], axis=0)
+                    c, s_ = math.cos(dth), math.sin(dth)
+                    rot_c0 = np.array([c * c0[0] - s_ * c0[1], s_ * c0[0] + c * c0[1]])
+                    sh = sh.copy()
+                    sh[:2] = np.mean([now[i][:2] for i in common], axis=0) - rot_c0
             last_s = sh
-            if np.linalg.norm(sh[:2]) < tol:
+            if np.linalg.norm(sh[:2]) < tol and abs(dth) < yaw_tol:
                 break
             if np.linalg.norm(sh[:2]) > 0.25:
                 self.log(f"[station{label}] 마커 이동 {np.round(sh * 100, 1)} cm 가 너무 커서 믿지 않음")
@@ -268,6 +282,7 @@ class RobotSkills(Node):
             moved = True
             v = np.clip(gain * sh[:2], -vmax, vmax)
             msg.linear.x, msg.linear.y = float(v[0]), float(v[1])
+            msg.angular.z = float(np.clip(1.0 * dth, -0.15, 0.15))     # 몸통이 +Δψ 돌면 마커는 −Δψ 돌아 보인다 → dth 방향으로 돌아 되돌림
             self.cmd_pub.publish(msg)
             time.sleep(0.1)
         self.cmd_pub.publish(Twist())
