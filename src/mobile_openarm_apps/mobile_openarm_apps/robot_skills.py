@@ -797,6 +797,7 @@ class RobotSkills(Node):
     # 바퀴형 도킹에서 상자는 보통 팔 쪽으로 0.10~0.15 m. 이족은 AMCL 옆 오차(±0.15 m)로 0.27~0.31 m 가 되어
     # 직선 접근이 64% 에서 막혔다 (실험). 바퀴형은 옆으로 못 가므로 이 단계를 건너뛴다.
     TRANSIT_PAD = 0.03
+    HOLD_VEL = 0.1          # 이족: 물체를 쥔 팔을 움직이는 속도 배율 (보통 0.3)
     BOX_EDGE_MIN = 0.10     # 이족: 상자는 작업대 앞 모서리에서 적어도 이만큼 안쪽에 놓여 있다고 가정 [m] (시뮬 월드 0.12~0.20)
     GRASP_PUSH = 0.0
     LATERAL_OK = 0.18
@@ -1014,7 +1015,13 @@ class RobotSkills(Node):
         self.holding[side] = obj
         if self.can_strafe:
             self.set_table(pad=self.TRANSIT_PAD)
-        self.move_named(f"{side}_arm", "carry")
+            # 이족: 상자를 쥔 뒤 뻗은 팔을 carry 로 빠르게(0.3) 접자 반동으로 PF 몸통이 1 초 만에 21°→70° 넘어졌다 (시험 11,
+            # 파지는 성공·상자 5 cm 들어 올림). 06장 실험에서 팔을 3배 느리게 하면 흔들림 −38% → 0.1 로 천천히 접는다
+            self.wait_still(timeout=8.0)
+            self.move_named(f"{side}_arm", "carry", vel=self.HOLD_VEL)
+            self.wait_still(timeout=8.0)
+        else:
+            self.move_named(f"{side}_arm", "carry")
         self.log(f"[pick] 완료: {obj}")
         return side
 
@@ -1034,7 +1041,7 @@ class RobotSkills(Node):
         R, pre, q_pre = self._solve_approach(side, target + np.array([0, 0, 0.05]), back=0.06)
         if self.can_strafe:
             self.set_table(station, pad=self.TRANSIT_PAD)
-        self.move_joints(f"{side}_arm", q_pre)
+        self.move_joints(f"{side}_arm", q_pre, vel=self.HOLD_VEL if self.can_strafe else 0.3)
         if self.can_strafe:
             self.set_table(station)
         self.cartesian(side, [target], R, avoid_collisions=False)
