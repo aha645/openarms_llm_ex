@@ -69,9 +69,15 @@ class Tron1OpenArmEnv:
         self.q_def = self.sp.default_q.astype(np.float64)
         self.GAIT = self.sp.gait
         self.rs = dict(REWARD_SCALES)
+        self.ang_sigma = 0.1
         if foot == "sf":
             # SF 1차 미세조정은 회전 추종이 약했다(0.6 rad/s 명령에 0.08) → 회전 추종 보상을 2배
             self.rs["tracking_ang_vel"] = 3.0
+            # SF 3차(sf_v3): 시뮬 집기 시험에서 SF 는 ① 느린 명령(0.04~0.08 m/s)을 거의 무시(2~3 s 에 1 cm)하고
+            # ② 0.25 m/s 직진 6 s 동안 13~17° 돌아갔다(제자리 유지 루프가 회전을 명령해도 못 따라감).
+            # → 회전 추종 보상을 더 키우고 허용 폭을 좁혀(0.1 → 0.05) 작은 회전 오차도 벌점이 되게 한다
+            self.rs["tracking_ang_vel"] = 5.0
+            self.ang_sigma = 0.05
         base = mujoco.MjModel.from_xml_path(xml)
         self.dt = base.opt.timestep
         self.nsub = int(round(POLICY_DT / self.dt))
@@ -208,7 +214,17 @@ class Tron1OpenArmEnv:
         c[z < 0.25] = 0.0                                   # 25%: 제자리(명령 0) — Nav2 정지·도킹 대기
         c[(z >= 0.25) & (z < 0.45), 1:] = 0.0               # 20%: 직진만 (가장 흔한 주행)
         c[(z >= 0.45) & (z < 0.6), 0:2] = 0.0               # 15%: 제자리 회전 (도킹 yaw 보정)
-        c[np.abs(c) < 0.05] = 0.0
+        if self.foot == "sf":
+            # SF: 15% 는 느린 미세 이동 (도킹·옆걸음·작은 회전, |vx| ≤ 0.12, |vy| ≤ 0.08, |wz| ≤ 0.3).
+            # 예전에는 |명령| < 0.05 를 0 으로 바꿔 느린 명령을 학습한 적이 없었다 → 0.04~0.08 m/s 에서 거의 안 움직임
+            slow = (z >= 0.6) & (z < 0.75)
+            k = int(slow.sum())
+            if k:
+                c[slow] = np.stack([self.rng.uniform(-0.12, 0.12, k), self.rng.uniform(-0.08, 0.08, k) * (self.rng.random(k) < 0.5),
+                                    self.rng.uniform(-0.3, 0.3, k) * (self.rng.random(k) < 0.5)], 1)
+            c[np.abs(c) < 0.015] = 0.0
+        else:
+            c[np.abs(c) < 0.05] = 0.0
         self.cmd[idx] = c
         if self.foot == "sf":
             # SF: 명령 0 인 경우의 80% 는 '제자리 서기'(발 안 떼기) — 조작할 때 쓰는 모드. 나머지는 제자리 걸음
@@ -389,7 +405,7 @@ class Tron1OpenArmEnv:
         t = dict(
             keep_balance=np.ones(self.N),
             tracking_lin_vel=np.exp(-np.sum((self.cmd[:, :2] - lin[:, :2]) ** 2, 1) / 0.05),   # LimX 0.2 → 0.05: 옆 흐름·속도 부족을 더 강하게
-            tracking_ang_vel=np.exp(-(self.cmd[:, 2] - gyro[:, 2]) ** 2 / 0.1),
+            tracking_ang_vel=np.exp(-(self.cmd[:, 2] - gyro[:, 2]) ** 2 / self.ang_sigma),
             base_height=(h - BASE_HEIGHT_TARGET[self.foot]) ** 2,
             lin_vel_z=lin[:, 2] ** 2,
             ang_vel_xy=np.sum(gyro[:, :2] ** 2, 1),

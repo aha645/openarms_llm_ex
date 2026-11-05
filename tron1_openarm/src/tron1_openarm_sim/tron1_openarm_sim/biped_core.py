@@ -346,7 +346,13 @@ class BipedOpenArmSim(W.MobileOpenArmSim):
         # 보행 정책의 속도 추정기(인코더, 학습 때 실제 속도로 지도학습)는 IMU·관절 이력으로 미끄러짐까지 반영한다.
         # 두 값의 차이를 3 s 저역통과해 '천천히 쌓이는 앞뒤 미끄러짐'만 더한다 (제자리 걸음 중 0.004 m/s 뒤로 흐르던 것).
         # 옆 방향은 추정기에 +0.005~0.008 m/s 치우침이 있어 쓰지 않는다.
-        if dt_s > 0 and self.policy is not None:
+        planted = self.foot == "sf" and self.policy is not None and self.policy.standing
+        if planted:
+            # SF '제자리 서기'(두 발을 디딘 채 보행 시계 정지) 중에는 몸통이 옮겨 갈 수 없다 → 미끄러짐 보정을 멈춘다.
+            # 멈추지 않으면 속도 추정기의 치우침이 계속 쌓여, 실제로는 0 cm 인데 오도메트리가 30 s 에 57 cm 움직였다고 읽었고
+            # (오프라인 측정) 미세 이동·제자리 유지·wait_still 이 모두 이 가짜 움직임을 따라가 몸통을 엉뚱하게 움직였다 (SF 집기 시험 7)
+            self._slip_vx = 0.0
+        if dt_s > 0 and self.policy is not None and not planted:
             enc_vx = float(self.policy.estimated_velocity[0])
             a = min(1.0, dt_s / SLIP_TAU)
             self._slip_vx += a * ((enc_vx - (self.odom_vel[0] - self._slip_vx)) - self._slip_vx)   # 다리 기구학만의 속도와 비교
