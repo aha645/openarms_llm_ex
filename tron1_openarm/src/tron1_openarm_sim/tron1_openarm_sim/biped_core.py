@@ -48,6 +48,8 @@ CMD_ACCEL = (0.8, 2.0)          # 명령 변화율 제한 (m/s², rad/s²) — �
 HOLD_KP, HOLD_KW, HOLD_V = 1.0, 1.5, 0.15   # 제자리 유지 이득 (m/s per m, rad/s per rad), 최대 보정 속도
 VEL_KP, VEL_KI = np.array([0.3, 0.5, 0.3]), np.array([0.8, 1.0, 0.8])   # 속도 외곽 루프 이득 (vx, vy, wz)
 VEL_I_MAX = np.array([0.25, 0.45, 0.4])
+SF_IDLE_I_MAX = np.array([0.06, 0.06, 0.1])             # SF 제자리 유지 중 적분항 상한
+SF_IDLE_CORR_MAX = np.array([0.08, 0.08, 0.15])         # SF 제자리 유지 중 보정량 상한
 CORR_MAX = np.array([0.2, 0.45, 0.4])                    # 외곽 루프가 정책 명령에 더할 수 있는 최대 보정
 
 
@@ -231,6 +233,7 @@ class BipedOpenArmSim(W.MobileOpenArmSim):
             if self.d.time - self.cmd_stamp > self.cmd_timeout:
                 v, w, vyc = 0.0, 0.0, 0.0
             vyc = float(np.clip(vyc, -VY_LIMIT, VY_LIMIT))
+            idle_cmd = (v == 0.0 and w == 0.0 and vyc == 0.0)
             self.vy_ramp += float(np.clip(vyc - self.vy_ramp, -VY_ACCEL * POLICY_DT, VY_ACCEL * POLICY_DT))
             v = float(np.clip(v, -CMD_LIMIT[0] * 0.7, CMD_LIMIT[0]))
             w = float(np.clip(w, -CMD_LIMIT[1], CMD_LIMIT[1]))
@@ -269,10 +272,15 @@ class BipedOpenArmSim(W.MobileOpenArmSim):
             # 정책 고유의 치우침(느림·옆 흐름·회전 흐름, 제자리에서의 흐름)을 적분항이 상쇄한다.
             meas = np.array([self.odom_vel[0], self.odom_vy, self.odom_vel[1]])
             err = want - meas
-            self._vi = np.clip(self._vi + VEL_KI * err * POLICY_DT, -VEL_I_MAX, VEL_I_MAX)
+            imax, cmax = VEL_I_MAX, CORR_MAX
+            if self.foot == "sf" and idle_cmd:
+                # SF 제자리(명령 0): 서기 모드에서 잠깐 빠져나온 동안 적분항이 한계(0.45 m/s, 0.4 rad/s)까지 쌓여
+                # 상자를 쥔 채 −0.34 m/s·−0.7 rad/s 로 걷고 돌다 넘어졌다 (SF 집기 시험 10) → 제자리일 때는 보정을 작게
+                imax, cmax = SF_IDLE_I_MAX, SF_IDLE_CORR_MAX
+            self._vi = np.clip(self._vi + VEL_KI * err * POLICY_DT, -imax, imax)
             out = want + VEL_KP * err + self._vi
             # 보정량 상한: 팔 동작 반동 등으로 오차가 커져도 몸통이 달려 나가지 않도록
-            out = np.clip(out, want - CORR_MAX, want + CORR_MAX)
+            out = np.clip(out, want - cmax, want + cmax)
             self.cmd_eff[:] = [float(np.clip(out[0], -0.45, 0.6)), float(np.clip(out[2], -1.2, 1.2))]
             vy = float(np.clip(out[1], -0.45, 0.45))
             # Sole-foot: 명령이 완전히 0 이면 '제자리 서기' — 두 발을 디딘 위상에서 보행 시계를 멈추고 발목으로 버틴다.
@@ -284,7 +292,10 @@ class BipedOpenArmSim(W.MobileOpenArmSim):
                 # 무게중심이 빠르게 옮겨 가면 발을 묶어 둔 채로는 버티지 못하고 발을 구르며 크게 흔들렸다 (시뮬 측정 0.4 m)
                 F = [float(d.sensordata[self.m.sensor_adr[s]]) for s in self.foot_touch]
                 gxy = float(np.linalg.norm(d.sensordata[self.gyro_adr:self.gyro_adr + 2]))
-                unstable = (sum(F) > 50 and min(F) < 0.12 * sum(F)) or gxy > 0.5
+                # 서기 모드를 풀 조건: 한 발 하중 12% → 6%, 기울며 도는 각속도 0.5 → 0.8 rad/s.
+                # 상자를 들어 올리며 손가락이 옆 상자를 건드린 정도의 흔들림에도 서기를 풀어(SF 시험 10) 발을 구르다 넘어졌다.
+                # 발을 디딘 채 버티는 편이 더 안정했다
+                unstable = (sum(F) > 50 and min(F) < 0.06 * sum(F)) or gxy > 0.8
                 if self.policy.standing and unstable:
                     self._stand_block = d.time + 1.5
                 self.policy.stand_still = bool(self.stand_when_idle and idle and d.time > getattr(self, "_stand_block", -1.0))
