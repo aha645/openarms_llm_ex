@@ -163,7 +163,7 @@
     <visual>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="/tmp/tmpoxqr6igg/PF_TRON1A/meshes/base_Link.STL" scale="1 1 1"/>
+        <mesh filename="/tmp/tmpu47eq8ob/PF_TRON1A/meshes/base_Link.STL" scale="1 1 1"/>
       </geometry>
       <material name="orange"/>
     </visual>
@@ -216,7 +216,7 @@
     <visual>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="/tmp/tmpoxqr6igg/PF_TRON1A/meshes/abad_L_Link.STL" scale="1 1 1"/>
+        <mesh filename="/tmp/tmpu47eq8ob/PF_TRON1A/meshes/abad_L_Link.STL" scale="1 1 1"/>
       </geometry>
       <material name="black"/>
     </visual>
@@ -238,7 +238,7 @@
     <visual>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="/tmp/tmpoxqr6igg/PF_TRON1A/meshes/hip_L_Link.STL" scale="1 1 1"/>
+        <mesh filename="/tmp/tmpu47eq8ob/PF_TRON1A/meshes/hip_L_Link.STL" scale="1 1 1"/>
       </geometry>
       <material name="black"/>
     </visual>
@@ -260,7 +260,7 @@
     <visual>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="/tmp/tmpoxqr6igg/PF_TRON1A/meshes/knee_L_Link.STL" scale="1 1 1"/>
+        <mesh filename="/tmp/tmpu47eq8ob/PF_TRON1A/meshes/knee_L_Link.STL" scale="1 1 1"/>
       </geometry>
       <material name="black"/>
     </visual>
@@ -287,7 +287,7 @@
     <visual>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="/tmp/tmpoxqr6igg/PF_TRON1A/meshes/foot_L_Link.STL" scale="1 1 1"/>
+        <mesh filename="/tmp/tmpu47eq8ob/PF_TRON1A/meshes/foot_L_Link.STL" scale="1 1 1"/>
       </geometry>
       <material name="grey"/>
     </visual>
@@ -314,7 +314,7 @@
     <visual>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="/tmp/tmpoxqr6igg/PF_TRON1A/meshes/foot_L_Link.STL" scale="1 1 1"/>
+        <mesh filename="/tmp/tmpu47eq8ob/PF_TRON1A/meshes/foot_L_Link.STL" scale="1 1 1"/>
       </geometry>
       <material name="grey"/>
     </visual>
@@ -366,7 +366,7 @@
     <visual>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="/tmp/tmpoxqr6igg/PF_TRON1A/meshes/abad_R_Link.STL" scale="1 1 1"/>
+        <mesh filename="/tmp/tmpu47eq8ob/PF_TRON1A/meshes/abad_R_Link.STL" scale="1 1 1"/>
       </geometry>
       <material name="black"/>
     </visual>
@@ -388,7 +388,7 @@
     <visual>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="/tmp/tmpoxqr6igg/PF_TRON1A/meshes/hip_R_Link.STL" scale="1 1 1"/>
+        <mesh filename="/tmp/tmpu47eq8ob/PF_TRON1A/meshes/hip_R_Link.STL" scale="1 1 1"/>
       </geometry>
       <material name="black"/>
     </visual>
@@ -410,7 +410,7 @@
     <visual>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="/tmp/tmpoxqr6igg/PF_TRON1A/meshes/knee_R_Link.STL" scale="1 1 1"/>
+        <mesh filename="/tmp/tmpu47eq8ob/PF_TRON1A/meshes/knee_R_Link.STL" scale="1 1 1"/>
       </geometry>
       <material name="black"/>
     </visual>
@@ -437,7 +437,7 @@
     <visual>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="/tmp/tmpoxqr6igg/PF_TRON1A/meshes/foot_R_Link.STL" scale="1 1 1"/>
+        <mesh filename="/tmp/tmpu47eq8ob/PF_TRON1A/meshes/foot_R_Link.STL" scale="1 1 1"/>
       </geometry>
       <material name="grey"/>
     </visual>
@@ -464,7 +464,7 @@
     <visual>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="/tmp/tmpoxqr6igg/PF_TRON1A/meshes/foot_R_Link.STL" scale="1 1 1"/>
+        <mesh filename="/tmp/tmpu47eq8ob/PF_TRON1A/meshes/foot_R_Link.STL" scale="1 1 1"/>
       </geometry>
       <material name="grey"/>
     </visual>

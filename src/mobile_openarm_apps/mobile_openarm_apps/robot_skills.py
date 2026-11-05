@@ -41,6 +41,11 @@ from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 
 from .geometry import approach_rotation, mat_to_quat_xyzw, quat_to_yaw, se2_inverse_apply, yaw_to_quat
 
+try:    # 이족(TRON1) 패키지가 있으면 손목 마커 정의를 쓴다 — 바퀴형 작업공간에는 없어도 된다
+    from tron1_openarm_sim import wrist_markers as WRIST
+except ImportError:  # noqa: BLE001
+    WRIST = None
+
 ARM_JOINTS = {s: [f"openarm_{s}_joint{i}" for i in range(1, 8)] for s in ("left", "right")}
 TCP = {s: f"openarm_{s}_hand_tcp" for s in ("left", "right")}
 BASE = "base_footprint"
@@ -289,6 +294,88 @@ class RobotSkills(Node):
                 ok = ok + 1 if math.hypot(p[0] - last[0], p[1] - last[1]) < tol else 0
             last = p
             time.sleep(period)
+
+    # ------------------------------------------------------------------ 손목 마커 시각 피드백 (이족)
+    SERVO_ITERS = 3         # 보정 이동 최대 횟수
+    SERVO_TOL = 0.010       # 손끝-목표 오차가 이보다 작으면 보정 끝 [m]
+    SERVO_MAX_STEP = 0.05   # 한 번에 보정하는 최대 거리 [m] (잘못 잰 값으로 크게 튀지 않게)
+    SERVO_DEPTH = 0.010     # 손끝(TCP)을 상자 중심보다 접근 방향으로 이만큼 더 넣는다 [m]
+
+    def _tf_matrix(self, child):
+        """BASE → child 변환 (p[3], R[3x3]). 없으면 None."""
+        try:
+            t = self.tf_buffer.lookup_transform(BASE, child, rclpy.time.Time())
+        except Exception:  # noqa: BLE001
+            return None
+        tr, q = t.transform.translation, t.transform.rotation
+        x, y, z, w = q.x, q.y, q.z, q.w
+        R = np.array([[1 - 2 * (y * y + z * z), 2 * (x * y - z * w), 2 * (x * z + y * w)],
+                      [2 * (x * y + z * w), 1 - 2 * (x * x + z * z), 2 * (y * z - x * w)],
+                      [2 * (x * z - y * w), 2 * (y * z + x * w), 1 - 2 * (x * x + y * y)]])
+        return np.array([tr.x, tr.y, tr.z]), R
+
+    def measure_hand_and_box(self, side, box_id, samples=4, timeout=5.0):
+        """같은 카메라 프레임에서 '손목 마커로 잰 손끝' 과 '상자 중심' 을 함께 잰다 (base_footprint).
+        둘 다 같은 카메라로 같은 순간에 재므로 카메라 위치 오차·몸통 출렁임이 상대 오차에서 거의 지워진다.
+        반환: (tcp_cam, box_center 또는 None, tcp_fk) — 손목 마커가 안 보이면 SkillError"""
+        if WRIST is None:
+            raise SkillError("손목 마커 정의(tron1_openarm_sim.wrist_markers) 없음")
+        time.sleep(0.6)
+        tcps, boxes, seen, t0 = [], [], set(), time.time()
+        while len(tcps) < samples and time.time() - t0 < timeout:
+            with self._det_lock:
+                items = dict(self._detections)
+            tf7 = self._tf_matrix(f"openarm_{side}_link7")
+            fresh = [(i, items[i]) for i in WRIST.IDS[side] if i in items and time.time() - items[i][0] < 0.5]
+            if tf7 is not None and fresh:
+                stamp = max(v[0] for _, v in fresh)
+                if stamp not in seen:
+                    seen.add(stamp)
+                    est = [WRIST.tcp_from_marker(i, v[1], tf7[1]) for i, v in fresh if v[0] == stamp]
+                    tcps.append(np.mean(est, axis=0))
+                    b = items.get(box_id)
+                    if b is not None and b[0] == stamp:
+                        boxes.append(b[1] - np.array([0, 0, self.box_size / 2]))
+            time.sleep(0.05)
+        if not tcps:
+            raise SkillError(f"{side} 손목 마커가 카메라에 안 보임")
+        fk = self._tf_matrix(TCP[side])
+        return (np.median(np.array(tcps), axis=0), np.median(np.array(boxes), axis=0) if boxes else None,
+                None if fk is None else fk[0])
+
+    def visual_servo(self, side, box_id, R, goal, center, offset, floor_z=None, label=""):
+        """손끝이 '상자 중심 + offset' 에 오도록 카메라로 재며 고친다 (closed-loop).
+        goal: 지금까지 MoveIt 에 명령한 손끝 목표. 팔이 중력에 처지는 만큼 실제 손끝은 목표에 못 미치므로
+        '명령 목표' 를 오차만큼 누적해서 옮긴다 (적분) → 처짐이 매번 같으면 2~3 번에 수렴.
+        반환: (최종 명령 목표, 최신 상자 중심)"""
+        for it in range(1, self.SERVO_ITERS + 1):
+            self.wait_still(timeout=8.0)
+            try:
+                tcp, box, fk = self.measure_hand_and_box(side, box_id)
+            except SkillError as e:
+                self.log(f"[servo{label}] {e} → 보정 생략")
+                break
+            if box is not None and np.linalg.norm(box - center) < 0.08:
+                center = box
+            want = center + offset
+            err = want - tcp
+            fk_s = "" if fk is None else f", 정기구학과 차이 {np.round((tcp - fk) * 100, 1)} cm"
+            self.log(f"[servo{label}] {it}: 손끝(카메라) {np.round(tcp, 3)} → 목표 {np.round(want, 3)}, "
+                     f"오차 {np.round(err * 100, 1)} cm (|{np.linalg.norm(err) * 100:.1f}|){fk_s}"
+                     + ("" if box is not None else " [상자 가려짐: 이전 위치 사용]"))
+            if np.linalg.norm(err) < self.SERVO_TOL:
+                break
+            n = np.linalg.norm(err)
+            step = err if n <= self.SERVO_MAX_STEP else err * (self.SERVO_MAX_STEP / n)
+            goal = goal + step
+            if floor_z is not None:
+                goal[2] = max(goal[2], floor_z)
+            try:
+                self.cartesian(side, [goal], R, vel=0.1, min_fraction=0.0, avoid_collisions=False)
+            except SkillError as e:
+                self.log(f"[servo{label}] 보정 이동 실패: {e}")
+                break
+        return goal, center
 
     def strafe_base(self, dy, speed=0.08, timeout=15.0):
         """옆걸음 (+왼쪽). 이족(OPENARM_BIPED=1)만 가능 — 바퀴형(차동 구동)은 옆으로 못 간다. odom TF 폐루프."""
@@ -775,9 +862,22 @@ class RobotSkills(Node):
             if self.can_strafe:
                 self.set_table(pad=self.TRANSIT_PAD)           # carry → 접근점 이동도 여유를 두고
             self.move_joints(f"{side}_arm", q_pre)
+            servo = self.can_strafe and WRIST is not None
+            bias = np.zeros(3)
+            floor_z = None
             if self.can_strafe:
                 self.set_table()                               # 직선 접근은 실제 상판 높이로
                 self.wait_still()
+            if servo:
+                # 시각 피드백 1단계 (접근점): 팔 처짐·몸통 반동으로 손이 접근점에서 몇 cm 벗어나 있다.
+                # 손목 마커와 상자 마커를 함께 재서 '상자 기준' 접근점에 손을 맞춘 뒤 직선으로 들어간다.
+                top = self._table_top_seen if self._table_top_seen is not None else self.table_h
+                floor_z = top + 0.02                           # 손끝을 상판 2 cm 아래로는 내리지 않음 (손가락 두께)
+                self.set_boxes(exclude_id=mid)
+                pre_goal, center = self.visual_servo(side, mid, R, pre.copy(), center, pre - center,
+                                                     floor_z=floor_z, label=" 접근점")
+                bias = pre_goal - pre                          # 명령을 이만큼 옮겨야 손이 제자리에 온다 (처짐 보정량)
+            elif self.can_strafe:
                 # 팔을 뻗으면 이족 몸통이 반동으로 몇 cm 밀린다 → 직선 접근 목표를 마지막으로 다시 잰 위치로
                 try:
                     c2 = self.find_marker(mid, samples=3) - np.array([0, 0, self.box_size / 2])
@@ -789,16 +889,28 @@ class RobotSkills(Node):
                 except SkillError:
                     self.log("[pick] 팔을 뻗은 뒤 마커가 안 보임 → 이전 측정값 사용")
             self.set_boxes(exclude_id=mid)                     # 직선 접근 전에 목표 상자만 제거
-            self.cartesian(side, [center + R[:, 2] * self.GRASP_DEPTH], R,   # 더 깊이: 상자가 손가락 안쪽에 오도록
-                           min_fraction=self._need_fraction(float(np.linalg.norm(center - pre))),
-                           start_q=q_pre if self.can_strafe else None)
-            if self.can_strafe and self.GRASP_PUSH > 0:
+            goal = center + R[:, 2] * self.GRASP_DEPTH + bias
+            need = self._need_fraction(float(np.linalg.norm(center - pre)))
+            if servo:
+                # 보정 이동으로 팔이 q_pre 에서 조금 벗어났으므로 현재 관절각에서 계획, 안 되면 q_pre 에서
+                try:
+                    self.cartesian(side, [goal], R, min_fraction=need)
+                except SkillError as e:
+                    self.log(f"[pick] 현재 자세에서 직선 접근 {e} → 접근점 관절각에서 다시 계획")
+                    self.cartesian(side, [goal], R, min_fraction=need, start_q=q_pre)
+                # 시각 피드백 2단계 (파지 위치): 손끝이 상자 중심(+1 cm 안쪽)에 올 때까지 재고 고친다
+                goal, center = self.visual_servo(side, mid, R, goal, center, R[:, 2] * self.SERVO_DEPTH,
+                                                 floor_z=floor_z, label=" 파지")
+            else:
+                self.cartesian(side, [goal], R,   # 더 깊이: 상자가 손가락 안쪽에 오도록
+                               min_fraction=need, start_q=q_pre if self.can_strafe else None)
+            if self.can_strafe and not servo and self.GRASP_PUSH > 0:
                 # 이족: 손끝이 상자 중심보다 3.5 cm 앞에서 멈췄다(시뮬 정답 기록: 팔 처짐 + 몸통 반동). 접근 방향으로 더 넣으면
                 # 45° 아래로 내려가 손가락이 상판에 걸리므로, 같은 높이에서 수평으로만 더 민다 (일부만 가도 됨)
                 hdir = np.array([R[0, 2], R[1, 2], 0.0])
                 hdir /= max(np.linalg.norm(hdir), 1e-6)
                 try:
-                    self.cartesian(side, [center + R[:, 2] * self.GRASP_DEPTH + hdir * self.GRASP_PUSH], R,
+                    self.cartesian(side, [goal + hdir * self.GRASP_PUSH], R,
                                    min_fraction=0.0, avoid_collisions=False)
                 except SkillError:
                     pass

@@ -28,6 +28,7 @@ import math
 import os
 import re
 import shutil
+import sys
 import tempfile
 import xml.etree.ElementTree as ET
 
@@ -136,6 +137,32 @@ def limx_collisions(limx_xml):
             if n.endswith("_collision") and not n.startswith("foot_"):
                 out.setdefault(body.get("name"), []).append(copy.deepcopy(g))
     return out
+
+
+def add_wrist_markers(root, torso, out_dir):
+    """손목(link7) 네 면에 ArUco 마커 판 (시각 전용, 질량·충돌 없음) — 집기 마지막 단계의 시각 피드백용.
+    판은 얇은 상자의 +z 윗면에 무늬가 찍히도록 만들고(상자 마커와 같은 방식, 좌우가 뒤집히지 않음) zaxis 로 면 방향을 맞춘다."""
+    import cv2
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+    from tron1_openarm_sim import wrist_markers as WM
+    tex_dir = os.path.join(out_dir, "textures")
+    os.makedirs(tex_dir, exist_ok=True)
+    d = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
+    asset = root.find("asset")
+    for side, faces in WM.FACES.items():
+        link7 = next(b for b in torso.iter("body") if b.get("name") == f"openarm_{side}_link7")
+        for mid, pos, n in faces:
+            img = (cv2.aruco.generateImageMarker(d, mid, 200) if hasattr(cv2.aruco, "generateImageMarker")
+                   else cv2.aruco.drawMarker(d, mid, 200))
+            img = cv2.copyMakeBorder(img, 20, 20, 20, 20, cv2.BORDER_CONSTANT, value=255)
+            cv2.imwrite(os.path.join(tex_dir, f"aruco_{mid}.png"), img)
+            sub(asset, "texture", type="2d", name=f"aruco_{mid}_tex", file=f"textures/aruco_{mid}.png")
+            sub(asset, "material", name=f"aruco_{mid}", texture=f"aruco_{mid}_tex", rgba="1 1 1 1",
+                specular="0", shininess="0")
+            sub(link7, "geom", name=f"wrist_marker_{mid}", type="box", pos=f(*pos), zaxis=f(*n),
+                size=f(WM.PLATE_HALF, WM.PLATE_HALF, 0.0004), material=f"aruco_{mid}",
+                contype="0", conaffinity="0", group="2", mass="0")
+    print(f"[4b] 손목 ArUco 마커: 오른쪽 {WM.IDS['right']}, 왼쪽 {WM.IDS['left']} (link7 네 면)")
 
 
 def build(tron1_dir, openarm_xml, out_dir, xacro_file, mount_x=None, shoulder=None, foot="pf", base_height=None):
@@ -277,6 +304,7 @@ def build(tron1_dir, openarm_xml, out_dir, xacro_file, mount_x=None, shoulder=No
         pos=f(cam_pos[0] - 0.05, 0, mast_bot + mast_len / 2), rgba="0.3 0.3 0.3 1",
         contype="0", conaffinity="0", group="2", mass="0")
     mount.append(torso)
+    add_wrist_markers(root, torso, out_dir)
 
     # ---------------- 센서
     sub(tbase, "site", name="imu_site", pos="0 0 0", size="0.01", group="4")
