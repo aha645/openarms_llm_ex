@@ -352,6 +352,13 @@ class RobotSkills(Node):
         # 1) 작업대와 정면으로 마주 보도록 yaw 보정 (Nav2 yaw 허용오차 ±7° 보정)
         want = math.radians(self.locations[station][2])
         self.rotate_base(math.atan2(math.sin(want - pose[2]), math.cos(want - pose[2])))
+        # 이족: 어깨가 상판 바로 위(0.78~0.83 m)라, 작업대에 붙은 뒤 내린 팔(home)을 carry 로 올리면 손이 상판 모서리를
+        # 쓸고 지나간다(시뮬 접촉 기록, 몸통 기울기 16°). → 다가가기 전에 빈 팔을 미리 carry 로 올려 둔다
+        if self.can_strafe:
+            for s in ("left", "right"):
+                if not self.holding[s]:
+                    self.move_named(f"{s}_arm", "carry")
+            self.wait_still()
         # 2) 작업대 앞 모서리까지 DOCK_GAP 이 되도록 직진
         d = self.table_edge_distance(station)
         if d is not None:
@@ -457,11 +464,15 @@ class RobotSkills(Node):
             raise SkillError(f"IK 해 없음 ({side}, pos={np.round(pos, 3)})")
         self.move_joints(f"{side}_arm", q, vel)
 
-    def cartesian(self, side, waypoints, R, vel=0.15, min_fraction=0.9, avoid_collisions=True):
-        """TCP 를 직선으로 이동 (waypoints: base_footprint 좌표 리스트, 자세 R 고정)."""
+    def cartesian(self, side, waypoints, R, vel=0.15, min_fraction=0.9, avoid_collisions=True, start_q=None):
+        """TCP 를 직선으로 이동 (waypoints: base_footprint 좌표 리스트, 자세 R 고정).
+        start_q: 계획 시작 관절각 (주지 않으면 현재 관절각). 이족은 팔이 중력에 1~3 cm 처져 현재 관절각에서 계획하면
+        사전 검사(접근점 관절각 기준)와 다른 팔 모양이 나와 직선이 중간에 끊겼다(42%) → 접근점 관절각에서 계획"""
         req = GetCartesianPath.Request()
         req.header.frame_id = BASE
         req.start_state.is_diff = True
+        if start_q:
+            req.start_state.joint_state = JointState(name=list(start_q), position=[float(v) for v in start_q.values()])
         req.group_name = f"{side}_arm"
         req.link_name = TCP[side]
         req.waypoints = [self._pose(p, R) for p in waypoints]
@@ -746,7 +757,8 @@ class RobotSkills(Node):
                     self.log("[pick] 팔을 뻗은 뒤 마커가 안 보임 → 이전 측정값 사용")
             self.set_boxes(exclude_id=mid)                     # 직선 접근 전에 목표 상자만 제거
             self.cartesian(side, [center + R[:, 2] * self.GRASP_DEPTH], R,   # 더 깊이: 상자가 손가락 안쪽에 오도록
-                           min_fraction=self._need_fraction(float(np.linalg.norm(center - pre))))
+                           min_fraction=self._need_fraction(float(np.linalg.norm(center - pre))),
+                           start_q=q_pre if self.can_strafe else None)
             if self.can_strafe and self.GRASP_PUSH > 0:
                 # 이족: 손끝이 상자 중심보다 3.5 cm 앞에서 멈췄다(시뮬 정답 기록: 팔 처짐 + 몸통 반동). 접근 방향으로 더 넣으면
                 # 45° 아래로 내려가 손가락이 상판에 걸리므로, 같은 높이에서 수평으로만 더 민다 (일부만 가도 됨)
