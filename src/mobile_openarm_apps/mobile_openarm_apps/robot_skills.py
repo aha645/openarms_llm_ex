@@ -700,11 +700,46 @@ class RobotSkills(Node):
         if code != MoveItErrorCodes.SUCCESS:
             raise SkillError(f"MoveIt {group} 실패 (error_code={code})")
 
+    # 이족: home(팔 내림) ↔ carry/ready(팔 앞에 듦) 사이 경유 자세 (오른팔 기준, 왼팔은 거울상).
+    # 바로 옮기면 아래팔이 앞으로 휘둘려 작업대 높이에서 몸 앞 0.475 m 까지 나가 상판 모서리(약 0.38 m)를 쳤다
+    # (SF 미션 시험 9: carry 이동 시간 초과·기울기 22°). 위팔을 뒤로 젖히고 팔꿈치를 먼저 굽히면 앞으로 덜 나간다 (격자 탐색:
+    # j1 −0.6 → 0.343 m, −0.4 → 0.371 m). −0.6 은 무게중심이 뒤로 가 SF 가 발을 디디며 20 cm 뒤로 밀렸고(오프라인 측정),
+    # −0.5 는 1 cm 만 움직였다 → −0.5
+    TUCK_RIGHT = [[-0.5, 0.2, 0.5, 0.0, 0.0, 0.0, 0.0], [-0.5, 0.2, 0.5, 2.4, 0.0, 0.0, 0.0]]
+
+    def _tuck_path(self, group, name):
+        """경유 자세 목록 (관절 dict). 필요 없으면 []."""
+        if not self.can_strafe or group not in ("left_arm", "right_arm"):
+            return []
+        side = group.split("_")[0]
+        names = ARM_JOINTS[side]
+        cur = [self._joints.get(n) for n in names]
+        if any(v is None for v in cur):
+            return []
+        elbow_bent = cur[3] > 1.2
+        if name in ("carry", "ready") and not elbow_bent:
+            seq = self.TUCK_RIGHT                       # home → 젖히기 → 팔꿈치 굽힘 → carry
+        elif name == "home" and elbow_bent and cur[0] * (1 if side == "right" else -1) > -0.3:
+            seq = self.TUCK_RIGHT[::-1]                 # carry → 팔꿈치 굽힌 채 젖히기 → 펴기 → home
+        else:
+            return []
+        out = []
+        for q in seq:
+            qq = q if side == "right" else [-q[0], -q[1], -q[2], q[3], -q[4], q[5], -q[6]]
+            out.append({n: float(v) for n, v in zip(names, qq)})
+        return out
+
     def move_named(self, group, name, vel=0.3):
         key = (group, name)
         if key not in self.named_states:
             raise SkillError(f"SRDF 에 {group}/{name} 자세가 없음")
         self.log(f"[arm] {group} → '{name}'")
+        for wp in self._tuck_path(group, name):
+            try:
+                self.move_joints(group, wp, vel)
+            except SkillError as e:
+                self.log(f"[arm] 경유 자세 실패({e}) → 바로 이동")
+                break
         try:
             self.move_joints(group, self.named_states[key], vel)
         except SkillError as e:
