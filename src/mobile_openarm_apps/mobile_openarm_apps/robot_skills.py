@@ -355,6 +355,7 @@ class RobotSkills(Node):
         # 이족: 어깨가 상판 바로 위(0.78~0.83 m)라, 작업대에 붙은 뒤 내린 팔(home)을 carry 로 올리면 손이 상판 모서리를
         # 쓸고 지나간다(시뮬 접촉 기록, 몸통 기울기 16°). → 다가가기 전에 빈 팔을 미리 carry 로 올려 둔다
         if self.can_strafe:
+            self.set_table(station, pad=self.TRANSIT_PAD)   # 팔을 올리는 경로가 작업대를 피하도록 먼저 충돌 객체를 넣는다
             for s in ("left", "right"):
                 if not self.holding[s]:
                     self.move_named(f"{s}_arm", "carry")
