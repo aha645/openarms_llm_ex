@@ -720,7 +720,11 @@ class RobotSkills(Node):
         if any(v is None for v in cur):
             return []
         elbow_bent = cur[3] > 1.2
-        if name in ("carry", "ready") and not elbow_bent:
+        sgn = 1 if side == "right" else -1
+        near_home = abs(cur[0]) < 0.25 and cur[3] < 0.8 and abs(cur[1] - 0.2 * sgn) < 0.3
+        if name in ("carry", "ready") and near_home:
+            # 팔을 내린 home 근처에서만 경유. 잡기 자세(팔을 앞으로 뻗음)에서 carry 로 접을 때도 경유했더니 팔이 먼저 아래로 내려가
+            # 쥔 상자가 LiDAR 높이(0.58 m)로 내려와 Nav2 가 그것을 바로 앞 장애물로 보고 뒷걸음질쳤다 (SF 미션 시험 12)
             seq = self.TUCK_RIGHT                       # home → 젖히기 → 팔꿈치 굽힘 → carry
         elif name == "home" and elbow_bent and cur[0] * (1 if side == "right" else -1) > -0.3:
             seq = self.TUCK_RIGHT[::-1]                 # carry → 팔꿈치 굽힌 채 젖히기 → 펴기 → home
