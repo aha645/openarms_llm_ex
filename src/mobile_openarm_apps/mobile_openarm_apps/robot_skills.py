@@ -517,8 +517,12 @@ class RobotSkills(Node):
             try:
                 self.cartesian(side, [goal], R, vel=0.1, min_fraction=0.0, avoid_collisions=False)
             except SkillError as e:
-                self.log(f"[servo{label}] 보정 이동 실패: {e}")
-                break
+                # 손가락이 상판에 걸려 팔이 목표를 못 따라감(−4) → 손을 조금 들고 목표도 그만큼 올려 다시
+                self.log(f"[servo{label}] 보정 이동 실패: {e} → 2 cm 들고 다시")
+                self._lift_clear(side, 0.02)
+                goal = goal + np.array([0, 0, 0.02])
+                if floor_z is not None:
+                    floor_z += 0.01
         return goal, center
 
     def strafe_base(self, dy, speed=0.08, timeout=15.0):
@@ -907,7 +911,7 @@ class RobotSkills(Node):
     # 직선 접근이 64% 에서 막혔다 (실험). 바퀴형은 옆으로 못 가므로 이 단계를 건너뛴다.
     TRANSIT_PAD = 0.03
     BIPED_ARM_VEL = 0.15    # 이족: 팔 관절 이동 기본 속도 배율 (바퀴형 0.3)
-    PRE_LIFT = 0.04         # 이족: 접근점을 이만큼 위에 둠 [m]
+    PRE_LIFT = 0.07         # 이족: 접근점을 이만큼 위에 둠 [m] (4 cm 로는 SF 시험 11 에서도 손가락이 상판에 닿음)
     HOLD_VEL = 0.1          # 이족: 물체를 쥔 팔을 움직이는 속도 배율 (보통 0.3)
     BOX_EDGE_MIN = 0.10     # 이족: 상자는 작업대 앞 모서리에서 적어도 이만큼 안쪽에 놓여 있다고 가정 [m] (시뮬 월드 0.12~0.20)
     GRASP_PUSH = 0.0
@@ -977,8 +981,21 @@ class RobotSkills(Node):
             raise SkillError(f"{side} 팔 직선 접근 불가 (최대 {best[0] * 100:.0f}%, roll={best[1]}°) — 로봇 위치를 조정하세요")
         raise SkillError(f"{side} 팔로 {np.round(target, 3)} 에 접근하는 IK 해 없음 — 로봇 위치를 조정하세요")
 
+    def _lift_clear(self, side, dz=0.05):
+        """손을 지금 자리에서 위로 dz 만큼 직선으로 든다 (충돌 검사 없이).
+        손가락이 상판·상자에 닿은 채로는 MoveIt 이 '시작 자세 충돌(−10)' 로 계획을 거부한다 (SF 시험 11)."""
+        tf = self._tf_matrix(TCP[side])
+        if tf is None:
+            return
+        try:
+            self.cartesian(side, [tf[0] + np.array([0, 0, dz])], tf[1], vel=0.1, min_fraction=0.0, avoid_collisions=False)
+        except SkillError as e:
+            self.log(f"[pick] 손 들어 올리기 일부만: {e}")
+
     def _refind_box(self, side, mid):
         """재시도용: 팔을 carry 로 접고 상자를 다시 잰다. 안 보이면(팔·몸통 회전에 가려짐) home 으로 내려 한 번 더."""
+        if self.can_strafe:
+            self._lift_clear(side)
         self.move_named(f"{side}_arm", "carry")
         self.wait_still(timeout=8.0)
         try:
