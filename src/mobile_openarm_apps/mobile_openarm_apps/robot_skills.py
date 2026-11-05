@@ -482,7 +482,7 @@ class RobotSkills(Node):
                 p.time_from_start = _dur(0.05 * i / max(vel, 0.05))
         g = ExecuteTrajectory.Goal()
         g.trajectory = traj
-        res = self._send_action(self.exec_traj, g, "execute_trajectory", 60.0)
+        res = self._send_action(self.exec_traj, g, "execute_trajectory", 180.0 if self.can_strafe else 60.0)   # 이족 시뮬은 실시간보다 느림
         if res.result.error_code.val != MoveItErrorCodes.SUCCESS:
             raise SkillError(f"직선 이동 실행 실패 code={res.result.error_code.val}")
 
@@ -510,7 +510,9 @@ class RobotSkills(Node):
             # 이족: base_link 가 명목값(0.68 m, 수평)과 달리 1~3 cm 높고 3~4° 앞으로 기울어 있다. 팔과 카메라는 base_link 에
             # 붙어 있으므로 카메라로 잰 상자 위치는 팔 기준으로 정확하지만, 지도에서 가져온 상판 높이는 그만큼 어긋나
             # 상자 중심이 상판 '안'에 있는 것처럼 보였다(IK 충돌). → 카메라로 잰 상자 바닥 높이를 상판 높이로 쓴다
-            h = self._table_top_seen - 0.012
+            # 바퀴형은 손가락 끝이 상판에 닿아도 되게 1.2 cm 낮추지만, 이족은 상판을 스치면 몸통이 밀려 넘어질 뻔했다
+            # (SF: 손가락-작업대 접촉 뒤 몸통이 45° 돌고 0.53 m 로 주저앉음) → 실제 높이 + 0.5 cm 로 두어 스치지 않는 접근만 고른다
+            h = self._table_top_seen + 0.005
         h += pad
         box.dimensions = [float(t["size"][0]) + 2 * pad, float(t["size"][1]) + 2 * pad, float(h)]
         p = Pose()
@@ -636,7 +638,9 @@ class RobotSkills(Node):
         직선 경로까지 미리 검사하는 이유: 두 끝점의 IK 가 풀려도 중간에 관절 한계에 걸려 직선이 끊길 수 있다
         (TRON1 이족에서 실제로 64%·45% 에서 끊김). 그러면 같은 roll 로 더 가까이(0.07, 0.05 m)에서 시작하거나 다른 roll 을 쓴다."""
         best = None
-        pitches = [self.APPROACH_PITCH] + ([55.0, 65.0] if self.can_strafe else [])   # 이족: 어깨가 높아 더 위에서 내려오는 접근도 시도
+        # 이족: 어깨를 몸통 위로 낮춘 설계(어깨 0.78~0.83 m, 상자 0.69 m)에서는 거의 수평 접근이 자연스럽고,
+        # 45° 로 내려오면 아래쪽 손가락이 상판에 걸린다 → 낮은 pitch 부터 시도
+        pitches = ([20.0, 30.0, self.APPROACH_PITCH, 55.0] if self.can_strafe else [self.APPROACH_PITCH])
         cands = [(p, b, r) for b in (back, 0.07, 0.05) for p in pitches for r in self.ROLL_CANDIDATES]
         # 직선 접근 검사는 실제 접근 때와 같은 장면(목표 상자만 뺀)에서 해야 한다.
         # 목표 상자를 장애물로 둔 채 검사하면 손이 상자에 닿는 마지막 구간이 '충돌'로 판정돼 항상 실패한다.
