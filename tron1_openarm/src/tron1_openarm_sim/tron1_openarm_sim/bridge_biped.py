@@ -87,6 +87,8 @@ def main():
     except (KeyboardInterrupt, rclpy.executors.ExternalShutdownException):
         pass
     finally:
+        node.stop_event.set()
+        ex.shutdown(wait_for_threads=True)
         node.destroy_node()
         rclpy.try_shutdown()
 

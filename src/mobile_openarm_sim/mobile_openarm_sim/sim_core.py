@@ -500,6 +500,8 @@ class MobileOpenArmSim:
         last_view = 0.0
         while not stop_event.is_set():
             self.step(steps_per_tick)
+            if stop_event.is_set():
+                break
             if on_tick:
                 on_tick(self)
             if viewer is not None:
@@ -514,7 +516,7 @@ class MobileOpenArmSim:
             target = wall0 + (self.d.time - sim0) / rate_factor
             sleep = target - time.monotonic()
             if sleep > 0:
-                time.sleep(sleep)
+                stop_event.wait(sleep)
             elif sleep < -1.0:   # 너무 밀리면 기준 재설정 (실시간보다 느린 PC)
                 wall0 = time.monotonic()
                 sim0 = self.d.time

@@ -45,6 +45,7 @@ from nav_msgs.msg import Odometry
 from rclpy.action import ActionServer, CancelResponse, GoalResponse
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
+from rclpy.impl.implementation_singleton import rclpy_implementation as _rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy
 from rosgraph_msgs.msg import Clock
@@ -153,6 +154,8 @@ class MujocoBridge(Node):
                 cancel_callback=lambda gh: CancelResponse.ACCEPT, callback_group=cb))
 
         self.stop_event = threading.Event()
+        # SIGINT may invalidate the ROS context before main() reaches finally.
+        self.context.on_shutdown(self.stop_event.set)
         self.thread = threading.Thread(target=self.physics_loop, daemon=True)
         self.thread.start()
         self.get_logger().info("MuJoCo bridge started (viewer=%s, camera=%s)" % (self.viewer_enabled, gp("camera")))
@@ -171,14 +174,29 @@ class MujocoBridge(Node):
         try:
             self.sim.run_realtime(self.stop_event, rate_factor=self.rate_factor,
                                   on_tick=self.on_tick, tick_hz=100.0, viewer=viewer)
+        except _rclpy.RCLError:
+            # A signal can invalidate the context between ok() and publish().
+            # Do not conceal publication failures while ROS is still running.
+            if self.context.ok():
+                raise
         finally:
-            if viewer is not None:
-                viewer.close()
-            if self.stop_event.is_set() and rclpy.ok():
-                self.get_logger().info("viewer closed → shutting down")
-                rclpy.try_shutdown()
+            self.stop_event.set()
+            try:
+                # Renderer GL resources must be released on the physics thread
+                # that created them, before closing the passive GLFW viewer.
+                if self.sim.renderer is not None:
+                    self.sim.renderer.close()
+                    self.sim.renderer = None
+            finally:
+                try:
+                    if viewer is not None:
+                        viewer.close()
+                finally:
+                    rclpy.try_shutdown(context=self.context)
 
     def on_tick(self, sim):
+        if self.stop_event.is_set() or not self.context.ok():
+            return
         t = sim.time
         c = Clock()
         c.clock = stamp(t)
@@ -486,8 +504,10 @@ class MujocoBridge(Node):
 
     def destroy_node(self):
         self.stop_event.set()
-        self.thread.join(timeout=2.0)
-        super().destroy_node()
+        # Never destroy publishers while the physics thread can still use them.
+        if threading.current_thread() is not self.thread:
+            self.thread.join()
+        return super().destroy_node()
 
 
 def main():
@@ -500,6 +520,8 @@ def main():
     except (KeyboardInterrupt, rclpy.executors.ExternalShutdownException):
         pass
     finally:
+        node.stop_event.set()
+        ex.shutdown(wait_for_threads=True)
         node.destroy_node()
         rclpy.try_shutdown()
 
