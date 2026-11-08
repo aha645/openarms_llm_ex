@@ -1,9 +1,13 @@
 # 챕터별 실습서 (DAY 1 · DAY 2)
 
-설치가 끝난 뒤 이 폴더의 문서를 **순서대로** 따라 하세요. 설치 방법은 다음 두 문서에 있습니다.
+이 폴더는 **선택적 상세 교재**입니다. 기본 교육은 [휠형 1일차](../course/wheel-day1.md) · [2일차](../course/wheel-day2.md), [TRON1 1일차](../course/tron1-day1.md) · [2일차](../course/tron1-day2.md)를 따라가고, 개념·문제 해결이 필요할 때 해당 장을 읽으세요.
 
-- Ubuntu 노트북: [../mujoco_ros2_mobile_openarm_guide.md](../mujoco_ros2_mobile_openarm_guide.md)
-- iMac + Docker: [../imac_docker_openarm_guide.md](../imac_docker_openarm_guide.md)
+설치부터 최초 실행까지는 다음 중 하나만 선택합니다.
+
+- [Ubuntu 24.04 노트북 환경 설정](../setup/ubuntu24-native.md)
+- [Intel iMac Docker 환경 설정](../setup/imac-docker.md)
+
+아래 기존 명령의 `~/openarm_mobile_ws`는 자신의 clone 경로로 바꿔 읽으세요. Docker 내부 경로는 `/root/openarm_mobile_ws`입니다.
 
 모르는 약어(SLAM, TF, MJCF, AMCL …)는 [용어집 glossary.md](glossary.md)에서 원래 이름과 뜻을 찾으세요. 각 챕터 맨 앞에도 그 장의 용어 풀이가 있습니다.
 
@@ -50,13 +54,13 @@ Docker 이미지와 `04_setup_workspace.sh` 를 실행한 노트북은 `~/.bashr
 
 ### 4. 저사양 옵션
 
-화면이 끊기거나 메모리가 8GB 이하이면 모든 `launch` 명령 끝에 다음을 붙입니다.
+화면이 끊기거나 메모리가 8GB 이하이면 `world` 인자를 지원하는 sim/slam/nav/full_system launch에 다음을 붙입니다. MoveIt launch에는 적용하지 않습니다.
 
 ```
 world:=world_light.xml        # 로봇의 시각용 메시를 빼서 메모리 1.9GB → 0.2GB
 ```
 
-iMac Docker(GPU 없음)는 `camera_hz:=5.0` 도 함께 붙이면 좋습니다.
+iMac Docker(GPU 없음)는 sim launch에서 `camera_hz:=5.0`을 사용할 수 있습니다. 현재 nav/full_system은 이 인자를 전달하지 않으므로 모든 launch에 붙이지 마세요.
 
 ### 5. 월드 지도 (모든 챕터 공통 무대)
 

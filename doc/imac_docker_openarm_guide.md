@@ -1,5 +1,7 @@
 # iMac Docker로 OpenArm 실습 환경 만들기
 
+> **기존 상세 참고 문서입니다.** clone부터 최초 실행까지의 기본 절차는 [Intel iMac Docker 환경 설정](setup/imac-docker.md)을 따르세요. 아래 압축파일·과거 성능·OS 지원 설명은 작성 당시 기록이며 현재 iMac 재검증 결과가 아닙니다. 교육은 [휠형 1일차](course/wheel-day1.md) · [2일차](course/wheel-day2.md)로 이동하세요.
+
 Nov 4, 2026
 
 > 이 저장소(openarms_llm_ex) 자체가 워크스페이스(`openarm_mobile_ws`)입니다. 문서의 `~/openarm_mobile_ws` 는 `git clone https://github.com/aha645/openarms_llm_ex.git ~/openarm_mobile_ws` 로 받은 폴더로 읽으세요.
@@ -170,7 +172,7 @@ rviz2      # 실패하면 LIBGL_ALWAYS_INDIRECT=1 을 붙여 보고, 그래도 �
 
 ## 컨테이너 안에서 실습하기
 
-> 챕터별 상세 실습은 [실습서 목록](labs/README.md)을 따라 하세요. 컨테이너에서는 새 터미널을 Mac에서 `docker compose exec openarm bash` 로 열고, launch 명령 끝에 `world:=world_light.xml camera_hz:=5.0` 을 붙이면 됩니다. 약어 풀이는 [용어집](labs/glossary.md).
+> 챕터별 상세 실습은 [실습서 목록](labs/README.md)을 따라 하세요. 컨테이너에서는 새 터미널을 Mac에서 `docker compose exec openarm bash`로 엽니다. `world`를 지원하는 시뮬/주행 launch에 `world:=world_light.xml`을 사용하세요. `camera_hz:=5.0`은 sim launch에서만 사용하고, 현재 이 인자를 전달하지 않는 nav/full_system에 공통 적용하지 않습니다. 약어 풀이는 [용어집](labs/glossary.md).
 
 설치 단계는 노트북 가이드와 다릅니다. `scripts/01`(NVIDIA 드라이버)·`02`(CUDA/PyTorch)·`03`(ROS 설치)은 **건너뜁니다**. 03은 이미 이미지에 들어 있고, 04만 처음 한 번 실행합니다. DAY1·DAY2 실습 명령은 노트북 가이드와 같고, 아래처럼 CPU 부하를 줄이는 인자를 붙이면 됩니다.
 

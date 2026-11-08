@@ -1,4 +1,6 @@
-# TRON1 Point-foot 이족 + OpenArm 실습 (하반신만 바꾼 두 번째 로봇)
+# TRON1 + OpenArm — 설계·학습·검증 상세 자료
+
+> 기본 교육은 **[TRON1 1일차](../course/tron1-day1.md) · [2일차](../course/tron1-day2.md)**를 먼저 읽으세요. 새 교육은 SF 기준이며 아래 초기 문서와 기본 launch는 PF 중심입니다. 이 폴더는 개발 이력과 심화 참고로 보존합니다. [문서 검토·한계](../document-review.md)
 
 바퀴형 실습 환경(`src/`)은 그대로 두고, `tron1_openarm/` 폴더에 **하반신만 LimX TRON1 Point-foot(이족)** 으로 바꾼 로봇을 따로 만들었습니다. 상반신 OpenArm 양팔, 실습 월드, SLAM·Nav2·MoveIt·ArUco·LLM 미션·웹 대시보드는 바퀴형과 같습니다.
 

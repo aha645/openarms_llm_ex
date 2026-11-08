@@ -1,5 +1,7 @@
 # MuJoCo + ROS 2 주행형 OpenArm 실습 가이드
 
+> **기존 종합 참고 문서입니다.** 현재 기본 설치 절차는 [Ubuntu 24.04 노트북 환경 설정](setup/ubuntu24-native.md), 기본 교육은 [휠형 1일차](course/wheel-day1.md) · [2일차](course/wheel-day2.md)를 따르세요. 아래 드라이버/CUDA·실로봇 전환·과거 검증 기록은 선택적 참고이며 현재 장비에서 재검증된 결과가 아닙니다. `~/openarm_mobile_ws`는 자신의 clone 경로로 바꿔 읽으세요.
+
 Nov 4, 2026
 
 > 이 저장소(openarms_llm_ex) 자체가 워크스페이스(`openarm_mobile_ws`)입니다. 문서의 `~/openarm_mobile_ws` 는 `git clone https://github.com/aha645/openarms_llm_ex.git ~/openarm_mobile_ws` 로 받은 폴더로 읽으세요.
