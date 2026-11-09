@@ -4,6 +4,8 @@ log/
 third_party/
 src/mobile_openarm_sim/mjcf/meshes/*
 !src/mobile_openarm_sim/mjcf/meshes/README.txt
+.venv-ros/
+.venv-train/
 __pycache__/
 *.pyc
 .DS_Store
