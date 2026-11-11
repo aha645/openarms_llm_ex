@@ -168,8 +168,10 @@ source /opt/ros/jazzy/setup.bash
 ```
 
 ```bash
-ros2 doctor --report | head -20
+ros2 doctor
 ```
+
+`All <N> checks passed` 가 나오면 정상입니다. 전체 보고서는 `ros2 doctor --report > ~/ros2_doctor_report.txt` 로 파일에 저장해서 봅니다(`| head` 로 자르면 출력이 끊기며 `BrokenPipeError` 가 나지만 무시해도 되는 현상입니다).
 
 ```bash
 grep -qF "source /opt/ros/jazzy/setup.bash" ~/.bashrc || echo "source /opt/ros/jazzy/setup.bash" >> ~/.bashrc

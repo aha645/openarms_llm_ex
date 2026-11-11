@@ -19,4 +19,4 @@ sudo apt install -y ros-jazzy-desktop ros-dev-tools \
 sudo rosdep init 2>/dev/null || true
 rosdep update
 grep -q "/opt/ros/jazzy/setup.bash" ~/.bashrc || echo "source /opt/ros/jazzy/setup.bash" >> ~/.bashrc
-echo "완료: 새 터미널에서 'ros2 doctor --report | head' 로 확인"
+echo "완료: 새 터미널에서 'ros2 doctor' 로 확인 (All checks passed)"
