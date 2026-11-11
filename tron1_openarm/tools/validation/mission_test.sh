@@ -1,10 +1,10 @@
 #!/bin/bash
-# 사용: bash mission_test.sh <pf|sf> <기록 이름> ["자연어 명령"]   (저장소 루트에서 colcon build 후. 로그: $LOG_DIR, 기본 /tmp/tron1_logs)
+# 사용: bash mission_test.sh <pf|sf> <기록 이름> ["자연어 명령"]   (10_setup_tron1.sh 로 tron1_openarm 빌드 후. 로그: $LOG_DIR, 기본 /tmp/tron1_logs)
 # 전체 시스템(시뮬 + Nav2 + MoveIt + 작업 관리자 + 오프라인 LLM 플래너)을 띄우고, 정답 기록기를 켠 채
 # 자연어 명령 하나를 끝까지 실행한 뒤 상자가 어디에 놓였는지 정답으로 확인한다.
 foot=$1; tag=$2; cmd=${3:-"빨간 상자를 왼쪽 작업대로 옮기고 돌아와"}
 S=${LOG_DIR:-/tmp/tron1_logs}; mkdir -p $S; D=$(cd "$(dirname "$0")" && pwd)
-cd "$D/../../.." && source install/setup.bash
+cd "$D/../.." && source install/setup.bash   # tron1_openarm 워크스페이스 (mobile_openarm underlay 포함)
 (ros2 launch tron1_openarm_sim full_system.launch.py foot:=$foot planner:=offline viewer:=false rviz:=false > $S/${foot}_full${tag}.log 2>&1 &)
 sleep 90
 (python3 $D/grasp_recorder.py $S/mrec_${foot}${tag}.jsonl > /dev/null 2>&1 &)

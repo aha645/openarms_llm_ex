@@ -1,18 +1,21 @@
+# colcon 산출물 (mobile_openarm/, tron1_openarm/ 각각의 워크스페이스)
 build/
 install/
 log/
 third_party/
-src/mobile_openarm_sim/mjcf/meshes/*
-!src/mobile_openarm_sim/mjcf/meshes/README.txt
-.venv-ros/
-.venv-train/
+# Python 가상환경
+.venv-mobile/
+.venv-biped/
 __pycache__/
 *.pyc
 .DS_Store
-src/mobile_openarm_sim/tools/selftest_camera.png
+MUJOCO_LOG.TXT
+# 휠형 (mobile_openarm)
+mobile_openarm/src/mobile_openarm_sim/mjcf/meshes/*
+!mobile_openarm/src/mobile_openarm_sim/mjcf/meshes/README.txt
+mobile_openarm/src/mobile_openarm_sim/tools/selftest_camera.png
 # TRON1 이족
 tron1_openarm/src/tron1_openarm_sim/mjcf/meshes/
+tron1_openarm/src/tron1_openarm_sim/mjcf/sf/meshes/
 tron1_openarm/runs/*
 !tron1_openarm/runs/COLCON_IGNORE
-MUJOCO_LOG.TXT
-tron1_openarm/src/tron1_openarm_sim/mjcf/sf/meshes/

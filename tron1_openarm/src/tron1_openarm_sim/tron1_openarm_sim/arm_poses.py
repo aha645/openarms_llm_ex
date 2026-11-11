@@ -1,6 +1,6 @@
 """이족(TRON1) + OpenArm 의 팔 이름 자세 — SRDF·시뮬 초기 자세·강화학습 환경이 모두 이 값을 쓴다.
 
-어깨를 TRON1 몸통 윗면 바로 위(약 10 cm)에 붙인 설계(doc/tron1/06-sway-analysis.md 6절)에서는
+어깨를 TRON1 몸통 윗면 바로 위(약 10 cm)에 붙인 설계(doc/tron1/design.md 설계 변경 이력 ⑦, validation-log.md 4절)에서는
 바퀴형의 ready/carry(위팔을 아래로 내린 채 팔꿈치만 굽힘)가 TRON1 몸통 상자를 관통한다.
 그래서 위팔을 앞으로 든(joint1) 자세로 다시 정했다. 몸통·다른 팔과 2 cm 이상 떨어지도록 격자 탐색으로 고름.
 

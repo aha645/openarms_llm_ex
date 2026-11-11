@@ -6,9 +6,9 @@
 
 이유
   * home: OpenArm 의 home(모든 관절 0, 팔을 곧게 내림)에서는 손·아래팔이 TRON1 몸통 상자 옆면에 파고든다
-    → 어깨 roll(joint2)을 바깥쪽으로 0.2 rad 벌림 (02-model.md 4-5)
+    → 어깨 roll(joint2)을 바깥쪽으로 0.2 rad 벌림 (doc/tron1/design.md "모델 만들기" 4-5)
   * ready·carry·hands_up: 어깨를 몸통 윗면 바로 위로 낮춘 설계에서는 바퀴형 자세가 몸통 상자를 관통한다
-    → 위팔을 앞으로 든 자세 (06-sway-analysis.md 6절)
+    → 위팔을 앞으로 든 자세 (doc/tron1/validation-log.md 4절, design.md 설계 변경 이력 ⑦)
 """
 import os
 import sys
