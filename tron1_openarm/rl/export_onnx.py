@@ -5,7 +5,7 @@
 
 입출력 이름·크기가 LimX tron1-rl-deploy-python 과 같다 (입력 'mlp_input': 인코더 300 / 정책 36).
 → 실로봇에서 LimX 배포 코드(PointfootController.py)의 model 폴더에 넣어 시험할 수 있는 형태.
-   (단, 실로봇에 OpenArm 을 얹었을 때의 안전 검증은 별도로 반드시 해야 한다 — doc/tron1/04-real-robot.md)
+   (단, 실로봇에 OpenArm 을 얹었을 때의 안전 검증은 별도로 반드시 해야 한다 — doc/real-robot.md)
 """
 import os
 import sys

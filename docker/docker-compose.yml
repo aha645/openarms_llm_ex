@@ -24,13 +24,22 @@ services:
       OPENAI_MODEL: "${OPENAI_MODEL:-gpt-4o-mini}"
       OPENAI_BASE_URL: "${OPENAI_BASE_URL:-}"
     volumes:
-      - ..:/root/openarm_mobile_ws                       # 워크스페이스 소스 (Mac 폴더와 공유)
-      - ws_build:/root/openarm_mobile_ws/build           # 빌드 산출물은 Docker 볼륨에 (Mac 파일공유보다 빠름)
-      - ws_install:/root/openarm_mobile_ws/install
-      - ws_log:/root/openarm_mobile_ws/log
+      - ..:/root/openarm_mobile_ws                       # 저장소 소스 (Mac 폴더와 공유)
+      # 빌드 산출물·가상환경은 Docker 볼륨에 (Mac 파일공유보다 빠르고, 리눅스용 venv 가 Mac 폴더에 안 생김)
+      - mobile_build:/root/openarm_mobile_ws/mobile_openarm/build
+      - mobile_install:/root/openarm_mobile_ws/mobile_openarm/install
+      - mobile_log:/root/openarm_mobile_ws/mobile_openarm/log
+      - mobile_venv:/root/openarm_mobile_ws/mobile_openarm/.venv-mobile
+      - tron1_build:/root/openarm_mobile_ws/tron1_openarm/build
+      - tron1_install:/root/openarm_mobile_ws/tron1_openarm/install
+      - tron1_log:/root/openarm_mobile_ws/tron1_openarm/log
     stdin_open: true
     tty: true
 volumes:
-  ws_build:
-  ws_install:
-  ws_log:
+  mobile_build:
+  mobile_install:
+  mobile_log:
+  mobile_venv:
+  tron1_build:
+  tron1_install:
+  tron1_log:

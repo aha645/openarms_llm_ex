@@ -3,7 +3,7 @@
 
     python3 build_tron1_openarm.py \
         --tron1 ~/openarm_mobile_ws/tron1_openarm/third_party/tron1-robot-description/pointfoot/PF_TRON1A \
-        --openarm ~/openarm_mobile_ws/third_party/openarm_mujoco/v1/openarm_bimanual.xml \
+        --openarm ~/openarm_mobile_ws/mobile_openarm/third_party/openarm_mujoco/v1/openarm_bimanual.xml \
         --out ../mjcf
 
 생성물 (mjcf/)
@@ -12,7 +12,7 @@
   tron1_openarm_train.xml  강화학습용 (상반신 충돌 끔, 바닥만 있는 장면 포함)
   tron1_openarm.urdf.generated  xacro 처리 결과 (확인용)
 
-처리 순서 (왜 이렇게 했는지는 doc/tron1/02-model.md)
+처리 순서 (왜 이렇게 했는지는 doc/tron1/design.md)
   1. xacro  : urdf/tron1_openarm.urdf.xacro → URDF.  TRON1 의 링크 길이·관절 한계·질량·관성은 LimX xacro(const.xacro)가 정본
   2. MuJoCo : URDF 를 MuJoCo 로 바로 컴파일 → mj_saveLastXML 로 MJCF 로 저장 (URDF 의 <mujoco> 확장 태그 사용)
   3. 보정   : URDF 에는 다리 충돌 형상이 구 2개뿐이라, LimX 가 MuJoCo 용으로 검증한 robot.xml 의 충돌 원통/상자를 옮겨 온다.
@@ -35,17 +35,17 @@ import xml.etree.ElementTree as ET
 import mujoco
 import numpy as np
 
-# ------------------------------------------------------------------ 치수 (근거: doc/tron1/02-model.md)
+# ------------------------------------------------------------------ 치수 (근거: doc/tron1/design.md)
 NOMINAL_BASE_HEIGHT = 0.68      # 상반신을 얹고 서 있을 때 base_link 높이 [m] (LimX 학습 목표 base_height_target 0.68 과 같게, 시험 측정값 0.677)
 SHOULDER_ABOVE_BASE = 0.10      # 어깨 = 서 있는 base_link 높이 + 0.10 m → TRON1 몸통 윗면(base+0.037) 바로 위 (기둥 0.13 m)
                                 # 예전 설계는 어깨 1.08 m(기둥 0.43 m). 높은 어깨는 팔을 움직일 때 무게중심을 크게 흔들어
-                                # 이족이 계속 발로 받아내야 했다 → 06-sway-analysis.md 6절. 예전 모델: --shoulder 1.08
+                                # 이족이 계속 발로 받아내야 했다 → doc/tron1/validation-log.md 4절(흔들림 분석). 예전 모델: --shoulder 1.08
 SHOULDER_HEIGHT = None          # None = base 높이 + SHOULDER_ABOVE_BASE
 CAMERA_HEIGHT = 1.243           # 머리 카메라 지면 높이 [m] — 어깨를 낮춰도 카메라는 기둥(마스트) 위 같은 높이에 둔다
                                 # (팔이 몸 앞에 있어도 위에서 작업대를 내려다보도록, 예전 설계와 같은 시야)
 ARM_ORIGIN_Z = 0.697            # OpenArm: body_link0 원점 → 어깨 높이 (openarm_bimanual.xml 의 site arm_origin)
 MOUNT_Z = 0.030                 # urdf/tron1_openarm.urdf.xacro 의 mount_z
-MOUNT_X = 0.08                  # 상반신 앞뒤 위치 [m]. 0 이면 내린 손이 TRON1 엉덩이 모터(abad)에 닿음 → 0.08 에서 2.1 cm 틈 (doc/tron1/02-model.md 4-3)
+MOUNT_X = 0.08                  # 상반신 앞뒤 위치 [m]. 0 이면 내린 손이 TRON1 엉덩이 모터(abad)에 닿음 → 0.08 에서 2.1 cm 틈 (doc/tron1/design.md "모델 만들기" 4-3)
 COLUMN_TOP_ABOVE_SHOULDER = 0.065   # 원본 기둥 꼭대기(브래킷 윗면)는 어깨보다 6.5 cm 위
 ORIG_COLUMN_LEN = 0.75          # 원본 OpenArm 기둥 길이 [m]
 ORIG_BODY_MASS = 3.74           # 원본 openarm_body_link0 질량 [kg] (기둥 + 어깨 브래킷)

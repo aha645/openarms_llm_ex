@@ -1,8 +1,8 @@
 #!/bin/bash
-# 사용: bash pick_test.sh <pf|sf> <기록 이름>   (저장소 루트에서 colcon build 후. 로그: $LOG_DIR, 기본 /tmp/tron1_logs)
+# 사용: bash pick_test.sh <pf|sf> <기록 이름>   (10_setup_tron1.sh 로 tron1_openarm 빌드 후. 로그: $LOG_DIR, 기본 /tmp/tron1_logs)
 # 시뮬 + MoveIt 을 띄우고, 정답 기록기(grasp_recorder.py)를 켠 채 pick_place 를 한 번 실행한 뒤 결과를 요약한다
 foot=$1; tag=$2; S=${LOG_DIR:-/tmp/tron1_logs}; mkdir -p $S; D=$(cd "$(dirname "$0")" && pwd)
-cd "$D/../../.." && source install/setup.bash
+cd "$D/../.." && source install/setup.bash   # tron1_openarm 워크스페이스 (mobile_openarm underlay 포함)
 (ros2 launch tron1_openarm_sim sim.launch.py foot:=$foot start_x:=2.5 start_y:=2.45 start_yaw:=1.5708 viewer:=false rviz:=false > $S/${foot}_sim.log 2>&1 &)
 (ros2 launch tron1_openarm_moveit_config move_group.launch.py foot:=$foot rviz:=false > $S/${foot}_mg.log 2>&1 &)
 sleep 45
