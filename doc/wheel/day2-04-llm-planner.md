@@ -95,7 +95,11 @@ API 키가 없어도 실습할 수 있도록 **키워드 규칙 기반 계획기
 
 ## 3. 따라하기
 
-### 단계 1 — T1: 오프라인으로 먼저 해 보기 (키 없이)
+### 단계 1 — 오프라인으로 먼저 해 보기 (키 없이)
+
+| 터미널 | 상태 | 이 단계에서 |
+|---|---|---|
+| 터미널 하나 | 🆕 새로 열기 | 시뮬·Nav2 불필요. 아래 명령은 모두 ⚪ 계획을 출력하고 바로 끝남. 단계 2~4도 **이 같은 터미널**에서 진행 |
 
 ```bash
 ros2 run mobile_openarm_apps llm_planner --offline "빨간 상자를 왼쪽 작업대로 옮기고 돌아와"
@@ -150,7 +154,9 @@ export OPENAI_MODEL=gpt-4o-mini
 - `export` 는 이 터미널을 닫으면 사라집니다. 매번 넣기 싫으면 `~/.bashrc` 끝에 추가하되, **그 파일을 git에 올리지 마세요.**
 - Docker는 Mac에서 `export OPENAI_API_KEY=...` 후 `docker compose up -d` 하면 컨테이너로 전달됩니다(`docker-compose.yml` 의 environment).
 
-### 단계 3 — T1: LLM으로 계획하기 (미션)
+### 단계 3 — 같은 터미널: LLM으로 계획하기 (미션)
+
+단계 2에서 `export` 한 **같은 터미널**에서 실행합니다. 다른 터미널에는 API 키가 없습니다.
 
 ```bash
 ros2 run mobile_openarm_apps llm_planner "빨간 상자를 왼쪽 작업대로 옮기고 돌아와"

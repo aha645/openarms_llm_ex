@@ -78,7 +78,13 @@ flowchart LR
 
 ## 4. 따라하기
 
+**시작 전 상태:** 앞 장의 프로그램이 모두 꺼져 있고 `ros2 node list` 가 비어 있어야 합니다. 이 장에서는 터미널을 최대 2개 씁니다. 표기법(🆕 🟢 ⚪)은 [README 공통 규칙](README.md#1-터미널-여러-개-쓰기)을 보세요.
+
 ### 단계 1 — T1: 시뮬레이터 + Nav2 켜기
+
+| 터미널 | 상태 | 이 단계에서 |
+|---|---|---|
+| T1 | 🆕 새로 열기 → 🟢 계속 실행 | nav launch 실행. 이 장이 끝날 때까지 **끄지 않음** |
 
 ```bash
 ros2 launch mobile_openarm_sim nav.launch.py
@@ -100,6 +106,12 @@ ros2 launch mobile_openarm_sim nav.launch.py
 
 ### 단계 2 — RViz에서 목표 찍기
 
+| 터미널 | 상태 | 이 단계에서 |
+|---|---|---|
+| T1 | 🟢 nav 실행 중 | 그대로 둠. **로그 관찰**: `Received goal` → `Goal succeeded` |
+
+**원인 → 결과:** RViz에서 목표를 찍음 → Nav2 가 경로(`/plan`)를 그림(RViz) → `/cmd_vel` → MuJoCo 창의 로봇이 출발 → 도착하면 T1 로그에 `Goal succeeded`.
+
 1. RViz 위 툴바의 **2D Goal Pose** 를 누릅니다.
 2. 지도 위 목표 지점을 **클릭한 채 드래그**해서 도착 후 바라볼 방향(초록 화살표)을 정하고 놓습니다.
 3. 로봇이 출발합니다.
@@ -113,6 +125,12 @@ ros2 launch mobile_openarm_sim nav.launch.py
 
 ### 단계 3 — 미션: 세 지점 차례로 보내기
 
+| 터미널 | 상태 | 이 단계에서 |
+|---|---|---|
+| T1 | 🟢 nav 실행 중 | 그대로 둠 |
+
+한 지점에 **도착한 뒤** 다음 목표를 찍습니다. 가는 도중에 새 목표를 찍으면 이전 목표는 취소되고 새 목표로 바뀝니다.
+
 | 순서 | 목표 | 좌표(x, y) | 바라볼 방향 |
 |---|---|---|---|
 | 1 | 문 앞 (`door`) | (0.0, 1.5) | 북쪽(위) |
@@ -122,6 +140,13 @@ ros2 launch mobile_openarm_sim nav.launch.py
 RViz 위쪽의 좌표 표시(마우스를 올리면 왼쪽 아래 상태줄에 나옴)를 보며 근처를 찍으면 됩니다.
 
 ### 단계 4 — T2: 명령어(액션)로 목표 보내기
+
+| 터미널 | 상태 | 이 단계에서 |
+|---|---|---|
+| T1 | 🟢 nav 실행 중 | 그대로 둠 |
+| T2 | 🆕 새로 열기 | 아래 명령 실행. 도착할 때까지 피드백을 출력하다가 ⚪ 결과를 받으면 끝남 |
+
+RViz로 보낸 목표가 아직 진행 중이면 로봇이 도착한 뒤 보내세요. **원인 → 결과:** T2에서 목표를 보냄 → RViz에 경로 → 로봇 이동 → T2에 `distance_remaining` 이 줄어들다가 `SUCCEEDED`.
 
 ```bash
 ros2 action send_goal /navigate_to_pose nav2_msgs/action/NavigateToPose \
@@ -139,6 +164,11 @@ ros2 action send_goal /navigate_to_pose nav2_msgs/action/NavigateToPose \
 
 ### 단계 5 — 장애물 회피 관찰
 
+| 터미널 | 상태 | 이 단계에서 |
+|---|---|---|
+| T1 | 🟢 nav 실행 중 | 그대로 둠 |
+| T2 | 단계 4와 같은 터미널 | 1번 목표는 RViz(또는 단계 4 명령)로, 3번 서비스 호출은 ⚪ 바로 끝남 |
+
 1. 목표를 서쪽 선반 근처, 예를 들어 (-3.5, -2.8)로 보내 사람이 다니는 길을 지나게 합니다.
 2. RViz에서 사람이 지역 비용 지도에 빨갛게 나타나고, 경로가 휘어지는지 봅니다.
 3. 사람 멈추기/다시 움직이기 (T2):
@@ -149,6 +179,11 @@ ros2 service call /sim/set_person_motion std_srvs/srv/SetBool "{data: true}"    
 ```
 
 ### 단계 6 — 상태 확인 명령
+
+| 터미널 | 상태 | 이 단계에서 |
+|---|---|---|
+| T1 | 🟢 nav 실행 중 | 그대로 둠 |
+| T2 | 같은 터미널 | 아래 명령 모두 ⚪ 바로 끝남 |
 
 ```bash
 ros2 lifecycle get /amcl                         # active 이면 정상

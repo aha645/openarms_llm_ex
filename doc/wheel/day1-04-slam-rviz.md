@@ -103,7 +103,13 @@ flowchart LR
 
 ## 4. 따라하기
 
+**시작 전 상태:** 앞 장의 프로그램이 모두 꺼져 있고 `ros2 node list` 가 비어 있어야 합니다. 이 장에서는 터미널을 최대 3개 씁니다. 표기법(🆕 🟢 ⚪)은 [README 공통 규칙](README.md#1-터미널-여러-개-쓰기)을 보세요.
+
 ### 단계 1 — T1: 시뮬레이터 + SLAM 켜기
+
+| 터미널 | 상태 | 이 단계에서 |
+|---|---|---|
+| T1 | 🆕 새로 열기 → 🟢 계속 실행 | slam launch 실행. 단계 4에서 지도를 저장할 때까지 **끄지 않음** (끄면 만든 지도가 사라짐) |
 
 ```bash
 ros2 launch mobile_openarm_sim slam.launch.py
@@ -120,6 +126,11 @@ ros2 launch mobile_openarm_sim slam.launch.py
   4. T1 로그에 `Registering sensor: [Custom Described Lidar]` 같은 slam_toolbox 메시지가 보인다.
 
 ### 단계 2 — T2: 키보드 운전 프로그램 켜기
+
+| 터미널 | 상태 | 이 단계에서 |
+|---|---|---|
+| T1 | 🟢 slam 실행 중 | 그대로 둠 |
+| T2 | 🆕 새로 열기 → 🟢 | teleop 실행. **키 입력은 여기서** |
 
 새 터미널(T2)을 열고:
 
@@ -157,6 +168,13 @@ currently:	speed 0.5	turn 1.0
 
 ### 단계 3 — 운전하며 지도 만들기 (미션 본체)
 
+| 터미널 | 상태 | 이 단계에서 |
+|---|---|---|
+| T1 | 🟢 slam 실행 중 | 그대로 둠. 로그에 slam_toolbox 메시지 |
+| T2 | 🟢 teleop 실행 중 | 창을 클릭하고 키 입력 |
+
+**원인 → 결과:** T2에서 키를 누름 → `/cmd_vel` → 로봇 이동(MuJoCo 창) → 새 `/scan` 을 slam_toolbox 가 받아 → **RViz 창의 지도가 넓어집니다.**
+
 화면 세 개(MuJoCo, RViz2, T2 터미널)를 나란히 놓고, **T2에 키를 누르며 RViz2를 봅니다.**
 
 권장 경로(약 5~10분). 위치는 [월드 지도 그림](../images/world_map.png)을 보세요.
@@ -173,7 +191,13 @@ currently:	speed 0.5	turn 1.0
 
 ### 단계 4 — T3: 지도 저장하기
 
-**SLAM을 끄기 전에** 저장해야 합니다. T1·T2는 그대로 두고 새 터미널(T3)에서:
+| 터미널 | 상태 | 이 단계에서 |
+|---|---|---|
+| T1 | 🟢 slam 실행 중 | **아직 끄지 않음** — 저장할 지도를 가지고 있음 |
+| T2 | 🟢 teleop 실행 중 | 그대로 둠 (키는 누르지 않음) |
+| T3 | 🆕 새로 열기 | 아래 명령 실행. ⚪ `Map saved successfully` 후 스스로 끝남 |
+
+**SLAM을 끄기 전에** 저장해야 합니다. 저장이 끝난 **뒤에** T1, T2를 `Ctrl+C` 로 끕니다(아래 끝부분 참고). T3에서:
 
 ```bash
 mkdir -p ~/maps
@@ -205,6 +229,12 @@ ros2 run nav2_map_server map_saver_cli -f ~/maps/my_map --ros-args -p use_sim_ti
 
 ### 단계 5 — T1: 저장한 지도로 AMCL 위치 추정
 
+| 터미널 | 상태 | 이 단계에서 |
+|---|---|---|
+| T1 | 단계 4에서 끈 터미널 → 🟢 | 같은 T1에서 nav launch 실행 |
+| T2 | 꺼진 상태 | 단계 6에서 다시 사용 |
+| T3 | ⚪ 끝난 상태 | 닫아도 됨 |
+
 ```bash
 ros2 launch mobile_openarm_sim nav.launch.py map:=$HOME/maps/my_map.yaml
 ```
@@ -217,12 +247,19 @@ ros2 launch mobile_openarm_sim nav.launch.py map:=$HOME/maps/my_map.yaml
 
 ### 단계 6 — 2D Pose Estimate로 위치 고쳐 보기 (실습)
 
+| 터미널 | 상태 | 이 단계에서 |
+|---|---|---|
+| T1 | 🟢 nav 실행 중 | 그대로 둠 |
+| T2 | 🆕 다시 열기 (또는 단계 4에서 끈 T2 재사용) → 🟢 | 4번에서 teleop 실행 |
+
+**원인 → 결과:** RViz에서 2D Pose Estimate 클릭 → AMCL 이 추정 위치를 바꿈 → RViz의 로봇 모델·스캔 점 위치가 바뀜. MuJoCo 창의 진짜 로봇은 움직이지 않습니다.
+
 AMCL이 위치를 틀리게 잡은 상황을 일부러 만들어 고쳐 봅니다.
 
 1. RViz 위쪽 툴바의 **2D Pose Estimate** 를 누릅니다.
 2. 지도에서 로봇과 **다른 곳**을 클릭한 채로 드래그해 방향을 정하고 놓습니다. 로봇 모델이 그곳으로 순간이동하고, 스캔 점이 벽과 어긋나 보입니다. "로봇이 착각한 상태"입니다.
 3. 이제 다시 **2D Pose Estimate** 로 MuJoCo 창에서 본 **진짜 위치·방향**을 찍어 줍니다. 스캔 점이 벽에 다시 겹치면 성공입니다.
-4. T2에서 teleop을 켜고 조금 움직여 보세요. 파티클 구름이 점점 작게 모입니다(위치 확신이 커짐).
+4. T2에서 teleop(`ros2 run teleop_twist_keyboard teleop_twist_keyboard`)을 켜고 조금 움직여 보세요. 파티클 구름이 점점 작게 모입니다(위치 확신이 커짐).
 
 ## 5. 미션 체크리스트
 

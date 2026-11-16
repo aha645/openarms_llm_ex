@@ -73,7 +73,13 @@ flowchart TB
 
 ## 3. 따라하기
 
+**시작 전 상태:** 앞 장의 프로그램이 모두 꺼져 있고 `ros2 node list` 가 비어 있어야 합니다. 이 장에서는 터미널을 최대 3개 씁니다. 표기법(🆕 🟢 ⚪)은 [README 공통 규칙](README.md#1-터미널-여러-개-쓰기)을 보세요.
+
 ### 단계 1 — T1: 시뮬레이터 켜기
+
+| 터미널 | 상태 | 이 단계에서 |
+|---|---|---|
+| T1 | 🆕 새로 열기 → 🟢 계속 실행 | 아래 launch 실행. 이 장이 끝날 때까지 **끄지 않음** |
 
 ```bash
 ros2 launch mobile_openarm_sim sim.launch.py
@@ -83,10 +89,17 @@ ros2 launch mobile_openarm_sim sim.launch.py
 
 ### 단계 2 — T2: URDF 만들기와 검사
 
+| 터미널 | 상태 | 이 단계에서 |
+|---|---|---|
+| T1 | 🟢 sim 실행 중 | 그대로 둠 |
+| T2 | 🆕 새로 열기 | 가상환경을 켜고 아래 명령 실행. 모두 ⚪ 바로 끝남. 결과는 T2 출력과 `/tmp/check.urdf` 파일 |
+
 원본 URDF를 덮어쓰지 않도록 **임시 파일로** 다시 만들어 봅니다.
 
 ```bash
-cd ~/openarm_mobile_ws/mobile_openarm/src/mobile_openarm_sim
+cd ~/openarm_mobile_ws
+source mobile_openarm/.venv-mobile/bin/activate    # 변환기가 mujoco 를 쓰므로 필요
+cd mobile_openarm/src/mobile_openarm_sim
 python3 tools/mjcf_to_urdf.py --mjcf mjcf/mobile_openarm.xml --out /tmp/check.urdf
 ```
 
@@ -105,6 +118,11 @@ diff /tmp/check.urdf urdf/mobile_openarm.urdf && echo 같음
 
 ### 단계 3 — T2: TF 트리 그림 뽑기
 
+| 터미널 | 상태 | 이 단계에서 |
+|---|---|---|
+| T1 | 🟢 sim 실행 중 | 그대로 둠 |
+| T2 | 단계 2와 같은 터미널 | `view_frames` 는 ⚪ 5초 동안 TF를 듣고 스스로 끝남. 결과는 홈 폴더의 PDF 파일 |
+
 ```bash
 cd ~
 ros2 run tf2_tools view_frames
@@ -115,6 +133,12 @@ ros2 run tf2_tools view_frames
 - **읽는 법**: 상자 = 좌표계, 화살표 = 부모→자식, 화살표 옆 `Broadcaster` = 누가 발행하는지, `Average rate` = 몇 Hz인지. `odom → base_footprint` 의 broadcaster가 `/mujoco_bridge` 인 것을 확인하세요. 이 장에서는 `map` 이 없어야 정상입니다.
 
 ### 단계 4 — T2: 좌표 변환 값 읽기 (미션)
+
+| 터미널 | 상태 | 이 단계에서 |
+|---|---|---|
+| T1 | 🟢 sim 실행 중 | 그대로 둠 |
+| T2 | 같은 터미널 → 🟢 | `tf2_echo` 는 계속 출력. 다음 `tf2_echo` 전에 `Ctrl+C` |
+| T3 | 🆕 (선택) 새로 열기 | 아래 '인과관계 관찰'에서 팔 액션을 보내는 곳 |
 
 ```bash
 ros2 run tf2_ros tf2_echo base_footprint head_camera_link
@@ -134,18 +158,23 @@ ros2 run tf2_ros tf2_echo base_footprint head_camera_link
 - 출력의 `Translation: [x, y, z]` 가 위치(m), `Rotation: in RPY (degree)` 가 방향입니다.
 - **미션 답 적기**: 카메라 높이 z = ____ m, 앞뒤 x = ____ m, 아래로 숙인 각도(pitch) = ____ °
 
-같은 방법으로:
+T2에서 `Ctrl+C` 로 위 출력을 멈춘 뒤, 같은 방법으로:
 
 ```bash
 ros2 run tf2_ros tf2_echo base_footprint lidar_link                # LiDAR 높이
 ros2 run tf2_ros tf2_echo base_footprint openarm_right_hand_tcp    # 오른손 끝 위치
 ```
 
-오른손 끝을 보면서 02장의 팔 액션을 다시 보내 보세요(T3). 값이 바뀌면 `robot_state_publisher` 가 관절 각도에 따라 TF를 다시 계산하는 것입니다.
+**인과관계 관찰:** T2에 오른손 끝 `tf2_echo` 를 켜 둔 채로, 새 터미널 T3에서 [02장 단계 5](day1-02-bridge.md#단계-5--t4-액션으로-오른팔-움직이기)의 팔 액션을 보내 보세요. T3에서 팔을 움직이면 → T2의 `Translation` 값이 바뀝니다. `robot_state_publisher` 가 관절 각도(`/joint_states`)에 따라 TF를 다시 계산하기 때문입니다.
 
 정답(확인용): 카메라 약 x 0.22 m, z 1.16 m, 50° 숙임 / LiDAR 약 x 0.22 m, z 0.34 m.
 
 ### 단계 5 — 센서 데이터를 RViz에서 확인
+
+| 터미널 | 상태 | 이 단계에서 |
+|---|---|---|
+| T1 | 🟢 sim 실행 중 | 그대로 둠 |
+| T2, T3 | 필요 없음 | `Ctrl+C` 로 꺼도 됨. 이 단계는 **T1이 띄운 RViz 창**에서만 조작 |
 
 RViz 왼쪽 아래 **Add** → **By topic** 에서 다음을 추가해 봅니다.
 
@@ -175,6 +204,7 @@ RViz 왼쪽 아래 **Add** → **By topic** 에서 다음을 추가해 봅니다
 | `tf2_echo` 가 `Could not transform … does not exist` | 프레임 이름 오타, 또는 T1이 꺼져 있음. `ros2 run tf2_tools view_frames` 로 이름 확인 |
 | RViz 로봇이 흰색/빨간 오류 | `/robot_description` 이 없음. T1 로그에서 robot_state_publisher 오류 확인 |
 | `check_urdf: command not found` | `sudo apt install liburdfdom-tools` |
+| `No module named mujoco` (단계 2) | 가상환경을 켜지 않음: `source ~/openarm_mobile_ws/mobile_openarm/.venv-mobile/bin/activate` |
 
 ## 7. 더 해보기
 

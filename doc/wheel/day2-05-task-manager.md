@@ -79,7 +79,14 @@ stateDiagram-v2
 
 ## 3. 따라하기
 
+**시작 전 상태:** 앞 장의 프로그램이 모두 꺼져 있고 `ros2 node list` 가 비어 있어야 합니다. 이 장에서는 터미널을 최대 5개 씁니다. 표기법(🆕 🟢 ⚪)은 [README 공통 규칙](README.md#1-터미널-여러-개-쓰기)을 보세요.
+
 ### 단계 1 — T1, T2: 시뮬 + Nav2, MoveIt
+
+| 터미널 | 상태 | 이 단계에서 |
+|---|---|---|
+| T1 | 🆕 새로 열기 → 🟢 | nav launch. `Managed nodes are active` 까지 기다림 |
+| T2 | 🆕 새로 열기 → 🟢 | T1 준비 후 move_group |
 
 ```bash
 # T1
@@ -89,6 +96,12 @@ ros2 launch mobile_openarm_moveit_config move_group.launch.py rviz:=false
 ```
 
 ### 단계 2 — T3: Task Manager 켜기
+
+| 터미널 | 상태 | 이 단계에서 |
+|---|---|---|
+| T1 | 🟢 nav 실행 중 | 그대로 둠 |
+| T2 | 🟢 move_group 실행 중 | 그대로 둠 |
+| T3 | 🆕 새로 열기 → 🟢 | task_manager 실행. LLM 을 쓰려면 **이 T3에서** `export OPENAI_API_KEY=...` 먼저. 이후 실행 로그가 여기 찍힘 |
 
 ```bash
 ros2 run mobile_openarm_apps task_manager --ros-args -p planner:=offline
@@ -101,6 +114,13 @@ ros2 run mobile_openarm_apps task_manager --ros-args -p planner:=offline
 
 ### 단계 3 — T4: 상태 지켜보기
 
+| 터미널 | 상태 | 이 단계에서 |
+|---|---|---|
+| T1 | 🟢 nav 실행 중 | 그대로 둠 |
+| T2 | 🟢 move_group 실행 중 | 그대로 둠 |
+| T3 | 🟢 task_manager 실행 중 | 그대로 둠 |
+| T4 | 🆕 새로 열기 → 🟢 | 상태 출력. **결과 관찰은 여기서** |
+
 ```bash
 ros2 topic echo /task/status --field data
 ```
@@ -110,6 +130,14 @@ ros2 topic echo /task/status --field data
 1초마다 JSON이 나옵니다. 처음엔 `"state": "idle"`.
 
 ### 단계 4 — T5: 명령 보내기 (미션)
+
+| 터미널 | 상태 | 이 단계에서 |
+|---|---|---|
+| T1~T3 | 🟢 실행 중 | 그대로 둠 |
+| T4 | 🟢 상태 출력 중 | 관찰 |
+| T5 | 🆕 새로 열기 | 아래 명령 ⚪ 한 번 보내고 바로 끝남. 단계 5·6도 여기서 |
+
+**원인 → 결과:** T5에서 명령 발행 → T3 task_manager 가 계획·실행(T3 로그) → Nav2·MoveIt 이 로봇을 움직임(RViz·MuJoCo) → T4의 `state`/`steps` 가 바뀜.
 
 ```bash
 ros2 topic pub --once /task/command std_msgs/msg/String "{data: '빨간 상자를 왼쪽 작업대로 옮기고 돌아와'}"
@@ -131,7 +159,9 @@ ros2 topic pub --once /task/command std_msgs/msg/String "{data: '빨간 상자�
 
 **관찰**: T4의 `state` 가 `planning` → `running` 으로, `steps` 의 `status` 가 하나씩 `running` → `done` 으로 바뀝니다. T3에는 `[task] 계획(offline): …`, `[nav] …`, `[pick] …` 로그. 5단계 모두 끝나면 `"state": "done", "message": "완료 (590s)"` 처럼 걸린 시간이 나옵니다(PC에 따라 다름).
 
-### 단계 5 — 거부되는 명령
+### 단계 5 — T5: 거부되는 명령
+
+앞 명령이 `done` 이 된 뒤(T4 확인) 같은 T5에서 보냅니다.
 
 ```bash
 ros2 topic pub --once /task/command std_msgs/msg/String "{data: '커피 한 잔 타줘'}"
@@ -139,7 +169,9 @@ ros2 topic pub --once /task/command std_msgs/msg/String "{data: '커피 한 잔 
 
 T4에 `"state": "rejected"` 와 이유. 로봇은 움직이지 않습니다.
 
-### 단계 6 — 취소해 보기
+### 단계 6 — T5: 취소해 보기
+
+같은 T5에서 보냅니다. 결과는 T4의 `state` 와 T3 로그로 확인합니다.
 
 ```bash
 ros2 topic pub --once /task/command std_msgs/msg/String "{data: '순찰 한 바퀴 돌고 와'}"

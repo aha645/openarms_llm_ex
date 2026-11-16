@@ -37,6 +37,12 @@ Docker에서는 컨테이너 내부 `/root/openarm_mobile_ws`에서 실행합니
 
 ## 2-01. MoveIt 팔 계획·실행
 
+| 터미널 | 상태 | 이족 환경 변수 | 이 단계에서 |
+|---|---|---|---|
+| T1 | 🆕 → 🟢 | 불필요 | sim launch |
+| T2 | 🆕 → 🟢 | 불필요 | move_group (MoveIt RViz 포함) |
+| T3 | 🆕 | 필요 | arm_demo. 끝나면 ⚪ 스스로 종료. T3 로그와 MuJoCo 창 관찰 |
+
 T1:
 
 ```bash
@@ -61,18 +67,26 @@ ros2 run mobile_openarm_apps arm_demo
 
 **휠형과 다른 점** (통합 전 PF 기준 기록. 수치는 SF 와 다를 수 있음)
 
-- `home` 자세가 바퀴형과 조금 다릅니다: 팔을 내릴 때 어깨 joint2 를 ±0.2 rad 벌려 손이 TRON1 몸통 상자 바깥으로 나옵니다. 그대로 내리면 손이 몸통과 겹쳐 MoveIt 이 `START_STATE_IN_COLLISION` 으로 거부합니다. TRON1 SRDF 에 반영되어 있고, 앱은 `OPENARM_SRDF` 환경변수로 이 SRDF 를 읽습니다 (`full_system.launch.py` 가 자동 설정. 따로 실행할 때는 `export OPENARM_SRDF=$(ros2 pkg prefix --share tron1_openarm_moveit_config)/config/tron1_openarm.srdf`).
+> ⚠️ **읽기 전용 기록입니다.** 아래 코드 블록은 PF(launch 기본값) 시절 명령이라 `foot:=sf` 가 없고 SRDF 도 PF용입니다. **실행하지 마세요.** 실습은 위의 SF 명령으로 이미 진행 중입니다.
 
-```bash
-ros2 launch tron1_openarm_sim sim.launch.py rviz:=false
-ros2 launch tron1_openarm_moveit_config move_group.launch.py
-ros2 run mobile_openarm_apps arm_demo
+- `home` 자세가 바퀴형과 조금 다릅니다: 팔을 내릴 때 어깨 joint2 를 ±0.2 rad 벌려 손이 TRON1 몸통 상자 바깥으로 나옵니다. 그대로 내리면 손이 몸통과 겹쳐 MoveIt 이 `START_STATE_IN_COLLISION` 으로 거부합니다. TRON1 SRDF 에 반영되어 있고, 앱은 `OPENARM_SRDF` 환경변수로 이 SRDF 를 읽습니다 (`full_system.launch.py` 가 자동 설정. 따로 실행할 때는 맨 위 공통 블록의 `export OPENARM_SRDF=...tron1_openarm_sf.srdf` 를 씁니다. 파일명에 `_sf` 가 없는 `tron1_openarm.srdf` 는 PF용입니다).
+
+```text
+# (PF 기록) ros2 launch tron1_openarm_sim sim.launch.py rviz:=false
+# (PF 기록) ros2 launch tron1_openarm_moveit_config move_group.launch.py
+# (PF 기록) ros2 run mobile_openarm_apps arm_demo
 ```
 
 - RViz MotionPlanning 에 다리가 보입니다. 다리 관절은 계획 그룹에 없고, MoveIt 은 현재 다리 자세(`/joint_states`)로 **팔–다리 충돌**을 검사합니다.
 - 팔을 크게 움직이면 몸통이 반동으로 조금 움직입니다(제자리 걸음으로 균형). `arm_demo` 의 `pose goal` 은 base_footprint 기준이라 그 사이 몸이 움직이면 목표가 1~2 cm 어긋날 수 있습니다.
 
 ## 2-02. 카메라 기반 집기·놓기
+
+| 터미널 | 상태 | 이족 환경 변수 | 이 단계에서 |
+|---|---|---|---|
+| T1 | 앞 절 `Ctrl+C` 후 → 🟢 | 불필요 | 작업대 앞 시작 좌표로 sim |
+| T2 | 앞 절 `Ctrl+C` 후 → 🟢 | 불필요 | move_group |
+| T3 | 같은 터미널 재사용 가능 | 필요 | `echo --once` ⚪ → pick_place ⚪(끝나면 종료) |
 
 앞 절 노드 종료. T1:
 
@@ -100,12 +114,14 @@ ros2 run mobile_openarm_apps pick_place --ros-args -p object:=box_0
 
 **휠형과 다른 점** (통합 전 PF 기준 기록. 수치는 SF 와 다를 수 있음)
 
-```bash
-ros2 launch tron1_openarm_sim sim.launch.py start_x:=2.5 start_y:=2.45 start_yaw:=1.5708
-ros2 launch tron1_openarm_moveit_config move_group.launch.py rviz:=false
-export OPENARM_BIPED=1     # 옆걸음 + 접근 직전 재측정 켜기
-export OPENARM_SRDF=$(ros2 pkg prefix --share tron1_openarm_moveit_config)/config/tron1_openarm.srdf
-ros2 run mobile_openarm_apps pick_place --ros-args -p object:=box_0
+> ⚠️ **읽기 전용 기록입니다.** 아래 코드 블록은 PF(launch 기본값) 시절 명령이라 `foot:=sf` 가 없고 SRDF 도 PF용입니다. **실행하지 마세요.** 실습은 위의 SF 명령으로 이미 진행 중입니다.
+
+```text
+# (PF 기록) ros2 launch tron1_openarm_sim sim.launch.py start_x:=2.5 start_y:=2.45 start_yaw:=1.5708
+# (PF 기록) ros2 launch tron1_openarm_moveit_config move_group.launch.py rviz:=false
+# (PF 기록) export OPENARM_BIPED=1     # 옆걸음 + 접근 직전 재측정 켜기
+# (PF 기록) export OPENARM_SRDF=$(ros2 pkg prefix --share tron1_openarm_moveit_config)/config/tron1_openarm.srdf
+# (PF 기록) ros2 run mobile_openarm_apps pick_place --ros-args -p object:=box_0
 ```
 
 - 머리 카메라는 960×720 입니다 (바퀴형 640×480). 카메라가 높아져 마커가 작게 보이기 때문입니다.
@@ -119,6 +135,12 @@ ros2 run mobile_openarm_apps pick_place --ros-args -p object:=box_0
 
 ## 2-03. 주행 + 집기 + 운반
 
+| 터미널 | 상태 | 이족 환경 변수 | 이 단계에서 |
+|---|---|---|---|
+| T1 | 앞 절 `Ctrl+C` 후 → 🟢 | 불필요 | nav launch (home 출발) |
+| T2 | 앞 절 `Ctrl+C` 후 → 🟢 | 불필요 | move_group |
+| T3 | 같은 터미널 재사용 가능 | 필요 | nav_pick_place. 끝나면 ⚪ 종료 |
+
 앞 절 노드 종료. T1:
 
 ```bash
@@ -131,7 +153,7 @@ T2:
 ros2 launch tron1_openarm_moveit_config move_group.launch.py foot:=sf rviz:=false
 ```
 
-T3:
+T3 (맨 위 공통 블록의 `OPENARM_BIPED`·`OPENARM_SRDF` export 필요):
 
 ```bash
 ros2 run mobile_openarm_apps nav_pick_place --ros-args -p object:=box_0
@@ -142,6 +164,8 @@ ros2 run mobile_openarm_apps nav_pick_place --ros-args -p object:=box_0
 **소스:** `nav_pick_place.py → robot_skills.py`, TRON1 Nav2 파라미터·정책·오도메트리. 실패는 이동 실패/마커 미검출/계획 실패/파지 실패/넘어짐으로 구분해 기록합니다. 재시험은 시뮬을 재시작해 상자 배치를 초기화합니다.
 
 ## 2-04. offline 계획과 선택적 LLM API
+
+터미널 하나만 씁니다. 시뮬은 필요 없고, 명령은 모두 ⚪ 계획을 출력하고 바로 끝납니다. API 키 `export` 는 **같은 터미널**에서 해야 합니다.
 
 로봇을 종료해도 가능한 시험:
 
@@ -164,6 +188,16 @@ ros2 run mobile_openarm_apps llm_planner "빨간 상자를 왼쪽 작업대로 �
 **소스:** 공통 `llm_planner.py`. 로컬 서버·키 관리·구조화 출력은 [휠형 2-04 LLM 장](../wheel/day2-04-llm-planner.md)를 참고합니다.
 
 ## 2-05. Task Manager로 실행·상태 관찰
+
+| 터미널 | 상태 | 이족 환경 변수 | 이 단계에서 |
+|---|---|---|---|
+| T1 | 🟢 nav (2-03과 같은 명령으로 새로 시작) | 불필요 | 그대로 둠 |
+| T2 | 🟢 move_group (새로 시작) | 불필요 | 그대로 둠 |
+| T3 | 🆕 → 🟢 | 필요 | task_manager. 실행 로그가 여기 찍힘 |
+| T4 | 🆕 → 🟢 | 불필요 | `/task/status` 출력. **관찰은 여기서** |
+| T5 | 🆕 → ⚪ | 불필요 | 명령 발행·취소 |
+
+**원인 → 결과:** T5 발행 → T3 계획·실행 로그 → 로봇 이동(RViz·MuJoCo) → T4 `state` 변화.
 
 2-03의 TRON1 nav + MoveIt을 새로 시작하고, 초기 상자 배치를 확인합니다. T3 (이족/SRDF 환경 변수 필요):
 
@@ -189,6 +223,10 @@ ros2 topic pub --once /task/command std_msgs/msg/String \
 **소스:** 공통 `task_manager.py`, `validate_plan()`, `robot_skills.py`. LLM은 다리 관절을 직접 제어하지 않습니다.
 
 ## 2-06. 웹 대시보드·통합 미션
+
+| 터미널 | 상태 | 이족 환경 변수 | 이 단계에서 |
+|---|---|---|---|
+| T1 | 다른 터미널의 launch·앱을 모두 `Ctrl+C` 후 → 🟢 | 자동 설정 | full_system 하나만 실행. 결과는 브라우저와 T1 로그 |
 
 기존 수동 launch와 앱을 **전부 종료**한 뒤 T1:
 

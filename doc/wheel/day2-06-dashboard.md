@@ -85,6 +85,10 @@ flowchart LR
 
 ### 단계 2 — T1: 전체 시스템 켜기
 
+| 터미널 | 상태 | 이 단계에서 |
+|---|---|---|
+| T1 | 🆕 새로 열기 → 🟢 계속 실행 | full_system 하나로 시뮬·Nav2·MoveIt·Task Manager·웹이 모두 뜸. **다른 터미널에서 launch 를 추가로 실행하지 않음** |
+
 ```bash
 ros2 launch mobile_openarm_apps full_system.launch.py planner:=offline
 # 저사양 / iMac Docker:
@@ -122,6 +126,8 @@ T1 로그에 `task_manager 준비 완료` 와 `dashboard: http://localhost:8080`
 
 ### 단계 4 — 미션 실행
 
+**원인 → 결과:** 브라우저에서 실행 버튼 → 웹 서버가 `/task/command` 발행 → Task Manager 가 실행 → 브라우저의 미션·지도·카메라 영역과 T1 로그가 바뀜.
+
 1. **빨간 상자 운반** 예시 버튼을 누르거나 입력칸에 `빨간 상자를 왼쪽 작업대로 옮기고 돌아와` 를 쓰고 **실행**.
 2. 미션 영역에 5단계(navigate → pick → navigate → place → navigate)가 나타나고 하나씩 진행 표시가 바뀝니다.
 3. 지도에서 로봇이 움직이고, 작업대 앞에서는 카메라에 상자와 마커가 보입니다.
@@ -131,7 +137,7 @@ T1 로그에 `task_manager 준비 완료` 와 `dashboard: http://localhost:8080`
 
 - **불가능한 명령** 버튼 (`커피 한 잔 타줘`) → `rejected`
 - **순찰** 버튼 → 실행 중 **취소** 버튼
-- 명령줄로도 보낼 수 있습니다 (T2):
+- 명령줄로도 보낼 수 있습니다. 🆕 T2를 새로 열어 실행합니다(curl 이라 ROS 환경 불러오기는 필요 없음, T1은 그대로):
 
 ```bash
 curl -X POST http://localhost:8080/api/command -H 'Content-Type: application/json' -d '{"text": "파란 상자를 왼쪽 작업대로 옮겨줘"}'

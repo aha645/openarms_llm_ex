@@ -48,7 +48,7 @@ source tron1_openarm/install/setup.bash         # 휠형 mobile_openarm underlay
 source mobile_openarm/.venv-mobile/bin/activate # python3 를 직접 실행할 때 필요 (ros2 launch/run 은 없어도 됨)
 ```
 
-T1/T2/T3는 별도 터미널입니다. 단계 전환 시 기존 launch·teleop를 Ctrl+C로 종료합니다. 휠형과 이족형, sim/slam/nav/full_system을 동시에 올리지 않습니다. 같은 노드·토픽·액션을 공유하기 때문입니다.
+각 절 위의 터미널 상태표(🆕 새로 열기 · 🟢 계속 실행 · ⚪ 바로 끝남)는 [휠형 공통 규칙](../wheel/README.md#1-터미널-여러-개-쓰기)과 같은 표기입니다. T1/T2/T3는 별도 터미널입니다. 단계 전환 시 기존 launch·teleop를 Ctrl+C로 종료합니다. 휠형과 이족형, sim/slam/nav/full_system을 동시에 올리지 않습니다. 같은 노드·토픽·액션을 공유하기 때문입니다.
 
 ## 소스 구성과 휠형과의 차이
 
@@ -89,6 +89,8 @@ tron1_openarm/src/tron1_openarm_sim/
 
 ## 1-01. 정책을 포함한 모델 점검
 
+터미널 하나만 씁니다. ROS launch 는 띄우지 않으며 ⚪ 점검이 끝나면 스스로 종료합니다. 가상환경(`activate`)이 켜져 있어야 합니다.
+
 ```bash
 python3 tron1_openarm/src/tron1_openarm_sim/tools/selftest_tron1.py \
   sf/world_light.xml policies/tron1sf_openarm_policy.npz
@@ -97,6 +99,12 @@ python3 tron1_openarm/src/tron1_openarm_sim/tools/selftest_tron1.py \
 **테스트:** 서기·걷기·회전·센서·팔 관련 항목의 결과를 확인합니다. TRON1 월드를 단순 MuJoCo viewer로만 열면 보행 정책이 제어하지 않아 주저앉을 수 있습니다. 첫 시각화는 아래 sim launch로 합니다.
 
 ## 1-02. 보행 브리지와 직접 운전
+
+| 터미널 | 상태 | 이 단계에서 |
+|---|---|---|
+| T1 | 🆕 → 🟢 | sim launch |
+| T2 | 🆕 → 🟢 | `/biped/status` 계속 출력. **관찰은 여기서** |
+| T3 | 🆕 → 🟢 | teleop. **키 입력은 여기서** |
 
 T1:
 
@@ -117,7 +125,7 @@ T3:
 ros2 run teleop_twist_keyboard teleop_twist_keyboard
 ```
 
-안내에 따라 속도를 낮춰 약 0.2~0.3 m/s로 짧게 전진·회전하고 정지합니다. PF 비교는 현재 launch 종료 후 `foot:=pf`로 바꿔 재실행합니다.
+T3 창을 클릭한 뒤 안내에 따라 속도를 낮춰 약 0.2~0.3 m/s로 짧게 전진·회전하고 정지합니다. **T3에서 키를 누르는 동안 T2의 출력**(정책이 받은 명령·추정속도·기울기)이 바뀌는 것을 함께 관찰하세요. PF 비교는 현재 launch 종료 후 `foot:=pf`로 바꿔 재실행합니다.
 
 **확인 기준:** 넘어짐 여부, 몸통 높이·기울기, 명령·추정속도, 정지 시 동작을 기록합니다. `/joint_states`에는 바퀴 대신 다리 관절이 포함됩니다. `/odom`과 `/ground_truth/pose`를 비교할 수 있지만 정답 위치를 실제 로봇에서 얻을 수 있는 센서값으로 혼동하지 않습니다.
 
@@ -125,9 +133,11 @@ ros2 run teleop_twist_keyboard teleop_twist_keyboard
 
 **휠형과 다른 점** (통합 전 PF 기준 기록. 수치는 SF 와 다를 수 있음)
 
-```bash
-ros2 launch tron1_openarm_sim sim.launch.py
-ros2 topic echo /biped/status --field data        # 새 토픽: 몸통 높이·기울기·넘어짐·정책이 받은 명령·추정속도
+> ⚠️ **읽기 전용 기록입니다.** 아래 코드 블록은 PF(launch 기본값) 시절 명령이라 `foot:=sf` 가 없고 SRDF 도 PF용입니다. **실행하지 마세요.** 실습은 위의 SF 명령으로 이미 진행 중입니다.
+
+```text
+# (PF 기록) ros2 launch tron1_openarm_sim sim.launch.py
+# (PF 기록) ros2 topic echo /biped/status --field data        # 새 토픽: 몸통 높이·기울기·넘어짐·정책이 받은 명령·추정속도
 ```
 
 - 실행 직후 로봇이 0.71 m 에서 다리를 편 채 놓이고, 정책이 받아서 0.68 m 로 섭니다. 명령이 없어도 **제자리 걸음**을 합니다.
@@ -137,7 +147,13 @@ ros2 topic echo /biped/status --field data        # 새 토픽: 몸통 높이·�
 
 ## 1-03. TF와 이족 좌표계
 
-sim은 유지하고 teleop는 종료. T2:
+| 터미널 | 상태 | 이 단계에서 |
+|---|---|---|
+| T1 | 🟢 sim 실행 중 (1-02 그대로) | 그대로 둠 |
+| T2 | 1-02 출력을 `Ctrl+C` 로 멈춘 같은 터미널 | `view_frames` ⚪ 5초 후 끝남 → `tf2_echo` 🟢 계속 출력 |
+| T3 | teleop `Ctrl+C` | 사용 안 함 |
+
+T2에서:
 
 ```bash
 ros2 run tf2_tools view_frames
@@ -149,6 +165,8 @@ ros2 run tf2_ros tf2_echo base_footprint head_camera_link
 **소스:** `tools/make_urdf_tron1.py`, `urdf/tron1_openarm_sf.urdf`, `biped_core.py`의 odom 처리. 원리 설명은 아래 "휠형과 다른 점"에 있습니다(PF 기준 수치).
 
 **휠형과 다른 점** (통합 전 PF 기준 기록. 수치는 SF 와 다를 수 있음)
+
+> ⚠️ **읽기 전용 기록입니다.** 아래 코드 블록은 PF(launch 기본값) 시절 명령이라 `foot:=sf` 가 없고 SRDF 도 PF용입니다. **실행하지 마세요.** 실습은 위의 SF 명령으로 이미 진행 중입니다.
 
 ```
 map → odom → base_footprint → base_link → abad/hip/knee/foot_L,R
@@ -163,6 +181,12 @@ map → odom → base_footprint → base_link → abad/hip/knee/foot_L,R
 - 확인: `ros2 run tf2_ros tf2_echo base_footprint head_camera_link` → z ≈ 1.24 m (바퀴형 1.16 m. 어깨를 8 cm 올린 만큼 높음)
 
 ## 1-04. SLAM 지도 작성
+
+| 터미널 | 상태 | 이 단계에서 |
+|---|---|---|
+| T1 | sim `Ctrl+C` 후 같은 터미널 → 🟢 | slam launch. 지도 저장 전까지 **끄지 않음** |
+| T2 | → 🟢 | teleop. 키 입력 |
+| T3 | → ⚪ | 지도 저장. T1·T2 켜 둔 상태에서 실행 |
 
 기존 sim 종료. T1:
 
@@ -190,11 +214,13 @@ ros2 run nav2_map_server map_saver_cli -f ~/maps/tron1_sf_map \
 
 **휠형과 다른 점** (통합 전 PF 기준 기록. 수치는 SF 와 다를 수 있음)
 
-```bash
-ros2 launch tron1_openarm_sim slam.launch.py
-ros2 run teleop_twist_keyboard teleop_twist_keyboard     # 속도 0.25~0.3 m/s, 회전 0.5 rad/s 정도
-mkdir -p ~/maps && ros2 run nav2_map_server map_saver_cli -f ~/maps/tron1_map --ros-args -p use_sim_time:=true
-ros2 launch tron1_openarm_sim nav.launch.py map:=$HOME/maps/tron1_map.yaml
+> ⚠️ **읽기 전용 기록입니다.** 아래 코드 블록은 PF(launch 기본값) 시절 명령이라 `foot:=sf` 가 없고 SRDF 도 PF용입니다. **실행하지 마세요.** 실습은 위의 SF 명령으로 이미 진행 중입니다.
+
+```text
+# (PF 기록) ros2 launch tron1_openarm_sim slam.launch.py
+# (PF 기록) ros2 run teleop_twist_keyboard teleop_twist_keyboard     # 속도 0.25~0.3 m/s, 회전 0.5 rad/s 정도
+# (PF 기록) mkdir -p ~/maps && ros2 run nav2_map_server map_saver_cli -f ~/maps/tron1_map --ros-args -p use_sim_time:=true
+# (PF 기록) ros2 launch tron1_openarm_sim nav.launch.py map:=$HOME/maps/tron1_map.yaml
 ```
 
 - LiDAR 가 0.55 m 높이 (바퀴형 0.34 m) 라 작업대 상판은 여전히 안 보이고 다리만 보입니다. 상자 더미(0.6 m)는 보입니다.
@@ -202,6 +228,11 @@ ros2 launch tron1_openarm_sim nav.launch.py map:=$HOME/maps/tron1_map.yaml
 - 다리 오도메트리 잡음 때문에 지도가 살짝 휠 수 있습니다. 한 바퀴 돈 뒤 home 근처에서 잠시 서 있으면 slam_toolbox 가 맞춥니다.
 
 ## 1-05. Nav2 주행
+
+| 터미널 | 상태 | 이 단계에서 |
+|---|---|---|
+| T1 | slam `Ctrl+C` 후 같은 터미널 → 🟢 | nav launch |
+| T2, T3 | `Ctrl+C` | 사용 안 함. 목표는 RViz 에서 |
 
 SLAM·teleop 종료. T1:
 
@@ -219,6 +250,8 @@ RViz Nav2 Goal로 빈 공간 목표를 지정합니다. 기본값은 생성된 `
 
 **휠형과 다른 점** (통합 전 PF 기준 기록. 수치는 SF 와 다를 수 있음)
 
+> ⚠️ **읽기 전용 기록입니다.** 아래 코드 블록은 PF(launch 기본값) 시절 명령이라 `foot:=sf` 가 없고 SRDF 도 PF용입니다. **실행하지 마세요.** 실습은 위의 SF 명령으로 이미 진행 중입니다.
+
 | 파라미터 | 바퀴형 | TRON1 |
 |---|---|---|
 | 최대 속도 vx / wz | 0.40 m/s / 1.2 rad/s | 0.35 m/s / 0.8 rad/s |
@@ -231,6 +264,11 @@ RViz Nav2 Goal로 빈 공간 목표를 지정합니다. 기본값은 생성된 `
 - `Failed to make progress` 가 바퀴형보다 잘 나면 `config/nav2_params_tron1.yaml` 의 `movement_time_allowance` 를 늘리세요.
 
 ## 1-06. 공통 순찰 앱 재사용
+
+| 터미널 | 상태 | 이 단계에서 |
+|---|---|---|
+| T1 | 🟢 nav 실행 중 (1-05 그대로) | 그대로 둠 |
+| T2 | 비어 있는 터미널 | patrol 실행. 순찰이 끝나면 ⚪ 스스로 종료. **T2 로그와 RViz** 관찰 |
 
 Nav2 유지, T2:
 

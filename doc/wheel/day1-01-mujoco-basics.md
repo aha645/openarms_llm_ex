@@ -57,17 +57,21 @@ MuJoCo 모델은 XML 한 파일(또는 `include` 로 나눈 여러 파일)입니
 
 ## 3. 따라하기
 
-### 단계 1 — T1: 월드 파일 열어 보기
+### 단계 1 — 월드 파일 열어 보기 (터미널 하나, ROS 불필요)
+
+이 장은 ROS 노드를 띄우지 않습니다. 터미널 **하나**만 열어 단계 1~4를 차례로 진행합니다.
 
 ```bash
 cd ~/openarm_mobile_ws
+source mobile_openarm/.venv-mobile/bin/activate    # mujoco 가 든 가상환경 (프롬프트에 (.venv-mobile) 표시)
 python3 -m mujoco.viewer --mjcf=mobile_openarm/src/mobile_openarm_sim/mjcf/world.xml
 # 저사양: --mjcf=mobile_openarm/src/mobile_openarm_sim/mjcf/world_light.xml
 ```
 
 **명령 풀이**
 
-- `python3`: Python 을 실행합니다. 가상환경(`.venv-mobile`)을 켠 터미널이면 그 안의 Python 입니다 ([README 2절](README.md#2-새-터미널마다-환경-불러오기)).
+- `source .../activate`: 가상환경을 켭니다. 빼먹으면 시스템 Python 이 실행되어 `No module named mujoco` 가 납니다 ([README 2절](README.md#2-새-터미널마다-환경-불러오기)).
+- `python3`: Python 을 실행합니다. 가상환경을 켰으므로 `.venv-mobile` 안의 Python 입니다.
 - `-m mujoco.viewer`: 설치된 `mujoco.viewer` 모듈을 프로그램으로 실행합니다.
 - `--mjcf=...`: 뷰어에서 열 로봇·환경 파일을 지정합니다. MJCF 는 MuJoCo 의 물리 모델 파일 형식입니다.
 - `world_light.xml`: 시각용 메시를 줄인 가벼운 월드입니다. 작업대·상자와 휠+OpenArm 로봇은 그대로 포함됩니다.
@@ -104,12 +108,15 @@ python3 -m mujoco.viewer --mjcf=mobile_openarm/src/mobile_openarm_sim/mjcf/world
 5. **팔 밀어 보기**: 팔 링크 하나를 더블클릭해 `Ctrl` + 오른쪽 드래그 → 모터가 원래 자세로 되돌리려고 버팁니다(위치 제어 액추에이터).
 6. `Backspace` 로 리셋하면 상자가 제자리로 돌아옵니다.
 
-창을 닫으면(또는 T1에서 Ctrl+C) 끝납니다.
+뷰어 창을 닫으면(또는 명령을 입력한 터미널에서 Ctrl+C) 끝나고 프롬프트가 돌아옵니다.
 
-### 단계 4 — T1: 자체 점검(selftest)
+### 단계 4 — 같은 터미널: 자체 점검(selftest)
+
+뷰어를 닫은 **같은 터미널**에서 실행합니다(가상환경이 이미 켜져 있음). 새 터미널이라면 activate 줄부터 다시 입력하세요.
 
 ```bash
 cd ~/openarm_mobile_ws
+source mobile_openarm/.venv-mobile/bin/activate    # 새 터미널일 때만 필요
 python3 mobile_openarm/src/mobile_openarm_sim/tools/selftest.py                 # 기본 world.xml
 python3 mobile_openarm/src/mobile_openarm_sim/tools/selftest.py world_light.xml # 저사양 월드
 ```
@@ -141,4 +148,4 @@ python3 mobile_openarm/src/mobile_openarm_sim/tools/selftest.py world_light.xml 
 ## 7. 더 해보기
 
 - `mjcf/world.xml` 을 텍스트 편집기로 열어 `pick_table` body의 `pos` 를 찾아보기
-- `tools/build_world.py` 의 `BOXES` 에 상자를 하나 더 추가하고 `python3 tools/build_world.py --out mjcf --config config` 로 월드를 다시 만들어 보기 (패키지 폴더 `mobile_openarm/src/mobile_openarm_sim` 에서 실행)
+- `tools/build_world.py` 의 `BOXES` 에 상자를 하나 더 추가하고 `python3 tools/build_world.py --out mjcf --config config` 로 월드를 다시 만들어 보기 (패키지 폴더 `mobile_openarm/src/mobile_openarm_sim` 에서, 가상환경을 켠 터미널로 실행)

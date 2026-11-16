@@ -74,7 +74,13 @@ flowchart LR
 
 ## 4. 따라하기
 
+**시작 전 상태:** 앞 장의 프로그램이 모두 꺼져 있고 `ros2 node list` 가 비어 있어야 합니다. 이 장에서는 터미널을 최대 2개 씁니다. 표기법(🆕 🟢 ⚪)은 [README 공통 규칙](README.md#1-터미널-여러-개-쓰기)을 보세요.
+
 ### 단계 1 — T1: 시뮬레이터 + Nav2
+
+| 터미널 | 상태 | 이 단계에서 |
+|---|---|---|
+| T1 | 🆕 새로 열기 → 🟢 계속 실행 | nav launch 실행. 이 장이 끝날 때까지 **끄지 않음** |
 
 ```bash
 ros2 launch mobile_openarm_sim nav.launch.py
@@ -83,6 +89,13 @@ ros2 launch mobile_openarm_sim nav.launch.py
 `Managed nodes are active` 가 나올 때까지 기다립니다.
 
 ### 단계 2 — T2: 순찰 실행
+
+| 터미널 | 상태 | 이 단계에서 |
+|---|---|---|
+| T1 | 🟢 nav 실행 중 | 그대로 둠 |
+| T2 | 🆕 새로 열기 | patrol 실행. 순찰이 끝나 home 에 돌아오면 ⚪ 스스로 끝남 (그동안은 붙잡혀 있음) |
+
+**원인 → 결과:** T2의 patrol 이 Nav2에 경유지를 보냄 → RViz에 경로 → 로봇 이동 → T2 로그 `waypoint n/4` 가 올라감.
 
 ```bash
 ros2 run mobile_openarm_apps patrol --ros-args -p loops:=2 -p mode:=waypoints
@@ -119,6 +132,11 @@ RViz에서는 경유지마다 경로가 새로 그려지고, 로봇이 네 모�
 
 ### 단계 3 — 두 모드 비교
 
+| 터미널 | 상태 | 이 단계에서 |
+|---|---|---|
+| T1 | 🟢 nav 실행 중 | 그대로 둠 |
+| T2 | 단계 2와 같은 터미널 | 앞 순찰이 끝나 프롬프트가 돌아온 뒤 실행 |
+
 ```bash
 ros2 run mobile_openarm_apps patrol --ros-args -p loops:=1 -p mode:=through
 ```
@@ -126,6 +144,11 @@ ros2 run mobile_openarm_apps patrol --ros-args -p loops:=1 -p mode:=through
 `through` 는 모서리에서 멈추지 않고 부드럽게 이어 돕니다. 걸린 시간과 움직임을 `waypoints` 와 비교해 보세요.
 
 ### 단계 4 — 미션: 순찰 경로 바꾸기
+
+| 터미널 | 상태 | 이 단계에서 |
+|---|---|---|
+| T1 | 🟢 nav 실행 중 | 그대로 둠 — **재시작 불필요** |
+| T2 | 같은 터미널 (순찰이 끝난 뒤) | yaml 수정 → 빌드 → `source` → 순찰 재실행을 모두 여기서 |
 
 순찰에 **문 앞(`door`)** 을 넣어 봅니다.
 

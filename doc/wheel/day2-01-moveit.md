@@ -71,7 +71,13 @@ flowchart LR
 
 ## 4. 따라하기
 
+**시작 전 상태:** 앞 장의 프로그램이 모두 꺼져 있고 `ros2 node list` 가 비어 있어야 합니다. 이 장에서는 터미널을 최대 3개 씁니다. 표기법(🆕 🟢 ⚪)은 [README 공통 규칙](README.md#1-터미널-여러-개-쓰기)을 보세요.
+
 ### 단계 1 — T1: 시뮬레이터 켜기
+
+| 터미널 | 상태 | 이 단계에서 |
+|---|---|---|
+| T1 | 🆕 새로 열기 → 🟢 계속 실행 | sim 실행. 이 장이 끝날 때까지 **끄지 않음** |
 
 ```bash
 ros2 launch mobile_openarm_sim sim.launch.py rviz:=false
@@ -80,6 +86,11 @@ ros2 launch mobile_openarm_sim sim.launch.py rviz:=false
 `rviz:=false`: MoveIt용 RViz를 따로 띄우므로 시뮬 쪽 RViz는 끕니다(메모리 절약).
 
 ### 단계 2 — T2: MoveIt(move_group) + RViz 켜기
+
+| 터미널 | 상태 | 이 단계에서 |
+|---|---|---|
+| T1 | 🟢 sim 실행 중 | 그대로 둠 |
+| T2 | 🆕 새로 열기 → 🟢 | MuJoCo 창이 뜬 뒤 실행. 이 장이 끝날 때까지 **끄지 않음** |
 
 ```bash
 ros2 launch mobile_openarm_moveit_config move_group.launch.py
@@ -92,6 +103,13 @@ ros2 launch mobile_openarm_moveit_config move_group.launch.py
 
 ### 단계 3 — RViz에서 손으로 계획하기
 
+| 터미널 | 상태 | 이 단계에서 |
+|---|---|---|
+| T1 | 🟢 sim 실행 중 | 그대로 둠 |
+| T2 | 🟢 move_group 실행 중 | **T2가 띄운 MoveIt RViz 창**에서 조작 |
+
+**원인 → 결과:** RViz에서 Execute → move_group 이 궤적을 브리지 액션으로 보냄 → **MuJoCo 창의 팔**이 움직임 → RViz 로봇도 따라 움직임.
+
 1. MotionPlanning 패널 → **Planning** 탭 → **Planning Group** 을 `right_arm` 으로 고릅니다.
 2. 오른손 끝에 **파란 공·화살표(인터랙티브 마커)** 가 나타납니다. 공을 드래그하면 손 위치, 색 고리를 드래그하면 손 방향이 바뀝니다. 주황색 반투명 팔이 **목표 자세**입니다. 팔이 빨갛게 변하면 IK 해가 없거나 충돌하는 자세입니다.
 3. **Plan** 을 누르면 지금 자세 → 목표 자세 경로가 애니메이션으로 보입니다.
@@ -100,6 +118,12 @@ ros2 launch mobile_openarm_moveit_config move_group.launch.py
 6. Planning Group 을 `both_arms` 로 바꾸고 Goal State `hands_up` → 양팔이 동시에 움직입니다.
 
 ### 단계 4 — T3: Python 데모 실행
+
+| 터미널 | 상태 | 이 단계에서 |
+|---|---|---|
+| T1 | 🟢 sim 실행 중 | 그대로 둠 |
+| T2 | 🟢 move_group 실행 중 | 그대로 둠 |
+| T3 | 🆕 새로 열기 | arm_demo 실행. `arm_demo 완료` 가 나오면 ⚪ 스스로 끝남. **T3 로그와 MuJoCo 창**을 함께 관찰 |
 
 ```bash
 ros2 run mobile_openarm_apps arm_demo
@@ -133,8 +157,15 @@ cp arm_demo.py my_arm.py
 
 `my_arm.py` 에서 `p = np.array([0.50, y, 0.95])` 를 `[0.45, y, 1.10]`(조금 가깝고 높게)으로 바꾸고, 직선 이동을 아래 10 cm 대신 **앞으로 10 cm**(`p + [0.10, 0, 0]`)로 바꿉니다. 실행:
 
+| 터미널 | 상태 | 이 단계에서 |
+|---|---|---|
+| T1 | 🟢 sim 실행 중 | 그대로 둠 |
+| T2 | 🟢 move_group 실행 중 | 그대로 둠 |
+| T3 | 단계 4와 같은 터미널 (arm_demo 가 끝난 뒤) | 파일 복사·수정·실행을 여기서 |
+
 ```bash
 cd ~/openarm_mobile_ws
+source mobile_openarm/.venv-mobile/bin/activate   # ros2 run 과 같은 Python 으로 실행
 python3 -m mobile_openarm_apps.my_arm          # 패키지 폴더 기준으로 import 되도록 -m 사용
 ```
 

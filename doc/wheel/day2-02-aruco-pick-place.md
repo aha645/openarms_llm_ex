@@ -91,7 +91,13 @@ MuJoCo의 손가락 마찰만으로 5 cm 상자를 들면 가끔 미끄러집니
 
 ## 3. 따라하기
 
+**시작 전 상태:** 앞 장의 프로그램이 모두 꺼져 있고 `ros2 node list` 가 비어 있어야 합니다. 이 장에서는 터미널을 최대 3개 씁니다. 표기법(🆕 🟢 ⚪)은 [README 공통 규칙](README.md#1-터미널-여러-개-쓰기)을 보세요.
+
 ### 단계 1 — T1: 작업대 앞에서 시뮬 시작
+
+| 터미널 | 상태 | 이 단계에서 |
+|---|---|---|
+| T1 | 🆕 새로 열기 → 🟢 계속 실행 | 작업대 앞 시작 좌표로 sim 실행. 이 장이 끝날 때까지 **끄지 않음** |
 
 ```bash
 ros2 launch mobile_openarm_sim sim.launch.py start_x:=2.5 start_y:=2.45 start_yaw:=1.5708
@@ -108,6 +114,11 @@ MuJoCo 창에서 로봇이 작업대 A를 바라보고, 앞에 상자 3개가 �
 
 ### 단계 2 — T2: 마커가 보이는지 확인
 
+| 터미널 | 상태 | 이 단계에서 |
+|---|---|---|
+| T1 | 🟢 sim 실행 중 | 그대로 둠 |
+| T2 | 🆕 새로 열기 | `echo --once` 는 ⚪ 바로 끝남. `hz` 는 🟢 계속 출력 → 확인 후 `Ctrl+C` |
+
 ```bash
 ros2 topic echo /aruco/detections --once
 ros2 topic hz /aruco/detections          # camera_hz (10 또는 5 Hz)
@@ -119,6 +130,11 @@ ID 0, 1, 2가 모두 나와야 합니다. RViz(T1이 띄운 것)에서 Add → B
 
 ### 단계 3 — T2: MoveIt 켜기
 
+| 터미널 | 상태 | 이 단계에서 |
+|---|---|---|
+| T1 | 🟢 sim 실행 중 | 그대로 둠 |
+| T2 | 단계 2와 같은 터미널 (`hz` 를 `Ctrl+C` 로 멈춘 뒤) → 🟢 | move_group 실행. 이 장이 끝날 때까지 **끄지 않음** |
+
 ```bash
 ros2 launch mobile_openarm_moveit_config move_group.launch.py rviz:=false
 ```
@@ -126,6 +142,14 @@ ros2 launch mobile_openarm_moveit_config move_group.launch.py rviz:=false
 `You can start planning now!` 를 기다립니다.
 
 ### 단계 4 — T3: Pick & Place 실행 (미션)
+
+| 터미널 | 상태 | 이 단계에서 |
+|---|---|---|
+| T1 | 🟢 sim 실행 중 | 그대로 둠 |
+| T2 | 🟢 move_group 실행 중 | 그대로 둠 |
+| T3 | 🆕 새로 열기 | pick_place 실행. `pick_place 완료` 후 ⚪ 스스로 끝남 |
+
+**원인 → 결과:** T3의 pick_place 가 `/aruco/detections` 를 읽고 MoveIt(T2)에 팔 계획을 요청 → **MuJoCo 창의 팔**이 상자를 집고 놓음 → T3 로그에 `[pick]`, `[place]` 진행.
 
 ```bash
 ros2 run mobile_openarm_apps pick_place --ros-args -p object:=box_0
@@ -159,6 +183,12 @@ pick_place 완료
 MuJoCo 창에서: 오른팔이 몸 쪽(carry)으로 올라옴 → 상자 뒤 위쪽으로 → 직선으로 내려가 손가락이 상자를 감쌈 → 닫고 들어 올림 → 앞쪽 가운데에 내려놓음 → 팔 내림.
 
 ### 단계 5 — 다른 상자로 반복
+
+| 터미널 | 상태 | 이 단계에서 |
+|---|---|---|
+| T1 | 🟢 sim 실행 중 | 그대로 둠 |
+| T2 | 🟢 move_group 실행 중 | 그대로 둠 |
+| T3 | 단계 4와 같은 터미널 (앞 실행이 끝난 뒤) | 아래 명령을 차례로. 모두 끝나면 프롬프트가 돌아옴 |
 
 상자 위치를 처음으로 돌리려면:
 

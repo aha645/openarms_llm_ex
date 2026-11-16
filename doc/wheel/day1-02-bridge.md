@@ -57,7 +57,7 @@ flowchart LR
   ACT(("액션")) -- "*_joint_trajectory_controller/follow_joint_trajectory" --> BR
   BR -- "/joint_states" --> RSP -- "/tf (로봇 부품)" --> RV
   TEL["T2: teleop_twist_keyboard"] --> IN
-  CLI["T3: ros2 topic / action 명령"] --> ACT
+  CLI["T4: ros2 action / service 명령"] --> ACT
 ```
 
 ## 3. 실제로 실행되는 소스
@@ -91,7 +91,13 @@ flowchart LR
 
 ## 4. 따라하기
 
+**시작 전 상태:** 앞 장의 프로그램이 모두 꺼져 있고 `ros2 node list` 가 비어 있어야 합니다. 이 장에서는 터미널을 최대 4개(T1~T4) 씁니다.
+
 ### 단계 1 — T1: 시뮬레이터 + 브리지 켜기
+
+| 터미널 | 상태 | 이 단계에서 |
+|---|---|---|
+| T1 | 🆕 새로 열기 → 🟢 계속 실행 | 아래 launch 실행. 이후 이 장이 끝날 때까지 **끄지 않음** |
 
 ```bash
 ros2 launch mobile_openarm_sim sim.launch.py
@@ -112,6 +118,11 @@ ros2 launch mobile_openarm_sim sim.launch.py
 - **확인**: MuJoCo 창과 RViz2 창이 뜨고, T1 로그에 `MuJoCo bridge started (viewer=True, camera=True)` 가 나옵니다. RViz에는 로봇 모델과 주변 벽에 찍힌 LiDAR 점들이 보입니다.
 
 ### 단계 2 — T2: 토픽 둘러보기
+
+| 터미널 | 상태 | 이 단계에서 |
+|---|---|---|
+| T1 | 🟢 sim 실행 중 | 그대로 둠 |
+| T2 | 🆕 새로 열기 | 아래 명령을 **한 줄씩** 입력. `hz` 는 계속 출력되므로 값을 확인하면 `Ctrl+C` 로 멈추고 다음 줄로. 나머지는 ⚪ 바로 끝남 |
 
 ```bash
 ros2 node list                 # 실행 중인 노드: /mujoco_bridge /robot_state_publisher /rviz2 …
@@ -136,6 +147,11 @@ ros2 interface show geometry_msgs/msg/Twist   # /cmd_vel 메시지 구조
 
 ### 단계 3 — T2: 명령어로 직접 운전하기
 
+| 터미널 | 상태 | 이 단계에서 |
+|---|---|---|
+| T1 | 🟢 sim 실행 중 | 그대로 둠 |
+| T2 | 단계 2를 마친 같은 터미널 → 🟢 | 아래 `pub` 실행. **결과는 MuJoCo 창**에서 봅니다(로봇이 앞으로 감). 확인 후 `Ctrl+C` |
+
 ```bash
 # 0.2 m/s로 앞으로 (10 Hz로 계속 보냄 — 멈추려면 Ctrl+C)
 ros2 topic pub -r 10 /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.2}, angular: {z: 0.0}}"
@@ -143,8 +159,17 @@ ros2 topic pub -r 10 /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.2}, angula
 
 - `-r 10`: 초당 10번 보내기. 브리지는 **0.5초 동안 명령이 끊기면 멈추므로** 한 번만 보내면(`--once`) 잠깐 움찔하고 섭니다.
 - Ctrl+C로 멈추면 로봇도 0.5초 뒤 섭니다.
+- **다음 단계로 가기 전에 반드시 T2에서 Ctrl+C** 로 이 명령을 멈추세요. 켜 둔 채 teleop을 실행하면 `/cmd_vel` 을 보내는 쪽이 둘이 되어 로봇이 키 입력대로 움직이지 않습니다.
 
 ### 단계 4 — T2: 키보드로 운전하고 오도메트리 확인 (미션)
+
+| 터미널 | 상태 | 이 단계에서 |
+|---|---|---|
+| T1 | 🟢 sim 실행 중 | 그대로 둠 |
+| T2 | 단계 3에서 `pub` 을 멈춘 같은 터미널 → 🟢 | teleop 실행. **키 입력은 여기서** |
+| T3 | 🆕 새로 열기 → 🟢 | `/odom` 위치를 계속 출력. **결과 관찰은 여기서** |
+
+**원인 → 결과:** T2에서 키를 누름 → `/cmd_vel` → 브리지가 바퀴를 굴림 → MuJoCo 창의 로봇이 움직이고, 동시에 T3의 `x`, `y` 값이 바뀝니다.
 
 ```bash
 ros2 run teleop_twist_keyboard teleop_twist_keyboard
@@ -162,7 +187,13 @@ ros2 topic echo /odom --field pose.pose.position
 
 **미션**: home(0, 0)에서 동쪽(앞)으로 똑바로 약 1 m 가서 멈추고, `x` 가 1.0 근처인지 확인합니다. 정답 위치 `ros2 topic echo /ground_truth/pose --once` 와 비교해 차이(오도메트리 오차)를 적어 보세요. 몇 cm 이내면 정상입니다.
 
-### 단계 5 — T3: 액션으로 오른팔 움직이기
+### 단계 5 — T4: 액션으로 오른팔 움직이기
+
+| 터미널 | 상태 | 이 단계에서 |
+|---|---|---|
+| T1 | 🟢 sim 실행 중 | 그대로 둠 |
+| T2, T3 | 🟢 teleop / odom 출력 중 | `Ctrl+C` 로 꺼도 되고 그대로 둬도 됨 (T3는 계속 출력 중이라 명령 입력 불가) |
+| T4 | 🆕 새로 열기 | 아래 명령 실행. ⚪ 목표가 끝나면 프롬프트가 돌아옴. **결과는 MuJoCo·RViz 창의 오른팔**과 T4의 피드백 출력 |
 
 ```bash
 ros2 action list                     # *_joint_trajectory_controller/follow_joint_trajectory 4개, gripper_cmd 2개
@@ -185,7 +216,9 @@ ros2 action send_goal /right_gripper_controller/gripper_cmd control_msgs/action/
 ros2 action send_goal /right_gripper_controller/gripper_cmd control_msgs/action/GripperCommand "{command: {position: 0.0}}"     # 닫기
 ```
 
-### 단계 6 — T3: 서비스 써 보기
+### 단계 6 — T4: 서비스 써 보기
+
+같은 T4에서 실행합니다. ⚪ 응답을 받으면 바로 끝납니다. **결과는 MuJoCo 창**에서 로봇·상자가 처음 위치로 돌아가는 것으로 확인합니다.
 
 ```bash
 ros2 service list | grep sim

@@ -81,7 +81,13 @@ sequenceDiagram
 
 ## 4. 따라하기
 
+**시작 전 상태:** 앞 장의 프로그램이 모두 꺼져 있고 `ros2 node list` 가 비어 있어야 합니다. 이 장에서는 터미널을 최대 3개 씁니다. 표기법(🆕 🟢 ⚪)은 [README 공통 규칙](README.md#1-터미널-여러-개-쓰기)을 보세요.
+
 ### 단계 1 — T1: 시뮬 + Nav2
+
+| 터미널 | 상태 | 이 단계에서 |
+|---|---|---|
+| T1 | 🆕 새로 열기 → 🟢 계속 실행 | nav launch 실행(작업대 시작 좌표 **없이**, home 에서 출발) |
 
 ```bash
 ros2 launch mobile_openarm_sim nav.launch.py
@@ -92,6 +98,11 @@ ros2 launch mobile_openarm_sim nav.launch.py
 
 ### 단계 2 — T2: MoveIt
 
+| 터미널 | 상태 | 이 단계에서 |
+|---|---|---|
+| T1 | 🟢 nav 실행 중 | 그대로 둠 |
+| T2 | 🆕 새로 열기 → 🟢 | T1에 `Managed nodes are active` 가 나온 뒤 실행 |
+
 ```bash
 ros2 launch mobile_openarm_moveit_config move_group.launch.py rviz:=false
 ```
@@ -99,6 +110,14 @@ ros2 launch mobile_openarm_moveit_config move_group.launch.py rviz:=false
 `You can start planning now!` 를 기다립니다.
 
 ### 단계 3 — T3: 운반 실행 (미션)
+
+| 터미널 | 상태 | 이 단계에서 |
+|---|---|---|
+| T1 | 🟢 nav 실행 중 | 그대로 둠 |
+| T2 | 🟢 move_group 실행 중 | 그대로 둠 |
+| T3 | 🆕 새로 열기 | nav_pick_place 실행. 5~10분 뒤 `nav_pick_place 완료` 후 ⚪ 스스로 끝남 |
+
+**원인 → 결과:** T3 앱이 Nav2(T1)에 이동을, MoveIt(T2)에 팔 동작을 차례로 요청 → RViz·MuJoCo 창에서 주행·집기·운반 → T3 로그의 `[nav]`/`[base]`/`[pick]`/`[place]` 가 아래 표 순서대로 찍힘.
 
 ```bash
 ros2 run mobile_openarm_apps nav_pick_place --ros-args -p object:=box_0
@@ -124,6 +143,12 @@ ros2 run mobile_openarm_apps nav_pick_place --ros-args -p object:=box_0
 
 ### 단계 4 — 결과 확인
 
+| 터미널 | 상태 | 이 단계에서 |
+|---|---|---|
+| T1 | 🟢 nav 실행 중 | 그대로 둠 |
+| T2 | 🟢 move_group 실행 중 | 그대로 둠 |
+| T3 | 단계 3과 같은 터미널 (완료 후) | 아래 명령 ⚪ 바로 끝남 |
+
 ```bash
 ros2 topic echo /sim/objects --once
 ```
@@ -131,6 +156,12 @@ ros2 topic echo /sim/objects --once
 `box_0` 의 world 좌표 x가 −2.5 근처(작업대 B), y가 2.9~3.1이면 성공입니다.
 
 ### 단계 5 — 반대로 옮기기 (도전)
+
+| 터미널 | 상태 | 이 단계에서 |
+|---|---|---|
+| T1 | 🟢 nav 실행 중 | 그대로 둠 |
+| T2 | 🟢 move_group 실행 중 | 그대로 둠 |
+| T3 | 같은 터미널 | 아래 명령 실행. 끝나면 스스로 종료 |
 
 상자를 B → A로 되돌려 봅니다. 이번엔 B에 있는 빨간 상자를 집어 A에 놓습니다.
 
