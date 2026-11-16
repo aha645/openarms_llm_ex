@@ -54,7 +54,7 @@ tron1_openarm/
 │   └── tron1_openarm_moveit_config/  MoveIt (다리 포함 URDF·SRDF, 팔 설정은 바퀴형과 동일)
 ├── rl/                             강화학습: tron1_env.py, train_ppo.py, eval_policy.py, export_onnx.py
 ├── policies/                       평가 결과(eval_results.json), ONNX
-└── runs/                           학습 로그 (git 에는 요약만)
+└── runs/                           학습 로그 (생성물, git 제외)
 ```
 
 ## 출처·라이선스

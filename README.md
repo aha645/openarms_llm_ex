@@ -55,7 +55,7 @@ tron1_openarm/                        # TRON1 colcon 워크스페이스 (mobile_
   src/tron1_openarm_moveit_config/    # 이족용 MoveIt 설정
   rl/                                 # 선택적 PPO 학습 (기본 교육 범위 밖)
   policies/                           # 평가 결과(eval_results.json), LimX SF 사전학습 정책
-  runs/                               # 학습 로그 (git 에는 요약만)
+  runs/                               # 학습 로그 (생성물, git 제외)
   tools/validation/                   # 시험·정답 기록 도구
   .venv-biped/  build/ install/ log/  # (생성물, git 제외)
 ```
