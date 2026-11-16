@@ -6,7 +6,6 @@
 
 ## 1. 시뮬레이션과 실제의 차이 (휠형)
 
-- **교육과정 원본 코드는 공개되어 있지 않습니다.** PinkLAB 워크샵은 자사 주행형 양팔 로봇(PL-2 M) 기준이며 소스는 현장에서 배포됩니다. 이 문서의 코드는 공개 커리큘럼 14개 모듈을 같은 기술 스택(MuJoCo, ROS 2 Jazzy, Nav2, MoveIt 2, ArUco, OpenAI Structured Outputs, Flask·SSE·MJPEG)으로 새로 구현한 것입니다.
 - **OpenArm에는 공식 바퀴 베이스가 없습니다.** OpenArm v1 상반신 MJCF(enactic/openarm\_mujoco)를 그대로 쓰고, 아래에 차동구동 베이스(바퀴 2 + 캐스터 2, LiDAR, IMU, 머리 RGB-D 카메라)를 직접 설계해 붙였습니다.
 - **OpenArm 공식 ROS 2 패키지는 ROS 인덱스상 Humble 릴리스만 있습니다.** Jazzy에서는 소스 빌드가 필요하고, 공식 MoveIt 설정은 바뀐 URDF 경로를 참조하고 있어 그대로 쓰기 어렵습니다. 그래서 MJCF에서 URDF·SRDF를 자동 생성하는 방식으로 대체했습니다. 컨트롤러 이름은 공식 `openarm_bringup`과 같게 맞췄습니다.
 - **시뮬레이션의 "파지 보조(grasp\_assist)"는 실제와 다릅니다.** 손가락 마찰만으로 집기는 MuJoCo에서 자주 미끄러지므로, 손가락이 상자에 닿은 채 닫히면 상자를 손에 고정합니다. `grasp_assist:=false`로 끄고 순수 마찰 파지를 실험할 수 있습니다.
