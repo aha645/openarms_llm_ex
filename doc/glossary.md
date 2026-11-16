@@ -2,7 +2,17 @@
 
 [README](../README.md) · [휠형 교육](wheel/README.md) · [TRON1 교육](tron1/README.md)
 
-교육 문서에 나오는 약어를 **약어 (영문 전체 이름, 우리말 뜻)** 순서로 정리했습니다. 각 챕터 맨 앞의 "이 장에 나오는 용어" 표에도 같은 설명이 있습니다.
+교육 문서에 나오는 약어를 **약어 (영문 전체 이름, 우리말 뜻)** 순서로 정리했습니다. 휠형 교육의 각 장 맨 앞 "이 장에 나오는 용어" 표에도 같은 설명이 있습니다.
+
+## 터미널·실행 규칙
+
+| 약어 / 용어 | 전체 이름 | 뜻 |
+|---|---|---|
+| T1, T2, T3 … | Terminal 1, 2, 3 | 교육 문서의 터미널 번호. 번호마다 **별도 터미널 창**이며, 각 단계의 "터미널 상태표"가 그 순간 어떤 터미널이 무엇을 실행 중인지 알려 줌 ([휠형 공통 규칙](wheel/README.md#1-터미널-여러-개-쓰기)) |
+| 🆕 / 🟢 / ⚪ | 새로 열기 / 계속 실행 / 바로 끝남 | 상태표 표기. 🟢 는 launch·teleop·`echo`·`hz` 처럼 끝나지 않고 터미널을 붙잡는 명령, ⚪ 는 결과를 받으면 프롬프트가 돌아오는 명령 |
+| `Ctrl+C` | — | 그 터미널에서 실행 중인 프로그램을 멈추는 키. 🟢 터미널에 다른 명령을 입력하려면 먼저 누름 |
+| `source` | — | 설정 파일(`setup.bash`, `activate`)을 **현재 터미널에만** 적용하는 셸 명령. 새 터미널마다 다시 필요(또는 `~/.bashrc` 에 넣어 자동화) |
+| `export` | — | 환경 변수를 현재 터미널에 설정 (예: `OPENAI_API_KEY`, `OPENARM_BIPED`). 다른 터미널에는 전달되지 않음 |
 
 ## 로봇·ROS 기본
 
@@ -18,6 +28,10 @@
 | colcon | collective construction | ROS 2 패키지를 빌드(설치 가능한 형태로 만들기)하는 도구 |
 | QoS | Quality of Service, 서비스 품질 | 토픽 전송 방식 설정 (꼭 전달 / 최신 것만 등) |
 | DDS | Data Distribution Service, 데이터 분배 서비스 | ROS 2가 내부에서 쓰는 통신 표준 |
+| lifecycle | managed node, 수명 주기 노드 | 설정 → 활성 순서로 켜지는 노드. Nav2 노드가 이 방식이며 `Managed nodes are active` 는 모두 활성화되어 준비됐다는 뜻 |
+| rosdep | — | 패키지가 필요로 하는 시스템(apt) 의존성을 찾아 설치하는 도구 |
+| overlay / underlay | — | 이미 빌드한 워크스페이스(underlay, 여기서는 `mobile_openarm/`) 위에 다른 워크스페이스(overlay, `tron1_openarm/`)를 겹쳐 빌드하는 방식. overlay 의 `setup.bash` 하나로 둘 다 불러옴 |
+| `--symlink-install` | — | colcon 옵션. 설치 폴더에 소스 파일을 복사하지 않고 링크를 걸어, Python 소스를 고치면 다시 빌드하지 않아도 반영됨 |
 
 ## 시뮬레이션·모델
 
@@ -119,3 +133,21 @@
 | VNC | Virtual Network Computing | 다른 컴퓨터 화면을 원격으로 보는 방식 |
 | noVNC | — | 브라우저에서 VNC 화면을 보는 프로그램 |
 | Xvfb | X virtual framebuffer, X 가상 화면 | 모니터 없이 메모리 안에 만드는 가상 화면 |
+| EGL | — | 화면(창) 없이 GPU 로 그림을 그리는 OpenGL 인터페이스. selftest·카메라 오프스크린 렌더에 사용 (`MUJOCO_GL=egl`) |
+| 가상환경 (venv) | Python virtual environment | 프로젝트 전용 Python 패키지 폴더. `.venv-mobile`(ROS 실행용)과 `.venv-biped`(보행 학습용) 두 개 ([Python 가상환경](setup/python-venv.md)) |
+| `PYTHONPATH` | — | Python 이 패키지를 찾는 추가 경로. ROS 를 `source` 하면 설정되며, `.venv-biped` 학습 때는 `env -u PYTHONPATH` 로 지움 |
+| shebang | — | 실행 파일 첫 줄의 `#!/경로/python`. 어떤 Python 으로 실행할지 정함. `ros2 run` 이 venv 를 켜지 않아도 `.venv-mobile` 을 쓰는 이유 |
+
+## TRON1·보행 학습
+
+| 약어 / 용어 | 전체 이름 | 뜻 |
+|---|---|---|
+| TRON1 | — | LimX Dynamics 의 이족(두 다리) 로봇. 이 저장소는 하반신만 TRON1 으로 바꾼 모델을 씀 |
+| PF / SF | Point-foot / Sole-foot | TRON1 발 형태. PF 는 점 발(launch 기본값), SF 는 발바닥이 있는 발(교육 기준, `foot:=sf`) |
+| 보행 정책 (policy) | — | 센서 값을 받아 다리 관절 목표각을 내는 신경망. `.npz` 파일 |
+| PPO | Proximal Policy Optimization | 정책을 미세조정할 때 쓴 강화학습 알고리즘 |
+| JAX | — | Google 의 수치 계산 라이브러리. PPO 학습을 GPU 에서 돌릴 때 사용 (`.venv-biped`) |
+| ONNX | Open Neural Network Exchange | 신경망 교환 파일 형식. LimX 배포 코드가 읽는 형식 |
+| sim-to-sim / sim-to-real | — | 한 시뮬레이터에서 만든 정책을 다른 시뮬레이터 / 실제 로봇으로 옮기는 것. 질량·마찰·지연·센서 잡음 차이 때문에 그대로는 잘 안 됨 |
+| limxsdk | — | LimX 로봇과 통신하는 SDK (RobotState/ImuData 받기, RobotCmd 보내기) |
+| e-stop | emergency stop, 비상 정지 | 누르면 모터 전원을 끊는 스위치 |
