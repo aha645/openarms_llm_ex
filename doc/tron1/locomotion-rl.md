@@ -128,7 +128,7 @@ bash tron1_openarm/scripts/11_train_policy.sh 90        # (없으면) .venv-bipe
 
 학습용 가상환경은 `tron1_openarm/.venv-biped` 입니다. `11` 이 없으면 `tron1_openarm/scripts/setup_venv_biped.sh` 를 불러 만듭니다. 이 스크립트는 GPU 를 보고 `jax[cuda13]`(compute capability ≥ 7.5, DGX Spark GB10 등)·`jax[cuda12]`(GTX 1050 등)·`jax[cpu]` 중 하나를 설치하고 `jax.devices()` 로 GPU 사용을 확인합니다. 자세한 내용: [Python 가상환경](../setup/python-venv.md).
 
-또는 직접 (ROS 를 source 하지 않은 새 터미널):
+또는 직접 (🆕 새 터미널). `~/.bashrc` 가 ROS 를 자동으로 불러오는 PC 라도 아래처럼 `env -u PYTHONPATH` 를 붙이면 ROS 의 Python 경로(NumPy 1.26)가 섞이지 않습니다. 이 접두어를 빼지 마세요.
 
 ```bash
 cd ~/openarm_mobile_ws
@@ -191,11 +191,18 @@ env -u PYTHONPATH PYTHONNOUSERSITE=1 XLA_PYTHON_CLIENT_PREALLOCATE=false \
 
 ## 6. 가상 로봇에 적용
 
-학습 결과 `best.npz` 를 `src/tron1_openarm_sim/policies/tron1_openarm_policy.npz` 로 복사하면 브리지가 그 정책을 씁니다. 다른 정책을 시험하려면 launch 인자로 바꿉니다.
+학습 결과 `best.npz` 를 `src/tron1_openarm_sim/policies/tron1_openarm_policy.npz` 로 복사하면 브리지가 그 정책을 씁니다. **주의:** `tron1_openarm_policy.npz` 는 **Point-foot(PF)** 기본 정책입니다. 교육 기준인 Sole-foot(`foot:=sf`)은 `tron1sf_openarm_policy.npz` 를 쓰므로 이 복사는 SF 교육에 영향을 주지 않습니다. 덮어쓰기 전에 원본을 백업하세요.
+
+다른 정책을 시험하려면 launch 인자로 바꿉니다. 아래 두 줄은 **둘 중 하나**를 T1에서 실행하는 예입니다(동시에 띄우지 않음, 바꿀 때는 `Ctrl+C` 후 다른 줄). 둘 다 `foot` 기본값인 PF 입니다.
 
 ```bash
+# (A) 내가 학습한 정책
 ros2 launch tron1_openarm_sim sim.launch.py policy:=$HOME/openarm_mobile_ws/tron1_openarm/runs/my_run/best.npz
-ros2 launch tron1_openarm_sim sim.launch.py policy:=$(ros2 pkg prefix --share tron1_openarm_sim)/policies/limx_pf_tron1a_pretrained.npz   # 비교
+```
+
+```bash
+# (B) 비교: LimX 원본 사전학습 정책
+ros2 launch tron1_openarm_sim sim.launch.py policy:=$(ros2 pkg prefix --share tron1_openarm_sim)/policies/limx_pf_tron1a_pretrained.npz
 ```
 
 브리지 안에서의 흐름 (`biped_core.py`):
@@ -249,6 +256,8 @@ target = clip(a, lo, hi) * 0.25 + default_q          # → MuJoCo position 구�
 `rl/onnx_to_npz.py`: LimX ONNX 는 MatMul → Add → Elu 가 반복되는 단순 MLP(Multi-Layer Perceptron)입니다.
 그래서 초기값(initializer)을 순서대로 꺼내 `encoder_W0, encoder_b0, …, policy_W3, policy_b3` 로 저장합니다.
 PF 파일로 변환해 기존 가중치와 완전히 같은지 검증했습니다 (`allclose = True`).
+
+> 기록용 명령입니다. 결과물 `tron1_openarm/policies/limx_sf_tron1a_pretrained.npz` 는 이미 저장소에 들어 있어 다시 실행할 필요가 없습니다. 다시 만들려면 `tron1-rl-deploy-python` 저장소가 `tron1_openarm/` 아래에 있어야 하는데, 이 폴더를 받는 스크립트는 없으므로 먼저 직접 받습니다: `git clone --depth 1 https://github.com/limxdynamics/tron1-rl-deploy-python.git tron1_openarm/tron1-rl-deploy-python`
 
 ```bash
 # tron1_openarm/ 에서, 학습용 venv(.venv-biped: onnx 포함)
@@ -357,6 +366,7 @@ env -u PYTHONPATH ../.venv-biped/bin/python train_ppo.py --foot pf \
 env -u PYTHONPATH ../.venv-biped/bin/python train_ppo.py --foot sf --xml ../src/tron1_openarm_sim/mjcf/sf/tron1_openarm_train.xml \
     --init ../policies/limx_sf_tron1a_pretrained.npz --payload-start 0.1 --minutes 80 --init-std 0.1 --lr 3e-5 --out ../runs/sf_v2
 # 평가 (학습에 안 쓴 배포 조건: 실습 월드, 물리 2 ms, 시드 3개)
+# 주의: 실행하면 저장소에 커밋된 기록 ../policies/eval_results.json 을 덮어씁니다
 env -u PYTHONPATH ../.venv-biped/bin/python eval_policy.py ../src/tron1_openarm_sim/policies/tron1_openarm_policy.npz ../runs/sf_v2/best.npz
 ```
 

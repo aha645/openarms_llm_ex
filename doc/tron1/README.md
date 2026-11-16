@@ -21,13 +21,17 @@
 
 ## 빠른 시작
 
+`~/openarm_mobile_ws` 는 저장소를 clone 한 폴더(저장소 루트)로 바꿔 읽으세요(Docker 는 `/root/openarm_mobile_ws`). 아래는 **한 터미널에서 위에서부터 순서대로** 실행합니다. 마지막 launch 는 🟢 터미널을 붙잡으며 `Ctrl+C` 로 끕니다.
+
 ```bash
 cd ~/openarm_mobile_ws
 bash mobile_openarm/scripts/04_setup_workspace.sh               # 바퀴형 (OpenArm 에셋·의존성)
 bash tron1_openarm/scripts/10_setup_tron1.sh     # TRON1 description 받기 → 모델 생성 → 자체점검 → 빌드(overlay)
 source tron1_openarm/install/setup.bash          # 바퀴형 mobile_openarm underlay 포함
-ros2 launch tron1_openarm_sim full_system.launch.py foot:=sf planner:=offline    # → http://localhost:8080
+ros2 launch tron1_openarm_sim full_system.launch.py foot:=sf planner:=offline world:=world_light.xml rviz:=false    # → http://localhost:8080
 ```
+
+이미 04·10 을 실행한 PC 라면 처음 두 줄은 건너뜁니다. 교육 절차는 [1일차](day1.md)부터입니다.
 
 (선택) 보행 정책 직접 학습: `bash tron1_openarm/scripts/11_train_policy.sh 90` — ROS 와 분리된 `tron1_openarm/.venv-biped`(JAX GPU)를 자동으로 만들어 씁니다. [Python 가상환경](../setup/python-venv.md)
 

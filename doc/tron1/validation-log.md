@@ -80,13 +80,30 @@ flowchart LR
 - 디버그 토픽 `/biped/status` (JSON): 발 형태, 서기 여부, 몸통 높이·기울기, 넘어짐, 정책 명령, 인코더 추정 속도, **손끝 정답 위치**, **팔과 외부 물체의 접촉 목록**.
 - 모든 launch 에 `foot:=pf|sf` 인자가 있습니다. `policy:=` 를 비우면 발 형태별 기본 정책을 씁니다.
 
+| 터미널 | 상태 | 하는 일 |
+|---|---|---|
+| T1 | 🆕 → 🟢 | 빌드 후 sim launch |
+| T2 | 🆕 → 🟢 | `/biped/status` 출력. **관찰은 여기서** |
+| T3 | 🆕 → 🟢 | `/cmd_vel` 발행(걷기). 멈추려면 `Ctrl+C` |
+
+표기: 🆕 새로 열기 · 🟢 계속 실행 · ⚪ 바로 끝남 ([휠형 공통 규칙](../wheel/README.md#1-터미널-여러-개-쓰기)).
+
 ```bash
+# T1 (저장소 루트에서)
 (cd mobile_openarm && .venv-mobile/bin/python -m colcon build --symlink-install --base-paths src)        # 휠형 (underlay)
 (cd tron1_openarm && source ../mobile_openarm/install/setup.bash && \
   ../mobile_openarm/.venv-mobile/bin/python -m colcon build --symlink-install --base-paths src)         # TRON1 (overlay)
 source tron1_openarm/install/setup.bash
 ros2 launch tron1_openarm_sim sim.launch.py foot:=sf viewer:=true              # 화면에서 서 있는 로봇 보기
-ros2 topic echo /biped/status                                                  # standing: true 확인
+```
+
+```bash
+# T2
+ros2 topic echo /biped/status --field data                                     # standing: true 확인
+```
+
+```bash
+# T3 — 여기서 발행하면 T2의 추정속도와 MuJoCo 창의 로봇이 바뀜
 ros2 topic pub -r 10 /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.2}}"   # 걷기
 ```
 
@@ -105,8 +122,15 @@ ros2 topic pub -r 10 /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.2}}"   # �
    - 지도 품질을 공정하게 비교하려고 매번 같은 경로를 썼습니다. 정답 자세는 경로 따라가기에만 쓰고, SLAM 자체는 정답을 쓰지 않습니다.
 3. `map_saver_cli` 로 저장한 지도를 정답 지도(월드에서 만든 `world_map`)와 겹쳐 비교합니다.
 
+PF(`foot` 기본값) 시험 기록입니다. T1을 켜 둔 채 T2에서 자동 주행이 끝나면, 같은 T2에서 지도를 저장합니다.
+
 ```bash
+# T1 🟢
 ros2 launch tron1_openarm_sim slam.launch.py viewer:=false
+```
+
+```bash
+# T2 — 자동 주행(끝나면 스스로 종료) → 지도 저장 ⚪
 python3 tron1_openarm/tools/validation/slam_auto_drive.py
 ros2 run nav2_map_server map_saver_cli -f ~/maps/tron1_map --ros-args -p use_sim_time:=true
 ```
@@ -170,6 +194,8 @@ flowchart TB
   - 카메라가 잰 상자
   - 몸통 높이·기울기, 팔과 외부 물체 접촉
 - 판정 지표: 손끝–상자 최근접 거리와 방향, 상자가 들렸는지(z 상승), 팔이 작업대에 닿았는지, 최대 기울기.
+
+**주의:** 이 스크립트는 마지막에 이름 패턴으로 찾은 ROS 관련 프로세스를 `kill -9` 로 종료합니다(`pick_test.sh` 14줄). 다른 ROS 작업까지 끌 수 있으므로 **다른 launch 를 모두 끈 전용 세션에서만** 실행하세요. 스크립트가 시스템을 직접 띄우므로 수동 launch 와 겹쳐 실행하지 않습니다.
 
 ```bash
 bash tron1_openarm/tools/validation/pick_test.sh pf 1     # 또는 sf
@@ -236,7 +262,12 @@ sequenceDiagram
   - `OPENARM_BIPED=1`: 옆걸음, 작업대 더 가까이, 상판 높이 측정, 이동 중 여유, 출렁임 대기, 재측정, 수평 밀기
 
 ```bash
+# T1 🟢 — 전체 시스템 (PF 시험 기록)
 ros2 launch tron1_openarm_sim full_system.launch.py foot:=pf planner:=offline viewer:=false
+```
+
+```bash
+# T2 — T1 로그에 task_manager 준비 완료가 나온 뒤. 명령을 보내고 결과를 기다리다 끝남
 python3 tron1_openarm/tools/validation/mission_cli.py "빨간 상자를 왼쪽 작업대로 옮기고 돌아와" 1500
 ```
 
@@ -389,12 +420,12 @@ source mobile_openarm/.venv-mobile/bin/activate
 cd tron1_openarm/src/tron1_openarm_sim
 python3 tools/build_tron1_openarm.py --tron1 <PF_TRON1A> --openarm <openarm_bimanual.xml> --out mjcf
 python3 tools/build_tron1_openarm.py --foot sf --base-height 0.73 --tron1 <SF_TRON1A> --openarm <...> --out mjcf/sf
-cd ~/openarms_llm_ex/mobile_openarm && .venv-mobile/bin/python -m colcon build --symlink-install --base-paths src --packages-select mobile_openarm_apps
-cd ~/openarms_llm_ex/tron1_openarm && source ../mobile_openarm/install/setup.bash && \
-  ../mobile_openarm/.venv-mobile/bin/python -m colcon build --symlink-install --base-paths src --packages-select tron1_openarm_sim
-cd ~/openarms_llm_ex && source tron1_openarm/install/setup.bash
+cd ../../.. && (cd mobile_openarm && .venv-mobile/bin/python -m colcon build --symlink-install --base-paths src --packages-select mobile_openarm_apps)   # 저장소 루트로
+(cd tron1_openarm && source ../mobile_openarm/install/setup.bash && \
+  ../mobile_openarm/.venv-mobile/bin/python -m colcon build --symlink-install --base-paths src --packages-select tron1_openarm_sim)
+source tron1_openarm/install/setup.bash
 
-# 집기 시험 (시뮬 + MoveIt + 정답 기록기 + pick_place)
+# 집기 시험 (시뮬 + MoveIt + 정답 기록기 + pick_place) — 다른 launch 를 모두 끈 상태에서. 끝에 ROS 프로세스를 kill -9 함
 LOG_DIR=/tmp/tron1_logs bash tron1_openarm/tools/validation/pick_test.sh pf 20
 grep -E "servo|station" /tmp/tron1_logs/pfpk20.log       # 시각 보정 기록
 ```
@@ -574,28 +605,50 @@ LOG_DIR=/tmp/tron1_logs bash tron1_openarm/tools/validation/mission_test.sh sf 1
 
 ### 실행 명령 모음
 
+번호마다 블록을 나눴습니다. 모두 저장소 루트에서 시작합니다. 🟢 launch 는 다음 번호로 넘어가기 전에 `Ctrl+C` 로 끕니다. 표기: 🆕 새로 열기 · 🟢 계속 실행 · ⚪ 바로 끝남 ([휠형 공통 규칙](../wheel/README.md#1-터미널-여러-개-쓰기)).
+
 ```bash
-# 0) 빌드 (저장소 루트에서. tron1_openarm 은 mobile_openarm/install 위 overlay)
+# 1) 모델·월드·URDF·SRDF 생성 + overlay 빌드 (10 이 빌드까지 함)
+bash tron1_openarm/scripts/10_setup_tron1.sh
+```
+
+```bash
+# 1-1) (소스만 고쳤을 때) 수동 빌드 — 1)을 했다면 불필요
 (cd mobile_openarm && .venv-mobile/bin/python -m colcon build --symlink-install --base-paths src)        # 휠형 (underlay)
 (cd tron1_openarm && source ../mobile_openarm/install/setup.bash && \
   ../mobile_openarm/.venv-mobile/bin/python -m colcon build --symlink-install --base-paths src)         # TRON1 (overlay)
-source tron1_openarm/install/setup.bash
-# 1) 모델·월드·URDF·SRDF 다시 만들기
-bash tron1_openarm/scripts/10_setup_tron1.sh
-# 2) 시뮬 단독 자체 시험 (ROS 불필요, 10개 항목)
+```
+
+```bash
+# 2) 시뮬 단독 자체 시험 (ROS 불필요, 10개 항목) — 한 터미널, 모두 ⚪
 source mobile_openarm/.venv-mobile/bin/activate
 cd tron1_openarm/src/tron1_openarm_sim
 python3 tools/selftest_tron1.py                                                  # PF
 python3 tools/selftest_tron1.py sf/world_light.xml policies/tron1sf_openarm_policy.npz   # SF
 python3 tools/sway_analysis.py mjcf/world_light.xml policies/tron1_openarm_policy.npz normal   # 흔들림 분해
-# 3) 학습·평가 (locomotion-rl.md 8-8)
-# 4) SLAM / Nav2
+```
+
+3) 학습·평가는 [locomotion-rl.md 8-8](locomotion-rl.md#8-8-실행-명령과-버전-이력)을 보세요.
+
+```bash
+# 4-a) SLAM (PF 시험 기록) — T1 🟢. 운전·저장은 1-04 절차
+source tron1_openarm/install/setup.bash
 ros2 launch tron1_openarm_sim slam.launch.py foot:=pf
+```
+
+```bash
+# 4-b) Nav2 (PF 시험 기록) — 4-a 를 Ctrl+C 로 끈 뒤 T1 🟢
 ros2 launch tron1_openarm_sim nav.launch.py foot:=pf map:=$HOME/maps/tron1_map.yaml
-# 5) 집기 시험 (정답 기록 포함)
+```
+
+```bash
+# 5) 집기 시험 (정답 기록 포함) — 다른 launch 를 모두 끈 뒤. 끝에 ROS 프로세스를 kill -9 함
 bash tron1_openarm/tools/validation/pick_test.sh sf 1
-# 6) 전체 시스템 + LLM 미션
-ros2 launch tron1_openarm_sim full_system.launch.py foot:=sf planner:=offline     # http://localhost:8080
+```
+
+```bash
+# 6) 전체 시스템 + LLM 미션 — T1 🟢, 브라우저 http://localhost:8080
+ros2 launch tron1_openarm_sim full_system.launch.py foot:=sf planner:=offline
 ```
 
 ### 남은 과제

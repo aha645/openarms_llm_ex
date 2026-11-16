@@ -155,7 +155,7 @@ git clone --depth 1 https://github.com/limxdynamics/tron1-robot-description.git 
 
 **`$(find robot_description)` 처리:** LimX xacro 는 ROS 패키지 `robot_description` 경로를 찾습니다. 빌더는 임시 폴더에 xacro 를 복사해 이 부분을 실제 경로로 바꾼 뒤 처리합니다. 그래서 LimX 저장소를 ROS 패키지로 빌드하지 않아도 됩니다. ROS 워크스페이스에 넣어 빌드해도 동작합니다(LimX 저장소에 `package.xml` 이 있음).
 
-직접 처리해 보기:
+직접 처리해 보기 (`10_setup_tron1.sh` 를 한 번 실행해 `.urdf.generated` 파일이 생긴 뒤에만 됩니다):
 
 ```bash
 cd ~/openarm_mobile_ws/tron1_openarm/src/tron1_openarm_sim
@@ -165,7 +165,10 @@ check_urdf mjcf/tron1_openarm.urdf.generated            # base_Link → abad/hip
 
 ### 3. xacro → URDF → MJCF (`tools/build_tron1_openarm.py`)
 
+> 설명용 명령입니다. `10_setup_tron1.sh` 가 이미 같은 일을 하며, 실행하면 `mjcf/` 의 PF 모델 파일을 **다시 생성해 덮어씁니다**. 위 블록과 같은 폴더(`tron1_openarm_sim`)에서, 가상환경을 켠 터미널로 실행합니다.
+
 ```bash
+source ~/openarm_mobile_ws/mobile_openarm/.venv-mobile/bin/activate   # mujoco 가 든 ROS 실행용 venv
 python3 tools/build_tron1_openarm.py \
     --tron1 ../../third_party/tron1-robot-description/pointfoot/PF_TRON1A \
     --openarm ../../../mobile_openarm/third_party/openarm_mujoco/v1/openarm_bimanual.xml --out mjcf
@@ -306,6 +309,8 @@ ROS 쪽 URDF 에는 TRON1 다리뿐 아니라 OpenArm 팔·그리퍼, 카메라�
 | openarm_right_hand | 0.5439 | 0.5439 |
 
 ### 6. 확인하기
+
+한 터미널에서 위에서부터 차례로 실행합니다. `mujoco.viewer` 는 창을 닫아야 프롬프트가 돌아와 다음 줄이 실행됩니다.
 
 ```bash
 source ~/openarm_mobile_ws/mobile_openarm/.venv-mobile/bin/activate   # mujoco 가 든 ROS 실행용 venv
