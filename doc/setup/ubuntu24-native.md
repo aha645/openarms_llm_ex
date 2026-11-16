@@ -48,7 +48,7 @@ glxinfo -B
 
 - GPU 사용 여부와 OpenGL 렌더러를 확인합니다. 그래픽 세션 안의 터미널에서 실행하세요. renderer 가 `llvmpipe` 나 `Mesa Intel` 이면 NVIDIA dGPU 가 쓰이지 않는 것입니다.
 - **로그인 세션:** 로그인 화면 오른쪽 아래 톱니바퀴에서 **Ubuntu on Xorg** 를 선택하세요. Wayland 에서는 RViz2·MuJoCo 뷰어가 불안정하거나 검은 화면이 됩니다.
-- **NVIDIA 드라이버 (GTX 1050 = Pascal):** 580 브랜치가 Pascal 을 지원하는 마지막 드라이버입니다(590 이상 미지원, `-open` 변형은 Turing 이상 전용). `mobile_openarm/scripts/01_install_nvidia_driver.sh` 는 **580 설치·`apt-mark hold`·`prime-select nvidia` 를 수행**하므로 필수 단계로 자동 실행하지 않습니다. Ubuntu 의 '추가 드라이버'에서 제공되는 버전을 먼저 확인하고, 필요할 때만 실행하세요. `cuda-drivers` 패키지는 설치하지 마세요(드라이버를 590+ 로 올림).
+- **NVIDIA 드라이버 (GTX 1050 = Pascal):** 580 브랜치가 Pascal 을 지원하는 마지막 드라이버입니다(590 이상 미지원, `-open` 변형은 Turing 이상 전용). `mobile_openarm/scripts/01_install_nvidia_driver.sh` 는 **580 설치·`apt-mark hold`·`prime-select nvidia` 를 수행**하므로 필수 단계로 자동 실행하지 않습니다(NVIDIA GPU 가 없는 PC 에서는 아무것도 하지 않고 끝납니다. 실행했다면 끝난 뒤 재부팅). Ubuntu 의 '추가 드라이버'에서 제공되는 버전을 먼저 확인하고, 필요할 때만 실행하세요. `cuda-drivers` 패키지는 설치하지 마세요(드라이버를 590+ 로 올림).
 - **하이브리드 그래픽(Optimus):** 내장 GPU 로 렌더링되면 뷰어가 끊깁니다. `sudo prime-select nvidia` 후 재부팅하거나, 실행 시 `__NV_PRIME_RENDER_OFFLOAD=1 __GLX_VENDOR_LIBRARY_NAME=nvidia` 를 앞에 붙입니다.
 - **Secure Boot:** 켜져 있으면 드라이버 설치 중 MOK 비밀번호를 정하고, 재부팅 시 파란 화면에서 'Enroll MOK' → 비밀번호를 입력해야 드라이버 모듈이 로드됩니다(아니면 `nvidia-smi` 오류).
 - 드라이버를 바꾸면 재부팅 후 `nvidia-smi` 와 `glxinfo -B | grep renderer` 로 확인합니다. NVIDIA 를 쓰지 않아도 전체 실습은 가능합니다. 소프트웨어 렌더링이 필요하면 실행 터미널에서 `export LIBGL_ALWAYS_SOFTWARE=1` 을 시도할 수 있습니다(CPU 부하 증가).
@@ -64,7 +64,7 @@ ros2 --help
 command -v colcon
 ```
 
-스크립트는 ROS apt 저장소 등록, Desktop/RViz, Nav2, SLAM Toolbox, MoveIt, teleop, Python 도구 설치와 rosdep 초기화를 수행합니다. **`sudo apt upgrade -y`도 실행하므로 사전에 내용을 확인하고 진행**하세요. 네트워크·sudo가 필요합니다.
+스크립트는 ROS apt 저장소 등록, Desktop/RViz, Nav2, SLAM Toolbox, MoveIt, teleop, Python 도구 설치와 rosdep 초기화를 수행합니다. **`sudo apt upgrade -y`도 실행하므로 사전에 내용을 확인하고 진행**하세요(DGX Spark 에서는 스크립트가 스스로 중단합니다). 네트워크·sudo가 필요합니다. xacro·`check_urdf`(liburdfdom-tools)도 함께 설치합니다.
 
 ## 4. 에셋·모델 생성 및 빌드
 

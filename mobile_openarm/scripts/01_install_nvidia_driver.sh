@@ -1,7 +1,14 @@
 #!/usr/bin/env bash
-# GTX 1050 (Pascal) 용 NVIDIA 드라이버 — 580 브랜치가 Pascal 을 지원하는 마지막 브랜치.
-# 590 이상(open 커널 모듈 포함)은 GTX 10xx 를 지원하지 않으므로 반드시 580 으로 고정한다.
+# NVIDIA 드라이버 580 설치·고정 (노트북용, 선택 단계). Pascal(GTX 10xx)을 포함해 이후 세대 GPU 를 모두 지원한다.
+# 580 브랜치가 Pascal 을 지원하는 마지막 브랜치이며, 590 이상(open 커널 모듈 포함)은 GTX 10xx 를 지원하지 않으므로 580 으로 고정한다.
+# DGX Spark 에서는 실행하지 않는다 (전용 커널·드라이버가 이미 맞춰져 있음).
 set -e
+if [ -f /etc/dgx-release ]; then
+  echo "DGX Spark 입니다. 이 스크립트를 실행하지 마세요 (doc/setup/dgx-spark.md 참고)."; exit 1
+fi
+if ! lspci | grep -iE "vga|3d" | grep -qi nvidia; then
+  echo "NVIDIA GPU 가 보이지 않습니다. 이 PC 에는 NVIDIA 드라이버가 필요 없습니다 (Intel/AMD 그래픽으로 실습 가능)."; exit 0
+fi
 sudo apt update
 sudo apt install -y build-essential dkms linux-headers-$(uname -r) mesa-utils
 ubuntu-drivers devices || true
@@ -13,4 +20,4 @@ sudo apt-mark hold nvidia-driver-580 || true
 sudo prime-select nvidia || true
 echo
 echo "Secure Boot 가 켜져 있으면 설치 중 MOK 비밀번호를 정하고, 재부팅 시 파란 화면에서 'Enroll MOK' → 비밀번호 입력."
-echo "재부팅 후: nvidia-smi 와 'glxinfo -B | grep renderer' 가 GeForce GTX 1050 을 보여야 합니다."
+echo "지금 재부팅하세요(sudo reboot). 재부팅 후: nvidia-smi 와 'glxinfo -B | grep renderer' 가 내 NVIDIA GPU 이름을 보여야 합니다."

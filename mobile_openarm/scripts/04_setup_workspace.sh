@@ -2,7 +2,12 @@
 # mobile_openarm 워크스페이스: .venv-mobile → OpenArm 에셋 받기 → MJCF/URDF/SRDF 생성 → colcon build
 #   사용: bash mobile_openarm/scripts/04_setup_workspace.sh
 #   워크스페이스 루트 = 이 스크립트의 상위 폴더(mobile_openarm/). 실행 위치와 무관.
+#   다시 실행하면 3)의 생성 파일(mjcf/, urdf/, config/locations.yaml, maps/, SRDF)을 원래대로 덮어쓴다.
+#   직접 고친 config/locations.yaml 등은 미리 백업하거나 tools/build_world.py 쪽을 고칠 것.
 set -e
+if [ ! -f /opt/ros/jazzy/setup.bash ]; then
+  echo "ROS 2 Jazzy 가 없습니다. 먼저 설치하세요: 노트북은 mobile_openarm/scripts/03_install_ros2_jazzy.sh, DGX Spark 는 doc/setup/dgx-spark.md 3절"; exit 1
+fi
 WS=$(cd "$(dirname "$0")/.." && pwd)
 SIM=$WS/src/mobile_openarm_sim
 VENV=$WS/.venv-mobile
@@ -46,5 +51,6 @@ grep -qF "source $WS/install/setup.bash" ~/.bashrc || echo "source $WS/install/s
 # 폴더 재구성 전(저장소 루트 = 워크스페이스) 경로가 ~/.bashrc 에 남아 있으면 알림
 OLD=$(dirname "$WS")/install/setup.bash
 grep -qF "source $OLD" ~/.bashrc && echo "[알림] ~/.bashrc 의 예전 줄 'source $OLD' 는 더 이상 없는 경로입니다. 지워 주세요."
-echo "빌드 완료: source $WS/install/setup.bash"
+echo "빌드 완료. 이 스크립트는 별도 셸에서 돌았으므로 지금 터미널에는 아직 적용되지 않았습니다:"
+echo "  source $WS/install/setup.bash     (새 터미널은 ~/.bashrc 가 자동으로 불러옴)"
 echo "python3 를 직접 쓰는 명령(selftest·mujoco.viewer 등) 전에는: source $VENV/bin/activate"
