@@ -193,16 +193,16 @@ env -u PYTHONPATH PYTHONNOUSERSITE=1 XLA_PYTHON_CLIENT_PREALLOCATE=false \
 
 학습 결과 `best.npz` 를 `src/tron1_openarm_sim/policies/tron1_openarm_policy.npz` 로 복사하면 브리지가 그 정책을 씁니다. **주의:** `tron1_openarm_policy.npz` 는 **Point-foot(PF)** 기본 정책입니다. 교육 기준인 Sole-foot(`foot:=sf`)은 `tron1sf_openarm_policy.npz` 를 쓰므로 이 복사는 SF 교육에 영향을 주지 않습니다. 덮어쓰기 전에 원본을 백업하세요.
 
-다른 정책을 시험하려면 launch 인자로 바꿉니다. 아래 두 줄은 **둘 중 하나**를 T1에서 실행하는 예입니다(동시에 띄우지 않음, 바꿀 때는 `Ctrl+C` 후 다른 줄). 둘 다 `foot` 기본값인 PF 입니다.
+다른 정책을 시험하려면 launch 인자로 바꿉니다. 아래 두 줄은 **둘 중 하나**를 T1에서 실행하는 예입니다(동시에 띄우지 않음, 바꿀 때는 `Ctrl+C` 후 다른 줄). 둘 다 PF 정책이므로 `foot:=pf` 를 붙입니다(launch 기본값은 SF라 빼면 발 형태가 달라 오류로 멈춤).
 
 ```bash
 # (A) 내가 학습한 정책
-ros2 launch tron1_openarm_sim sim.launch.py policy:=$HOME/openarm_mobile_ws/tron1_openarm/runs/my_run/best.npz
+ros2 launch tron1_openarm_sim sim.launch.py foot:=pf policy:=$HOME/openarm_mobile_ws/tron1_openarm/runs/my_run/best.npz
 ```
 
 ```bash
 # (B) 비교: LimX 원본 사전학습 정책
-ros2 launch tron1_openarm_sim sim.launch.py policy:=$(ros2 pkg prefix --share tron1_openarm_sim)/policies/limx_pf_tron1a_pretrained.npz
+ros2 launch tron1_openarm_sim sim.launch.py foot:=pf policy:=$(ros2 pkg prefix --share tron1_openarm_sim)/policies/limx_pf_tron1a_pretrained.npz
 ```
 
 브리지 안에서의 흐름 (`biped_core.py`):

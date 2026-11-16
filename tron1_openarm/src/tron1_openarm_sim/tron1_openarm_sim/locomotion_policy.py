@@ -71,7 +71,10 @@ class LocomotionPolicy:
     def __init__(self, npz_path):
         d = np.load(npz_path)
         self.p = {k: d[k] for k in d.files}
-        self.spec = SPECS[self.p["policy_W0"].shape[0]]
+        n_in = self.p["policy_W0"].shape[0]
+        if n_in not in SPECS:
+            raise ValueError(f"{npz_path}: 정책 입력 크기 {n_in} — TRON1 PF(36)·SF(44) 정책 파일이 아닙니다")
+        self.spec = SPECS[n_in]
         self.joints = self.spec.joints
         self.stand_still = False         # SF 전용: True 면 발을 떼지 않고 선다
         self.reset()

@@ -34,7 +34,7 @@ Python 의존성은 가상환경 두 개로 나눕니다. 설치 스크립트가
 | 차동구동 휠 + OpenArm ([목차·공통 규칙](doc/wheel/README.md)) | [01 MuJoCo](doc/wheel/day1-01-mujoco-basics.md) · [02 브리지](doc/wheel/day1-02-bridge.md) · [03 TF](doc/wheel/day1-03-description-tf.md) · [04 SLAM](doc/wheel/day1-04-slam-rviz.md) · [05 Nav2](doc/wheel/day1-05-nav2.md) · [06 순찰](doc/wheel/day1-06-patrol.md) | [01 MoveIt](doc/wheel/day2-01-moveit.md) · [02 ArUco 집기](doc/wheel/day2-02-aruco-pick-place.md) · [03 운반](doc/wheel/day2-03-nav-pick-place.md) · [04 LLM](doc/wheel/day2-04-llm-planner.md) · [05 Task Manager](doc/wheel/day2-05-task-manager.md) · [06 대시보드](doc/wheel/day2-06-dashboard.md) |
 | TRON1 + OpenArm ([목차](doc/tron1/README.md)) | **[보행·브리지·TF·SLAM·Nav2·순찰](doc/tron1/day1.md)** | **[이족 팔 제어·집기·운반·통합 미션](doc/tron1/day2.md)** |
 
-**TRON1은 별도 모델 생성과 추가 빌드가 필요합니다.** 휠형 `mobile_openarm/` 빌드만으로는 준비되지 않으며, `tron1_openarm/scripts/10_setup_tron1.sh`가 TRON1 모델을 만든 뒤 휠형 빌드 위에 `tron1_openarm/` 워크스페이스를 겹쳐([overlay](doc/glossary.md#로봇ros-기본)) 빌드합니다. [TRON1 1일차의 사전 준비 확인](doc/tron1/day1.md)을 먼저 읽으세요. 교육 명령은 완주 기록이 있는 **Sole-foot(`foot:=sf`)**를 기준으로 제시하며, launch 기본값은 Point-foot(`pf`)임을 구분합니다. 기존 SF 성공 기록도 1회이며 반복 성공률을 보장하지 않습니다.
+**TRON1은 별도 모델 생성과 추가 빌드가 필요합니다.** 휠형 `mobile_openarm/` 빌드만으로는 준비되지 않으며, `tron1_openarm/scripts/10_setup_tron1.sh`가 TRON1 모델을 만든 뒤 휠형 빌드 위에 `tron1_openarm/` 워크스페이스를 겹쳐([overlay](doc/glossary.md#로봇ros-기본)) 빌드합니다. [TRON1 1일차의 사전 준비 확인](doc/tron1/day1.md)을 먼저 읽으세요. 교육은 완주 기록이 있는 **Sole-foot(SF)** 기준이며, TRON1 launch 의 기본값도 SF(`foot:=sf`)입니다. Point-foot 은 `foot:=pf` 로 비교합니다. 기존 SF 성공 기록도 1회이며 반복 성공률을 보장하지 않습니다.
 
 ## 3. 소스 위치
 

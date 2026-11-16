@@ -31,11 +31,11 @@ apt-get install -y ros-jazzy-xacro liburdfdom-tools
 
 | 구분 | Point-foot (PF) | Sole-foot (SF) |
 |---|---|---|
-| 실행 인자 | `foot:=pf` (launch 기본값) | `foot:=sf` (이 교육의 기준) |
+| 실행 인자 | `foot:=pf` | `foot:=sf` (launch 기본값, 이 교육의 기준) |
 | 특징 | 점 접촉 발, 제자리 걸음·드리프트 | 발목 있는 발, 정지 시 서기 모드 |
 | 기존 기록 | 집기 중 흔들림·표류 한계 | 전체 운반 미션 1회 완주 기록 |
 
-**명령을 생략하면 PF가 선택됩니다. 이 문서는 모든 TRON1 launch에 SF를 명시**합니다. 한 번의 성공은 반복 성공률 보장이 아닙니다. [기존 SF 시험 기록](validation-log.md#6-sole-footsf-로-전체-미션-완주).
+**`foot` 를 생략하면 SF가 선택됩니다.** 이 문서는 헷갈리지 않도록 모든 TRON1 launch에 `foot:=sf` 를 그대로 적어 둡니다. `policy:=` 로 정책을 바꿀 때는 정책의 발 형태와 `foot` 를 맞추세요(다르면 브리지가 "발 형태가 다릅니다" 오류로 멈춥니다). 한 번의 성공은 반복 성공률 보장이 아닙니다. [기존 SF 시험 기록](validation-log.md#6-sole-footsf-로-전체-미션-완주).
 
 ## 공통 터미널 규칙
 
@@ -84,7 +84,7 @@ tron1_openarm/src/tron1_openarm_sim/
 | 2-05 Task Manager | `task_manager` | 같음 |
 | 2-06 최종 | `ros2 launch mobile_openarm_apps full_system.launch.py` | `ros2 launch tron1_openarm_sim full_system.launch.py` |
 
-모든 TRON1 launch 공통 인자: `world:=world_light.xml`(저사양), `viewer:=false`, `rviz:=false`, `policy:=<npz>`(보행 정책 바꾸기).
+모든 TRON1 launch 공통 인자: `foot:=sf|pf`(기본 sf), `world:=world_light.xml`(저사양), `viewer:=false`, `rviz:=false`, `policy:=<npz>`(보행 정책 바꾸기, `foot` 와 같은 발 형태). 느린 PC·GPU 없는 Docker는 `camera_hz:=5.0 lidar_rays:=180 rate_factor:=0.5`(sim·nav·full_system, slam은 `camera_hz` 제외).
 
 ## 1-01. 정책을 포함한 모델 점검
 
@@ -132,7 +132,7 @@ T3 창을 클릭한 뒤 안내에 따라 속도를 낮춰 약 0.2~0.3 m/s로 짧
 
 **휠형과 다른 점** (통합 전 PF 기준 기록. 수치는 SF 와 다를 수 있음)
 
-> ⚠️ **읽기 전용 기록입니다.** 아래 코드 블록은 PF(launch 기본값) 시절 명령이라 `foot:=sf` 가 없고 SRDF 도 PF용입니다. **실행하지 마세요.** 실습은 위의 SF 명령으로 이미 진행 중입니다.
+> ⚠️ **읽기 전용 기록입니다.** 아래 코드 블록은 PF 시절 명령입니다(`foot` 가 없어 지금 실행하면 SF 로 뜨며, SRDF 는 PF용). **실행하지 마세요.** 실습은 위의 SF 명령으로 이미 진행 중입니다.
 
 ```text
 # (PF 기록) ros2 launch tron1_openarm_sim sim.launch.py
@@ -165,7 +165,7 @@ ros2 run tf2_ros tf2_echo base_footprint head_camera_link
 
 **휠형과 다른 점** (통합 전 PF 기준 기록. 수치는 SF 와 다를 수 있음)
 
-> ⚠️ **읽기 전용 기록입니다.** 아래 코드 블록은 PF(launch 기본값) 시절 명령이라 `foot:=sf` 가 없고 SRDF 도 PF용입니다. **실행하지 마세요.** 실습은 위의 SF 명령으로 이미 진행 중입니다.
+> ⚠️ **읽기 전용 기록입니다.** 아래 코드 블록은 PF 시절 명령입니다(`foot` 가 없어 지금 실행하면 SF 로 뜨며, SRDF 는 PF용). **실행하지 마세요.** 실습은 위의 SF 명령으로 이미 진행 중입니다.
 
 ```
 map → odom → base_footprint → base_link → abad/hip/knee/foot_L,R
@@ -213,7 +213,7 @@ ros2 run nav2_map_server map_saver_cli -f ~/maps/tron1_sf_map \
 
 **휠형과 다른 점** (통합 전 PF 기준 기록. 수치는 SF 와 다를 수 있음)
 
-> ⚠️ **읽기 전용 기록입니다.** 아래 코드 블록은 PF(launch 기본값) 시절 명령이라 `foot:=sf` 가 없고 SRDF 도 PF용입니다. **실행하지 마세요.** 실습은 위의 SF 명령으로 이미 진행 중입니다.
+> ⚠️ **읽기 전용 기록입니다.** 아래 코드 블록은 PF 시절 명령입니다(`foot` 가 없어 지금 실행하면 SF 로 뜨며, SRDF 는 PF용). **실행하지 마세요.** 실습은 위의 SF 명령으로 이미 진행 중입니다.
 
 ```text
 # (PF 기록) ros2 launch tron1_openarm_sim slam.launch.py
@@ -249,7 +249,7 @@ RViz Nav2 Goal로 빈 공간 목표를 지정합니다. 기본값은 생성된 `
 
 **휠형과 다른 점** (통합 전 PF 기준 기록. 수치는 SF 와 다를 수 있음)
 
-> ⚠️ **읽기 전용 기록입니다.** 아래 코드 블록은 PF(launch 기본값) 시절 명령이라 `foot:=sf` 가 없고 SRDF 도 PF용입니다. **실행하지 마세요.** 실습은 위의 SF 명령으로 이미 진행 중입니다.
+> ⚠️ **읽기 전용 기록입니다.** 아래 코드 블록은 PF 시절 명령입니다(`foot` 가 없어 지금 실행하면 SF 로 뜨며, SRDF 는 PF용). **실행하지 마세요.** 실습은 위의 SF 명령으로 이미 진행 중입니다.
 
 | 파라미터 | 바퀴형 | TRON1 |
 |---|---|---|

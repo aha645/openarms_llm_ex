@@ -143,7 +143,7 @@
 | 약어 / 용어 | 전체 이름 | 뜻 |
 |---|---|---|
 | TRON1 | — | LimX Dynamics 의 이족(두 다리) 로봇. 이 저장소는 하반신만 TRON1 으로 바꾼 모델을 씀 |
-| PF / SF | Point-foot / Sole-foot | TRON1 발 형태. PF 는 점 발(launch 기본값), SF 는 발바닥이 있는 발(교육 기준, `foot:=sf`) |
+| PF / SF | Point-foot / Sole-foot | TRON1 발 형태. SF 는 발바닥이 있는 발(교육 기준, launch 기본값 `foot:=sf`), PF 는 점 발(`foot:=pf` 로 비교) |
 | 보행 정책 (policy) | — | 센서 값을 받아 다리 관절 목표각을 내는 신경망. `.npz` 파일 |
 | PPO | Proximal Policy Optimization | 정책을 미세조정할 때 쓴 강화학습 알고리즘 |
 | JAX | — | Google 의 수치 계산 라이브러리. PPO 학습을 GPU 에서 돌릴 때 사용 (`.venv-biped`) |

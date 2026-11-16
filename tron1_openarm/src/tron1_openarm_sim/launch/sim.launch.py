@@ -1,7 +1,8 @@
 """TRON1 + OpenArm: MuJoCo 시뮬레이터 + ROS 2 브리지 + robot_state_publisher (+ RViz2).
-    ros2 launch tron1_openarm_sim sim.launch.py                    # Point-foot (기본)
-    ros2 launch tron1_openarm_sim sim.launch.py foot:=sf           # Sole-foot (발목 있음, 제자리에 가만히 섬)
+    ros2 launch tron1_openarm_sim sim.launch.py                    # Sole-foot (기본, 교육 기준. 발목 있음, 제자리에 가만히 섬)
+    ros2 launch tron1_openarm_sim sim.launch.py foot:=pf           # Point-foot (PF 정책·기록 비교용)
     ros2 launch tron1_openarm_sim sim.launch.py world:=world_light.xml viewer:=false
+  policy:= 로 정책을 바꿀 때는 그 정책의 발 형태와 foot 를 맞춘다 (다르면 브리지가 오류로 멈춤)
 바퀴형 mobile_openarm_sim/sim.launch.py 와 인자·토픽이 같다. 다른 점: 브리지 실행파일(tron1_bridge), URDF, 보행 정책 파일(policy).
 """
 import os
@@ -20,10 +21,17 @@ FOOT_FILES = {   # 발 형태 → (mjcf 하위 폴더, URDF, 기본 정책)
 }
 
 
+def check_foot(foot):
+    """foot 인자는 pf / sf 만 허용 (대소문자 구분). 틀리면 알아보기 쉬운 오류로 중단."""
+    if foot not in ("pf", "sf"):
+        raise RuntimeError(f"foot:={foot!r} 은(는) 잘못된 값입니다. foot 는 pf(Point-foot) 또는 sf(Sole-foot, 교육 기준) 입니다")
+    return foot
+
+
 def _setup(context):
     share = get_package_share_directory("tron1_openarm_sim")
     lc = LaunchConfiguration
-    foot = lc("foot").perform(context)
+    foot = check_foot(lc("foot").perform(context))
     sub, urdf, pol = FOOT_FILES[foot]
     with open(os.path.join(share, "urdf", urdf), encoding="utf-8") as f:
         robot_description = f.read()
@@ -51,16 +59,16 @@ def _setup(context):
 def generate_launch_description():
     share = get_package_share_directory("tron1_openarm_sim")
     args = [
-        DeclareLaunchArgument("foot", default_value="pf", description="pf = Point-foot, sf = Sole-foot(발목 있음)"),
+        DeclareLaunchArgument("foot", default_value="sf", description="sf = Sole-foot(발목 있음, 교육 기준), pf = Point-foot"),
         DeclareLaunchArgument("viewer", default_value="true"),
         DeclareLaunchArgument("world", default_value="world.xml", description="world_light.xml = 저사양"),
         DeclareLaunchArgument("camera", default_value="true"),
         DeclareLaunchArgument("publish_image", default_value="true"),
         DeclareLaunchArgument("move_person", default_value="true"),
         DeclareLaunchArgument("grasp_assist", default_value="true"),
-        DeclareLaunchArgument("rate_factor", default_value="1.0"),
+        DeclareLaunchArgument("rate_factor", default_value="1.0", description="1.0=실시간, 느린 PC 는 0.5"),
         DeclareLaunchArgument("lidar_rays", default_value="360"),
-        DeclareLaunchArgument("camera_hz", default_value="10.0"),
+        DeclareLaunchArgument("camera_hz", default_value="10.0", description="GPU 없는 환경은 5.0"),
         DeclareLaunchArgument("image_hz", default_value="5.0"),
         DeclareLaunchArgument("start_x", default_value="0.0"),
         DeclareLaunchArgument("start_y", default_value="0.0"),

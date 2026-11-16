@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """TRON1 + OpenArm 시뮬레이션 자체 점검 (ROS 불필요).
 
-    python3 selftest_tron1.py [world.xml|world_light.xml] [정책.npz]
+    python3 selftest_tron1.py [world.xml|world_light.xml|sf/world_light.xml] [정책.npz]
+  정책을 빼면 월드에 맞는 기본 정책(sf/ 이면 tron1sf_openarm_policy.npz, 아니면 tron1_openarm_policy.npz)을 쓴다.
 
 바퀴형 tools/selftest.py 와 같은 생각: ROS 를 켜기 전에 물리·센서·보행이 맞는지 먼저 확인한다.
 """
@@ -21,7 +22,8 @@ import numpy as np  # noqa: E402
 from tron1_openarm_sim.biped_core import BipedOpenArmSim  # noqa: E402
 
 WORLD = os.path.join(PKG, "mjcf", sys.argv[1] if len(sys.argv) > 1 else "world_light.xml")
-POLICY = sys.argv[2] if len(sys.argv) > 2 else os.path.join(PKG, "policies", "tron1_openarm_policy.npz")
+_default_pol = "tron1sf_openarm_policy.npz" if (sys.argv[1:2] or [""])[0].startswith("sf/") else "tron1_openarm_policy.npz"
+POLICY = sys.argv[2] if len(sys.argv) > 2 else os.path.join(PKG, "policies", _default_pol)
 results = []
 
 

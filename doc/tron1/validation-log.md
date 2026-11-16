@@ -122,11 +122,11 @@ ros2 topic pub -r 10 /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.2}}"   # �
    - 지도 품질을 공정하게 비교하려고 매번 같은 경로를 썼습니다. 정답 자세는 경로 따라가기에만 쓰고, SLAM 자체는 정답을 쓰지 않습니다.
 3. `map_saver_cli` 로 저장한 지도를 정답 지도(월드에서 만든 `world_map`)와 겹쳐 비교합니다.
 
-PF(`foot` 기본값) 시험 기록입니다. T1을 켜 둔 채 T2에서 자동 주행이 끝나면, 같은 T2에서 지도를 저장합니다.
+PF 시험 기록입니다(지금 launch 기본값은 SF라 `foot:=pf` 를 붙여 재현). T1을 켜 둔 채 T2에서 자동 주행이 끝나면, 같은 T2에서 지도를 저장합니다.
 
 ```bash
 # T1 🟢
-ros2 launch tron1_openarm_sim slam.launch.py viewer:=false
+ros2 launch tron1_openarm_sim slam.launch.py foot:=pf viewer:=false
 ```
 
 ```bash

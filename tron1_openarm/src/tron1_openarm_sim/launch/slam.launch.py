@@ -20,14 +20,17 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument("viewer", default_value="true"),
         DeclareLaunchArgument("policy", default_value="", description="비우면 발 형태별 기본 정책"),
-        DeclareLaunchArgument("foot", default_value="pf", description="pf = Point-foot, sf = Sole-foot"),
+        DeclareLaunchArgument("foot", default_value="sf", description="sf = Sole-foot(교육 기준), pf = Point-foot"),
         DeclareLaunchArgument("world", default_value="world.xml"),
         DeclareLaunchArgument("rviz", default_value="true"),
+        DeclareLaunchArgument("lidar_rays", default_value="360"),
+        DeclareLaunchArgument("rate_factor", default_value="1.0", description="1.0=실시간, 느린 PC 는 0.5"),
         DeclareLaunchArgument("slam_params", default_value=os.path.join(share, "config", "slam_toolbox.yaml")),
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(os.path.join(share, "launch", "sim.launch.py")),
             launch_arguments={"foot": lc("foot"), "policy": lc("policy"), "viewer": lc("viewer"), "world": lc("world"), "rviz": lc("rviz"), "rviz_config": os.path.join(share, "rviz", "nav.rviz"),
-                              "camera": "false", "move_person": "false"}.items()),
+                              "camera": "false", "move_person": "false",
+                              "lidar_rays": lc("lidar_rays"), "rate_factor": lc("rate_factor")}.items()),
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(os.path.join(slam_share, "launch", "online_async_launch.py")),
             launch_arguments={"slam_params_file": lc("slam_params"), "use_sim_time": "true"}.items()),

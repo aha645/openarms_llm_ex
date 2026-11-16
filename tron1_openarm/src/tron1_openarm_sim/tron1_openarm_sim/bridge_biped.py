@@ -7,7 +7,7 @@
 
 달라진 점
   * MobileOpenArmSim → BipedOpenArmSim (보행 정책·다리 오도메트리)
-  * BASE_LINK_Z: 0.08(바퀴 반지름) → 0.68(TRON1 서 있는 높이). ArUco 위치를 base_footprint 기준으로 바꿀 때 사용
+  * BASE_LINK_Z: 0.08(바퀴 반지름) → TRON1 서 있는 높이(PF 0.68 / SF 0.73 m). ArUco 위치를 base_footprint 기준으로 바꿀 때 사용
   * /cmd_vel 의 linear.y(옆걸음)도 받음 — 작업대 앞에서 상자 옆으로 비켜 서기 (robot_skills.strafe_base)
   * /biped/status (std_msgs/String JSON): 몸통 높이·기울기·넘어짐 여부·정책이 받는 명령
 """

@@ -1,15 +1,18 @@
-"""TRON1(Point-foot) + OpenArm 시뮬레이션 코어 (ROS 비의존).
+"""TRON1(Point-foot / Sole-foot) + OpenArm 시뮬레이션 코어 (ROS 비의존).
 
 바퀴형 MobileOpenArmSim 을 상속해 '하반신'에 관계된 부분만 바꾼다.
 상반신(팔 궤적·그리퍼·파지 보조)·LiDAR·카메라·ArUco·사람 장애물 코드는 부모 클래스 것을 그대로 쓴다.
 
 바뀐 것                     바퀴형 (mobile_openarm_sim)            이족 (이 파일)
 -------------------------  ------------------------------------  ---------------------------------------------
-/cmd_vel → 움직임            v, w → 좌우 바퀴 속도 (기구학 공식)     v, w → 보행 정책(신경망, 50Hz) → 다리 6관절 목표각 → PD
-명령이 없을 때               바퀴 정지 = 완전히 멈춤                  Point-foot 은 가만히 설 수 없음 → 제자리 걸음
-오도메트리                   바퀴 회전각 적분                        다리 기구학(디딤발 고정 가정) + IMU 자세
-base_footprint → base_link  바퀴 반지름 0.08 m 고정                  서 있는 높이 0.68 m (기본값, 실제는 ±2 cm 출렁임)
-초기 자세                    바퀴 위에 놓기                          다리 편 자세로 0.71 m 에 놓고 정책이 받아서 섬
+/cmd_vel → 움직임            v, w → 좌우 바퀴 속도 (기구학 공식)     v, w(, vy) → 보행 정책(신경망, 50Hz) → 다리 목표각 → PD
+                                                                    (PF 다리 6관절 / SF 8관절 = PF + 발목 2)
+명령이 없을 때               바퀴 정지 = 완전히 멈춤                  PF: 가만히 설 수 없음 → 제자리 걸음 / SF: 발을 떼지 않고 섬
+오도메트리                   바퀴 회전각 적분                        다리 기구학(디딤발 고정 가정) + IMU 자세 (SF 는 속도 추정기 적분)
+base_footprint → base_link  바퀴 반지름 0.08 m 고정                  서 있는 높이 PF 0.68 / SF 0.73 m (실제는 ±2 cm 출렁임)
+초기 자세                    바퀴 위에 놓기                          다리 편 자세로 서 있는 높이 + 0.03 m 에 놓고 정책이 받아서 섬
+
+발 형태는 정책 파일(npz)로 정해지며, 모델(MJCF)의 발 형태와 다르면 시작할 때 오류로 멈춘다.
 """
 import math
 import os
@@ -76,8 +79,19 @@ class BipedOpenArmSim(W.MobileOpenArmSim):
         self.d = mujoco.MjData(self.m)
         self.lock = threading.RLock()
         m = self.m
-        self.policy = LocomotionPolicy(policy_path or default_policy_path())
+        pol_path = policy_path or default_policy_path()
+        self.policy = LocomotionPolicy(pol_path)
         self.foot = self.policy.spec.name                 # "pf" 또는 "sf"
+        # 모델의 발 형태(발목 관절 유무)와 정책의 발 형태가 같아야 한다. 다르면 다리에 명령이 안 가 바로 넘어진다
+        try:
+            m.joint("ankle_L_joint")
+            model_foot = "sf"
+        except KeyError:
+            model_foot = "pf"
+        if model_foot != self.foot:
+            raise RuntimeError(
+                f"정책({self.foot}: {os.path.basename(pol_path)})과 모델({model_foot}: {os.path.basename(xml_path)})의 발 형태가 다릅니다. "
+                f"launch 의 foot 인자 또는 policy 를 맞추세요 (pf 정책 ↔ foot:=pf, sf 정책 ↔ foot:=sf)")
         self.leg_joints = list(self.policy.joints)
         self.published_joints = ARM_PUB + self.leg_joints
         self.nominal_height = NOMINAL[self.foot]

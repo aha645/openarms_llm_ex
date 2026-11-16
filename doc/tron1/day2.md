@@ -6,7 +6,7 @@
 
 Ubuntu 24.04 / ROS 2 Jazzy / 휠형·TRON1 에셋 생성과 두 워크스페이스(`mobile_openarm/`, 그 위에 overlay한 `tron1_openarm/`)의 빌드 완료를 전제로 합니다.
 
-기준은 **Sole-foot(SF)**입니다. launch 기본값은 PF이므로 `foot:=sf`를 명시합니다. 공통 앱·LLM 원리는 [휠형 2일차](../wheel/README.md)와 같지만 아래에 이족형 실행 명령을 따로 제공합니다. 기존 SF 완주는 1회 기록이며 실제 노트북·iMac의 반복 성공을 보장하지 않습니다.
+기준은 **Sole-foot(SF)**이며 launch 기본값도 SF입니다. 헷갈리지 않도록 명령에는 `foot:=sf`를 그대로 적어 둡니다. 공통 앱·LLM 원리는 [휠형 2일차](../wheel/README.md)와 같지만 아래에 이족형 실행 명령을 따로 제공합니다. 기존 SF 완주는 1회 기록이며 실제 노트북·iMac의 반복 성공을 보장하지 않습니다.
 
 각 새 터미널에서 저장소 루트로 이동 후:
 
@@ -67,7 +67,7 @@ ros2 run mobile_openarm_apps arm_demo
 
 **휠형과 다른 점** (통합 전 PF 기준 기록. 수치는 SF 와 다를 수 있음)
 
-> ⚠️ **읽기 전용 기록입니다.** 아래 코드 블록은 PF(launch 기본값) 시절 명령이라 `foot:=sf` 가 없고 SRDF 도 PF용입니다. **실행하지 마세요.** 실습은 위의 SF 명령으로 이미 진행 중입니다.
+> ⚠️ **읽기 전용 기록입니다.** 아래 코드 블록은 PF 시절 명령입니다(`foot` 가 없어 지금 실행하면 SF 로 뜨며, SRDF 는 PF용). **실행하지 마세요.** 실습은 위의 SF 명령으로 이미 진행 중입니다.
 
 - `home` 자세가 바퀴형과 조금 다릅니다: 팔을 내릴 때 어깨 joint2 를 ±0.2 rad 벌려 손이 TRON1 몸통 상자 바깥으로 나옵니다. 그대로 내리면 손이 몸통과 겹쳐 MoveIt 이 `START_STATE_IN_COLLISION` 으로 거부합니다. TRON1 SRDF 에 반영되어 있고, 앱은 `OPENARM_SRDF` 환경변수로 이 SRDF 를 읽습니다 (`full_system.launch.py` 가 자동 설정. 따로 실행할 때는 맨 위 공통 블록의 `export OPENARM_SRDF=...tron1_openarm_sf.srdf` 를 씁니다. 파일명에 `_sf` 가 없는 `tron1_openarm.srdf` 는 PF용입니다).
 
@@ -114,7 +114,7 @@ ros2 run mobile_openarm_apps pick_place --ros-args -p object:=box_0
 
 **휠형과 다른 점** (통합 전 PF 기준 기록. 수치는 SF 와 다를 수 있음)
 
-> ⚠️ **읽기 전용 기록입니다.** 아래 코드 블록은 PF(launch 기본값) 시절 명령이라 `foot:=sf` 가 없고 SRDF 도 PF용입니다. **실행하지 마세요.** 실습은 위의 SF 명령으로 이미 진행 중입니다.
+> ⚠️ **읽기 전용 기록입니다.** 아래 코드 블록은 PF 시절 명령입니다(`foot` 가 없어 지금 실행하면 SF 로 뜨며, SRDF 는 PF용). **실행하지 마세요.** 실습은 위의 SF 명령으로 이미 진행 중입니다.
 
 ```text
 # (PF 기록) ros2 launch tron1_openarm_sim sim.launch.py start_x:=2.5 start_y:=2.45 start_yaw:=1.5708

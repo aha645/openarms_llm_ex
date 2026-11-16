@@ -61,8 +61,8 @@ sed -i 's/<robot name="mobile_openarm">/<robot name="tron1_openarm">/' "$T1/src/
 "$PY" tools/make_nav2_params_tron1.py --src "$MW/src/mobile_openarm_sim/config/nav2_params.yaml" --out config/nav2_params_tron1.yaml
 cp -n "$MW/src/mobile_openarm_sim/maps/"world_map.* maps/ 2>/dev/null || true
 
-# 3) 보행 정책: 저장소에 학습 결과가 들어 있음 — policies/tron1_openarm_policy.npz (PF, launch 기본값),
-#    policies/tron1sf_openarm_policy.npz (SF, 교육 기준)
+# 3) 보행 정책: 저장소에 학습 결과가 들어 있음 — policies/tron1sf_openarm_policy.npz (SF, launch 기본값·교육 기준),
+#    policies/tron1_openarm_policy.npz (PF, foot:=pf)
 #    직접 학습하려면 11_train_policy.sh (별도 가상환경 .venv-biped 에서 JAX GPU 로 학습)
 ls -la "$SIM/policies/"
 

@@ -16,6 +16,8 @@ from moveit_configs_utils import MoveItConfigsBuilder
 
 def _setup(context):
     foot = LaunchConfiguration("foot").perform(context)
+    if foot not in ("pf", "sf"):
+        raise RuntimeError(f"foot:={foot!r} 은(는) 잘못된 값입니다. foot 는 pf(Point-foot) 또는 sf(Sole-foot, 교육 기준) 입니다")
     sim_share = get_package_share_directory("tron1_openarm_sim")
     urdf = os.path.join(sim_share, "urdf", "tron1_openarm.urdf" if foot == "pf" else "tron1_openarm_sf.urdf")
     srdf = "config/tron1_openarm.srdf" if foot == "pf" else "config/tron1_openarm_sf.srdf"
@@ -50,5 +52,5 @@ def _setup(context):
 
 def generate_launch_description():
     return LaunchDescription([DeclareLaunchArgument("rviz", default_value="true"),
-                              DeclareLaunchArgument("foot", default_value="pf", description="pf / sf (sim.launch.py 와 같게)"),
+                              DeclareLaunchArgument("foot", default_value="sf", description="sf(기본, 교육 기준) / pf — sim.launch.py 와 같게"),
                               OpaqueFunction(function=_setup)])

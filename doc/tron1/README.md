@@ -2,7 +2,7 @@
 
 [README](../../README.md) · [휠형 교육](../wheel/README.md) · [용어집](../glossary.md)
 
-바퀴형 실습 환경(`mobile_openarm/`)은 그대로 두고, `tron1_openarm/` 폴더에 **하반신만 LimX TRON1(이족)** 으로 바꾼 로봇을 따로 만들었습니다. 상반신 OpenArm 양팔, 실습 월드, SLAM·Nav2·MoveIt·ArUco·LLM 미션·웹 대시보드는 바퀴형과 같습니다. 교육은 전체 미션 완주 기록이 있는 **Sole-foot(`foot:=sf`)** 기준이며, launch 기본값은 Point-foot(`pf`)입니다.
+바퀴형 실습 환경(`mobile_openarm/`)은 그대로 두고, `tron1_openarm/` 폴더에 **하반신만 LimX TRON1(이족)** 으로 바꾼 로봇을 따로 만들었습니다. 상반신 OpenArm 양팔, 실습 월드, SLAM·Nav2·MoveIt·ArUco·LLM 미션·웹 대시보드는 바퀴형과 같습니다. 교육은 전체 미션 완주 기록이 있는 **Sole-foot(SF)** 기준이며, launch 기본값도 SF(`foot:=sf`)입니다. Point-foot 은 `foot:=pf` 로 비교합니다.
 
 ![TRON1 + OpenArm](../images/tron1_openarm.png)
 
