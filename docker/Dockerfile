@@ -1,4 +1,5 @@
-# 주행형 OpenArm MuJoCo + ROS 2 Jazzy 실습용 이미지 (Intel Mac / x86_64 Linux / Windows WSL2 공용)
+# 주행형 OpenArm MuJoCo + ROS 2 Jazzy 실습용 이미지 (대상: Intel Mac, x86_64. 다른 환경은 검증하지 않음)
+#   - 보행 PPO 학습(tron1_openarm/.venv-biped)은 이 이미지의 대상이 아님 → GPU PC(DGX Spark 등)에서 진행
 #   - GPU 가속 없음: macOS 의 Docker 컨테이너는 Mac GPU 에 접근할 수 없으므로 Mesa llvmpipe(CPU) 로 OpenGL 4.5 렌더
 #   - 화면: 컨테이너 안 가상 데스크톱(Xvfb + fluxbox) → x11vnc(5901) → noVNC(6080, 브라우저)
 FROM osrf/ros:jazzy-desktop
@@ -11,6 +12,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       ros-jazzy-navigation2 ros-jazzy-nav2-bringup ros-jazzy-slam-toolbox \
       ros-jazzy-moveit ros-jazzy-moveit-configs-utils \
       ros-jazzy-teleop-twist-keyboard ros-jazzy-compressed-image-transport \
+      ros-jazzy-xacro liburdfdom-tools \
       python3-pip python3-venv python3-opencv python3-flask python3-yaml git wget curl unzip nano \
       xvfb x11vnc novnc websockify fluxbox xterm dbus-x11 \
       mesa-utils libgl1-mesa-dri libglx-mesa0 libegl1 libegl-mesa0 libosmesa6 libglfw3 \
@@ -42,6 +44,7 @@ ENV DISPLAY=:1 \
     ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST
 
 COPY start-desktop.sh /usr/local/bin/start-desktop.sh
+# 새 터미널마다 ROS 와 워크스페이스 자동 불러오기. TRON1 이 빌드되어 있으면 TRON1 install(휠형 underlay 포함)을 우선 사용
 RUN chmod +x /usr/local/bin/start-desktop.sh && \
     echo 'source /opt/ros/jazzy/setup.bash' >> /root/.bashrc && \
     echo 'if [ -f /root/openarm_mobile_ws/tron1_openarm/install/setup.bash ]; then source /root/openarm_mobile_ws/tron1_openarm/install/setup.bash; elif [ -f /root/openarm_mobile_ws/mobile_openarm/install/setup.bash ]; then source /root/openarm_mobile_ws/mobile_openarm/install/setup.bash; fi' >> /root/.bashrc

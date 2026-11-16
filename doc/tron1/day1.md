@@ -10,18 +10,17 @@ Ubuntu 24.04 / ROS 2 Jazzy / 저장소 clone / 휠형 에셋·colcon 빌드(`mob
 
 ```bash
 source /opt/ros/jazzy/setup.bash
-# 네이티브는 sudo apt-get, root Docker에서는 apt-get 사용
-# 필요한 패키지: ros-jazzy-xacro liburdfdom-tools
+# 필요한 패키지: ros-jazzy-xacro liburdfdom-tools (Docker 이미지에는 포함됨)
 bash tron1_openarm/scripts/10_setup_tron1.sh
 source tron1_openarm/install/setup.bash
 ros2 pkg prefix tron1_openarm_sim
 ros2 pkg prefix tron1_openarm_moveit_config
 ```
 
-`10`은 외부 TRON1 description을 clone하고 PF/SF 모델·월드·URDF/SRDF·Nav2 파라미터를 `mobile_openarm/.venv-mobile`의 Python으로 생성한 뒤, `mobile_openarm/install`을 underlay로 불러와 `tron1_openarm/` 워크스페이스를 빌드합니다(overlay). 휠형 패키지(`mobile_openarm_apps` 등)는 다시 빌드하지 않고 그대로 씁니다. `tron1_openarm/install/setup.bash` 하나만 source하면 휠형 underlay까지 함께 불러옵니다. 직접 다시 빌드할 때는 `cd tron1_openarm && source ../mobile_openarm/install/setup.bash && ../mobile_openarm/.venv-mobile/bin/python -m colcon build --symlink-install --base-paths src`입니다. **스크립트의 패키지 설치는 `sudo`를 사용하며 실패를 무시**합니다. root Docker에 sudo가 없다면 먼저 아래를 실행한 뒤 `10`을 실행하세요.
+`10`은 외부 TRON1 description을 clone하고 PF/SF 모델·월드·URDF/SRDF·Nav2 파라미터를 `mobile_openarm/.venv-mobile`의 Python으로 생성한 뒤, `mobile_openarm/install`을 underlay로 불러와 `tron1_openarm/` 워크스페이스를 빌드합니다(overlay). 휠형 패키지(`mobile_openarm_apps` 등)는 다시 빌드하지 않고 그대로 씁니다. `tron1_openarm/install/setup.bash` 하나만 source하면 휠형 underlay까지 함께 불러옵니다. 직접 다시 빌드할 때는 `cd tron1_openarm && source ../mobile_openarm/install/setup.bash && ../mobile_openarm/.venv-mobile/bin/python -m colcon build --symlink-install --base-paths src`입니다. **스크립트의 패키지 설치는 `sudo`를 사용하며 실패를 무시**합니다. 현재 Docker 이미지에는 두 패키지가 들어 있습니다. 이 패키지가 들어가기 전에 빌드한 예전 이미지라면 Mac 터미널에서 `docker compose build && docker compose up -d` 로 다시 만들거나, 컨테이너 안에서 아래를 실행한 뒤 `10`을 실행하세요(컨테이너를 다시 만들면 사라짐).
 
 ```bash
-# root Docker에만 해당
+# 예전 Docker 이미지에만 해당 (컨테이너 안, root)
 apt-get update
 apt-get install -y ros-jazzy-xacro liburdfdom-tools
 ```

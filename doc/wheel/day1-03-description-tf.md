@@ -111,7 +111,7 @@ python3 tools/mjcf_to_urdf.py --mjcf mjcf/mobile_openarm.xml --out /tmp/check.ur
 `wrote /tmp/check.urdf` 가 나오면 성공입니다. (이 변환기는 개발할 때 MuJoCo와 URDF의 손끝 위치를 관절 자세 20개에서 비교해 최대 오차 0.000007 m를 확인했습니다.)
 
 ```bash
-sudo apt install -y liburdfdom-tools     # 처음 한 번 (Docker 이미지에는 들어 있을 수 있음)
+sudo apt install -y liburdfdom-tools     # 처음 한 번 (Docker 이미지에는 포함됨 → 생략)
 check_urdf /tmp/check.urdf | head -20    # 링크 나무 구조 출력: root Link: base_footprint …
 diff /tmp/check.urdf urdf/mobile_openarm.urdf && echo 같음
 ```

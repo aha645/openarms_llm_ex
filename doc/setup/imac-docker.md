@@ -233,7 +233,7 @@ rviz2      # 실패하면 LIBGL_ALWAYS_INDIRECT=1 을 붙여 보고, 그래도 �
 | T2 | 🆕 컨테이너 (Mac 터미널에서 `docker compose exec openarm bash`) | 🟢 | `/task/status` 계속 출력. **결과 관찰은 여기서** |
 | T3 | 🆕 컨테이너 (같은 방법으로 하나 더) | ⚪ | 시험 명령 한 번 보내고 끝남 |
 
-표기: 🆕 새로 열기 · 🟢 계속 실행(터미널을 붙잡음) · ⚪ 바로 끝남 — [휠형 공통 규칙](../wheel/README.md#1-터미널-여러-개-쓰기)과 같습니다. 컨테이너 터미널은 이미지의 `~/.bashrc` 가 ROS·패키지를 자동으로 불러오므로 아래 `source` 두 줄은 확인용이며 생략해도 됩니다.
+표기: 🆕 새로 열기 · 🟢 계속 실행(터미널을 붙잡음) · ⚪ 바로 끝남 — [휠형 공통 규칙](../wheel/README.md#1-터미널-여러-개-쓰기)과 같습니다. 컨테이너 터미널은 이미지의 `~/.bashrc` 가 ROS·패키지를 자동으로 불러오므로 아래 `source` 두 줄은 확인용이며 생략해도 됩니다. TRON1 을 빌드한 뒤에는 `~/.bashrc` 가 TRON1 install(휠형 underlay 포함)을 우선 불러오며, 휠형 교육에도 그대로 쓸 수 있습니다.
 
 T1(컨테이너):
 
@@ -309,7 +309,7 @@ docker compose start        # 재개
 docker compose down
 ```
 
-`docker compose down -v` 는 빌드·설치 볼륨을 삭제하므로 평소에는 사용하지 않습니다. 재개 후 Mac 터미널에서 `docker compose exec openarm bash` 로 컨테이너 터미널에 들어가 launch 를 다시 실행합니다(ROS 환경은 `~/.bashrc` 가 자동으로 불러옴).
+`docker compose down -v` 는 빌드·설치 볼륨을 삭제하므로 평소에는 사용하지 않습니다. Dockerfile 이 바뀐 저장소를 받았다면(`git pull`) `docker compose build && docker compose up -d` 로 이미지와 컨테이너를 다시 만들어야 반영됩니다. 재개 후 Mac 터미널에서 `docker compose exec openarm bash` 로 컨테이너 터미널에 들어가 launch 를 다시 실행합니다(ROS 환경은 `~/.bashrc` 가 자동으로 불러옴).
 
 | 증상 | 원인 | 조치 |
 | --- | --- | --- |
@@ -325,6 +325,8 @@ docker compose down
 | 화면 공유가 접속을 거부 | VNC 비밀번호 없음/틀림 | `VNC_PASSWORD` 확인 후 `docker compose up -d --force-recreate` |
 | 컨테이너 재시작 후 화면이 안 뜸 | 남은 X 잠금 파일 | 시작 스크립트가 `/tmp/.X1-lock` 을 지움. 안 되면 `docker compose down && docker compose up -d` |
 | 한글이 □ 로 보임 | 글꼴 없음 | 이미지에 `fonts-noto-cjk` 포함됨(RViz·대시보드는 정상). xterm 은 기본 글꼴이 영문용 |
+
+**TRON1 보행 PPO 학습은 이 Docker 환경의 대상이 아닙니다.** 컨테이너에 GPU 가 없어 JAX 가 CPU 로만 돌고, `.venv-biped` 용 볼륨도 없습니다. 정책 학습은 GPU PC([DGX Spark](dgx-spark.md#8-tron1-보행-ppo-학습용-가상환경-venv-biped--jax-gpu) 등)에서 하고, 결과 `.npz` 만 저장소로 가져와 쓰세요. TRON1 시뮬·교육 자체는 Docker 에서 할 수 있습니다.
 
 ### 확인한 것과 못 한 것
 

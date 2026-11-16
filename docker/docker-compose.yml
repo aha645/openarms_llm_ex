@@ -3,6 +3,8 @@
 #   docker compose up -d          # 컨테이너 시작 → 브라우저 http://localhost:6080/vnc.html
 #   docker compose exec openarm bash     # 컨테이너 터미널 열기
 #   docker compose down           # 정지·삭제 (워크스페이스와 빌드 결과는 남음)
+#   주의: docker compose down -v  는 아래 named volume(빌드·설치·.venv-mobile)까지 지움 — 평소에는 쓰지 않음
+#   Dockerfile 을 바꿨다면 docker compose build 후 docker compose up -d 로 컨테이너를 다시 만들어야 반영됨
 services:
   openarm:
     build:
@@ -25,7 +27,8 @@ services:
       OPENAI_BASE_URL: "${OPENAI_BASE_URL:-}"
     volumes:
       - ..:/root/openarm_mobile_ws                       # 저장소 소스 (Mac 폴더와 공유)
-      # 빌드 산출물·가상환경은 Docker 볼륨에 (Mac 파일공유보다 빠르고, 리눅스용 venv 가 Mac 폴더에 안 생김)
+      # 빌드 산출물·.venv-mobile 은 Docker 볼륨에 (Mac 파일공유보다 빠르고, 리눅스용 venv 가 Mac 폴더에 안 생김)
+      # tron1_openarm/.venv-biped(보행 PPO 학습용)는 볼륨이 없음: GPU 가 없는 이 컨테이너는 학습 대상이 아님 → GPU PC 에서 학습
       - mobile_build:/root/openarm_mobile_ws/mobile_openarm/build
       - mobile_install:/root/openarm_mobile_ws/mobile_openarm/install
       - mobile_log:/root/openarm_mobile_ws/mobile_openarm/log
