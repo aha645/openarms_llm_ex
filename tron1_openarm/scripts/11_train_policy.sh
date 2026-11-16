@@ -15,9 +15,18 @@ VENV=$T1/.venv-biped
 #   (DGX Spark 처럼 CPU·GPU 가 메모리를 공유하는 장비에서 MuJoCo rollout 메모리가 부족해지는 것 방지)
 PY=(env -u PYTHONPATH PYTHONNOUSERSITE=1 XLA_PYTHON_CLIENT_PREALLOCATE="${XLA_PYTHON_CLIENT_PREALLOCATE:-false}" "$VENV/bin/python")
 cd "$T1/rl"
+BACKEND=$("${PY[@]}" -c 'import jax; print(jax.default_backend())')
 "${PY[@]}" -c 'import jax; print("JAX backend:", jax.default_backend(), jax.devices())'
+if [ "$BACKEND" != "gpu" ]; then
+  echo "[경고] JAX 가 GPU 를 쓰지 못합니다(backend=$BACKEND). CPU 학습은 매우 느려 ${MIN}분으로는 의미 있는 결과가 나오지 않습니다."
+  echo "       GPU PC(DGX Spark 등)에서 실행하는 것을 권장합니다. 계속하려면 기다리고, 그만두려면 5초 안에 Ctrl+C."
+  sleep 5
+fi
 RUN=$T1/runs/$(date +%Y%m%d_%H%M%S)
 "${PY[@]}" train_ppo.py --minutes "$MIN" --init-std 0.08 --lr 2e-5 --critic-warmup 20 --out "$RUN" | tee "$RUN.log"
+# 주의: eval_policy.py 는 저장소에 커밋된 기록 policies/eval_results.json 을 덮어쓴다
 "${PY[@]}" eval_policy.py "$T1/policies/limx_pf_tron1a_pretrained.npz" "$RUN/best.npz"
-echo "결과가 좋으면: cp $RUN/best.npz $T1/src/tron1_openarm_sim/policies/tron1_openarm_policy.npz"
+echo "평가 결과를 $T1/policies/eval_results.json 에 덮어썼습니다 (git diff 로 확인, 되돌리려면 git checkout -- 그 파일)."
+echo "결과가 좋으면 (PF 정책 교체 — SF 교육의 tron1sf_openarm_policy.npz 에는 영향 없음, 먼저 원본 백업):"
+echo "  cp $RUN/best.npz $T1/src/tron1_openarm_sim/policies/tron1_openarm_policy.npz"
 echo "ONNX(LimX 배포 형식): cd $T1/rl && env -u PYTHONPATH $VENV/bin/python export_onnx.py $RUN/best.npz $T1/policies/onnx"

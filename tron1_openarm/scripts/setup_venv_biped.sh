@@ -72,6 +72,7 @@ if "cuda" in os.environ["JAX_SPEC"] and jax.default_backend() != "gpu":
 PY
 
 printf '\n준비 완료: %s\n' "$VENV"
-echo "ROS 를 source 하지 않은 새 터미널에서 쓰는 것을 권장합니다:"
+echo "직접 쓸 때 (~/.bashrc 가 ROS 를 자동으로 불러오는 터미널이어도 됨):"
 echo "  export PYTHONNOUSERSITE=1 && source $VENV/bin/activate"
+echo "  env -u PYTHONPATH python ...     # ROS 의 PYTHONPATH(NumPy 1.26 경로)를 지우고 실행"
 echo "학습 실행: bash tron1_openarm/scripts/11_train_policy.sh [분]"
