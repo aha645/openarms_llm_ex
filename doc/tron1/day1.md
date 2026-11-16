@@ -17,7 +17,7 @@ ros2 pkg prefix tron1_openarm_sim
 ros2 pkg prefix tron1_openarm_moveit_config
 ```
 
-`10`은 외부 TRON1 description을 clone하고 PF/SF 모델·월드·URDF/SRDF·Nav2 파라미터를 `mobile_openarm/.venv-mobile`의 Python으로 생성한 뒤, `mobile_openarm/install`을 underlay로 불러와 `tron1_openarm/` 워크스페이스를 빌드합니다(overlay). 휠형 패키지(`mobile_openarm_apps` 등)는 다시 빌드하지 않고 그대로 씁니다. `tron1_openarm/install/setup.bash` 하나만 source하면 휠형 underlay까지 함께 불러옵니다. 직접 다시 빌드할 때는 `cd tron1_openarm && source ../mobile_openarm/install/setup.bash && ../mobile_openarm/.venv-mobile/bin/python -m colcon build --symlink-install --base-paths src`입니다. **스크립트의 패키지 설치는 `sudo`를 사용하며 실패를 무시**합니다. 현재 Docker 이미지에는 두 패키지가 들어 있습니다. 이 패키지가 들어가기 전에 빌드한 예전 이미지라면 Mac 터미널에서 `docker compose build && docker compose up -d` 로 다시 만들거나, 컨테이너 안에서 아래를 실행한 뒤 `10`을 실행하세요(컨테이너를 다시 만들면 사라짐).
+`10`은 외부 TRON1 description을 clone하고 PF/SF 모델·월드·URDF/SRDF·Nav2 파라미터를 `mobile_openarm/.venv-mobile`의 Python으로 생성한 뒤, `mobile_openarm/install`을 underlay로 불러와 `tron1_openarm/` 워크스페이스를 빌드합니다(overlay). 휠형 패키지(`mobile_openarm_apps` 등)는 다시 빌드하지 않고 그대로 씁니다. `tron1_openarm/install/setup.bash` 하나만 source하면 휠형 underlay까지 함께 불러옵니다. 직접 다시 빌드할 때는 `cd tron1_openarm && source ../mobile_openarm/install/setup.bash && ../mobile_openarm/.venv-mobile/bin/python -m colcon build --symlink-install --base-paths src`입니다. 스크립트는 xacro·`check_urdf`(liburdfdom-tools)가 **없을 때만** 설치하며(root면 `apt-get`, 아니면 `sudo apt-get`), 설치에 실패하면 멈춥니다. 03 스크립트·DGX 3절·현재 Docker 이미지는 두 패키지를 이미 설치합니다. 이 패키지가 들어가기 전에 빌드한 예전 이미지라면 Mac 터미널에서 `docker compose build && docker compose up -d` 로 다시 만들거나, 컨테이너 안에서 아래를 실행한 뒤 `10`을 실행하세요(컨테이너를 다시 만들면 사라짐).
 
 ```bash
 # 예전 Docker 이미지에만 해당 (컨테이너 안, root)
