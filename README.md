@@ -12,6 +12,8 @@
 | NVIDIA DGX Spark: DGX OS(Ubuntu 24.04), ARM64, GB10 | **[DGX Spark 환경 설정](doc/setup/dgx-spark.md)** — `apt upgrade` 주의, 명령 한 줄씩 진행, TRON1 JAX GPU 학습 포함 |
 | Intel iMac: macOS + Docker Desktop, Ubuntu 24.04 컨테이너 | **[iMac Docker 환경 설정](doc/setup/imac-docker.md)** |
 
+문서의 `~/Documents/openarms_llm_ex`(설치 문서)와 `~/openarm_mobile_ws`(교육 문서)는 모두 **저장소를 clone 한 폴더(저장소 루트)** 를 뜻합니다. Docker 컨테이너 안에서는 `/root/openarm_mobile_ws` 입니다.
+
 세 문서는 ROS 2 Jazzy 준비 → Git clone → 모델 에셋 준비 → colcon build → **휠형 `full_system.launch.py planner:=offline` 실행**까지 다룹니다. 환경 설정 후에는 아래 교육 문서로 이동하세요. Docker에서는 이후 모든 ROS 명령을 컨테이너 안에서 실행합니다.
 
 Python 의존성은 가상환경 두 개로 나눕니다. 설치 스크립트가 자동으로 만들며, 구성과 이유는 [Python 가상환경](doc/setup/python-venv.md)에 정리했습니다.
@@ -25,12 +27,14 @@ Python 의존성은 가상환경 두 개로 나눕니다. 설치 스크립트가
 
 환경 설정이 끝났다는 전제에서 개념 → 실행 명령(명령 풀이 포함) → 확인 기준 → 소스 구조를 설명합니다.
 
+> **교육 시작 전 [휠형 공통 규칙](doc/wheel/README.md#모든-챕터에-공통으로-쓰는-규칙)을 먼저 읽으세요.** 터미널 번호(T1, T2 …)와 각 단계의 터미널 상태표(🆕 새로 열기 · 🟢 계속 실행 · ⚪ 바로 끝남), 새 터미널마다 환경 불러오기, 장이 끝나면 모든 터미널을 `Ctrl+C` 로 끄는 규칙이 모두 여기 있습니다. TRON1 문서도 같은 규칙을 씁니다. 용어는 [용어집 — 터미널·실행 규칙](doc/glossary.md#터미널실행-규칙)에도 있습니다.
+
 | 시스템 | 1일차 | 2일차 |
 |---|---|---|
 | 차동구동 휠 + OpenArm ([목차·공통 규칙](doc/wheel/README.md)) | [01 MuJoCo](doc/wheel/day1-01-mujoco-basics.md) · [02 브리지](doc/wheel/day1-02-bridge.md) · [03 TF](doc/wheel/day1-03-description-tf.md) · [04 SLAM](doc/wheel/day1-04-slam-rviz.md) · [05 Nav2](doc/wheel/day1-05-nav2.md) · [06 순찰](doc/wheel/day1-06-patrol.md) | [01 MoveIt](doc/wheel/day2-01-moveit.md) · [02 ArUco 집기](doc/wheel/day2-02-aruco-pick-place.md) · [03 운반](doc/wheel/day2-03-nav-pick-place.md) · [04 LLM](doc/wheel/day2-04-llm-planner.md) · [05 Task Manager](doc/wheel/day2-05-task-manager.md) · [06 대시보드](doc/wheel/day2-06-dashboard.md) |
 | TRON1 + OpenArm ([목차](doc/tron1/README.md)) | **[보행·브리지·TF·SLAM·Nav2·순찰](doc/tron1/day1.md)** | **[이족 팔 제어·집기·운반·통합 미션](doc/tron1/day2.md)** |
 
-**TRON1은 별도 모델 생성과 두 소스 트리를 포함한 빌드가 필요합니다.** 휠형 `mobile_openarm/` 빌드만으로는 준비되지 않으며 `tron1_openarm/scripts/10_setup_tron1.sh`로 `tron1_openarm/` 워크스페이스를 추가로 빌드합니다. [TRON1 1일차의 사전 준비 확인](doc/tron1/day1.md)을 먼저 읽으세요. 교육 명령은 완주 기록이 있는 **Sole-foot(`foot:=sf`)**를 기준으로 제시하며, launch 기본값은 Point-foot(`pf`)임을 구분합니다. 기존 SF 성공 기록도 1회이며 반복 성공률을 보장하지 않습니다.
+**TRON1은 별도 모델 생성과 추가 빌드가 필요합니다.** 휠형 `mobile_openarm/` 빌드만으로는 준비되지 않으며, `tron1_openarm/scripts/10_setup_tron1.sh`가 TRON1 모델을 만든 뒤 휠형 빌드 위에 `tron1_openarm/` 워크스페이스를 겹쳐([overlay](doc/glossary.md#로봇ros-기본)) 빌드합니다. [TRON1 1일차의 사전 준비 확인](doc/tron1/day1.md)을 먼저 읽으세요. 교육 명령은 완주 기록이 있는 **Sole-foot(`foot:=sf`)**를 기준으로 제시하며, launch 기본값은 Point-foot(`pf`)임을 구분합니다. 기존 SF 성공 기록도 1회이며 반복 성공률을 보장하지 않습니다.
 
 ## 3. 소스 위치
 
@@ -38,7 +42,7 @@ Python 의존성은 가상환경 두 개로 나눕니다. 설치 스크립트가
 docker/                               # Intel iMac용 이미지·가상 데스크톱·Compose
 doc/                                  # 설치·교육·설계 문서
 mobile_openarm/                       # 휠형 colcon 워크스페이스
-  scripts/                            # 노트북 설치(00~03), 휠형 모델 생성·빌드(04), .venv-mobile 생성
+  scripts/                            # 노트북 점검·설치(00·01·03), 휠형 모델 생성·빌드(04), .venv-mobile 생성
   src/
     mobile_openarm_sim/               # 휠 모델, 센서·물리, ROS 브리지, SLAM/Nav2 launch
     mobile_openarm_moveit_config/     # 휠형 URDF/SRDF 기반 MoveIt 설정
@@ -50,6 +54,8 @@ tron1_openarm/                        # TRON1 colcon 워크스페이스 (mobile_
   src/tron1_openarm_sim/              # 이족 모델, 정책 추론·물리·브리지, launch
   src/tron1_openarm_moveit_config/    # 이족용 MoveIt 설정
   rl/                                 # 선택적 PPO 학습 (기본 교육 범위 밖)
+  policies/                           # 평가 결과(eval_results.json), LimX SF 사전학습 정책
+  runs/                               # 학습 로그 (git 에는 요약만)
   tools/validation/                   # 시험·정답 기록 도구
   .venv-biped/  build/ install/ log/  # (생성물, git 제외)
 ```
@@ -79,4 +85,6 @@ doc/
 
 ## 라이선스·출처
 
-OpenArm 에셋: [enactic/openarm_mujoco](https://github.com/enactic/openarm_mujoco), TRON1 모델: [limxdynamics/tron1-robot-description](https://github.com/limxdynamics/tron1-robot-description). 기존 문서에서 프로젝트 코드와 해당 에셋의 라이선스를 Apache-2.0으로 안내합니다. 외부 에셋 재배포 시 각 upstream 라이선스를 확인하세요.
+이 저장소의 코드와 문서는 [Apache License 2.0](LICENSE)을 따릅니다.
+
+외부 에셋은 각 upstream 라이선스를 따릅니다: OpenArm 에셋 [enactic/openarm_mujoco](https://github.com/enactic/openarm_mujoco), TRON1 모델 [limxdynamics/tron1-robot-description](https://github.com/limxdynamics/tron1-robot-description). 스크립트가 받아 오는 이 에셋을 재배포할 때는 각 upstream 라이선스를 확인하세요.
