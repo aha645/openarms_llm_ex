@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 """Day2-01 MoveIt 2 양팔 제어 실습.
 
-  1) 이름 자세(SRDF group_state): home → ready → hands_up (양팔 동시: both_arms 그룹)
-  2) 관절 목표(joint goal): 오른팔만
+  1) 이름 자세(SRDF group_state): ready → hands_up → home (양팔 동시: both_arms 그룹)
+  2) 관절 목표(joint goal): 오른팔을 'ready 자세에서 joint4 만 1.2 rad' 인 자세로 (팔 전체가 그 자세로 이동)
   3) 말단 자세 목표(pose goal): TCP 를 몸 앞 좌표로 (IK → 관절 목표)
-  4) 직선(Cartesian) 경로: TCP 를 10cm 위/아래로
+  4) 직선(Cartesian) 경로: TCP 를 10cm 아래로 → 다시 위로
+  실패하면 종료 코드 1
 
     ros2 run mobile_openarm_apps arm_demo
 """
+import sys
+
 import numpy as np
 
 from .geometry import approach_rotation
@@ -16,6 +19,7 @@ from .robot_skills import RobotSkills, SkillError
 
 def main():
     sk = RobotSkills.create("arm_demo")
+    failed = False
     try:
         for name in ("ready", "hands_up", "home"):
             sk.move_named("both_arms", name)
@@ -37,8 +41,10 @@ def main():
         sk.log("arm_demo 완료")
     except SkillError as e:
         sk.get_logger().error(str(e))
+        failed = True
     finally:
         sk.shutdown()
+    sys.exit(1 if failed else 0)
 
 
 if __name__ == "__main__":

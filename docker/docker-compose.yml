@@ -25,6 +25,7 @@ services:
       OPENAI_API_KEY: "${OPENAI_API_KEY:-}"   # Mac 셸에서 export 해 두면 전달됨
       OPENAI_MODEL: "${OPENAI_MODEL:-gpt-4o-mini}"
       OPENAI_BASE_URL: "${OPENAI_BASE_URL:-}"
+      OPENARM_DASHBOARD_HOST: "0.0.0.0"   # 컨테이너 안에서는 0.0.0.0 이어야 포트 연결이 됨 (Mac 쪽은 위 ports 가 127.0.0.1 에만 엶)
     volumes:
       - ..:/root/openarm_mobile_ws                       # 저장소 소스 (Mac 폴더와 공유)
       # 빌드 산출물·.venv-mobile 은 Docker 볼륨에 (Mac 파일공유보다 빠르고, 리눅스용 venv 가 Mac 폴더에 안 생김)

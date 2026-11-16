@@ -103,6 +103,8 @@ export OPENAI_API_KEY='sk-...' && ros2 launch mobile_openarm_apps full_system.la
 - `planner:=offline`: launch 설정값으로 규칙 기반 계획기를 골라 관리자에 전달합니다. 여기서는 `--ros-args -p` 가 아니라 launch 의 `이름:=값` 문법을 씁니다.
 - `world:=world_light.xml`: 하위 시뮬이 가벼운 월드를 쓰게 합니다.
 - `rviz:=false`: 주행 RViz 를 열지 않습니다(이 통합 launch 는 MoveIt RViz 도 끔). `viewer:=false` 는 MuJoCo 창만 끄며 시뮬과 대시보드 카메라는 계속 동작합니다.
+- (선택) `camera_hz:=5.0 lidar_rays:=180 rate_factor:=0.5`: 느린 PC·GPU 없는 Docker 용. 하위 sim 까지 전달됩니다.
+- (선택) `dashboard_host:=0.0.0.0`: 같은 네트워크의 다른 기기에서 대시보드 접속(인증 없음, 아래 단계 3 참고).
 
 시뮬+Nav2 → 약 5초 뒤 MoveIt → 약 12초 뒤 Task Manager·웹이 시작됩니다. 고정 지연이지 준비 완료 판정이 아니므로 초기화 로그를 기다리세요. `planner:=llm` 은 API 오류 시 offline 으로 대체될 수 있으므로 실제로 쓰인 계획기를 로그로 확인합니다.
 
@@ -112,7 +114,7 @@ T1 로그에 `task_manager 준비 완료` 와 `dashboard: http://localhost:8080`
 
 - 노트북: 브라우저에서 `http://localhost:8080`
 - iMac Docker: **Mac의** Safari/Chrome에서 `http://localhost:8080` (컨테이너 포트 8080이 Mac으로 연결되어 있음)
-- 같은 Wi-Fi의 휴대폰: `http://<노트북 IP>:8080` (노트북 IP는 `hostname -I`). Docker는 보안상 `127.0.0.1` 에만 열려 있어 휴대폰 접속이 안 됩니다.
+- 같은 Wi-Fi의 휴대폰: 대시보드는 인증이 없어 **기본으로 이 PC 에서만**(`127.0.0.1`) 열립니다. 휴대폰에서 쓰려면 T1 launch 끝에 `dashboard_host:=0.0.0.0` 을 붙이고 `http://<노트북 IP>:8080` 으로 접속합니다(노트북 IP는 `hostname -I`). 그러면 같은 네트워크의 누구나 명령을 보낼 수 있으니 실습이 끝나면 끄세요. Docker는 Mac 쪽 포트가 `127.0.0.1` 에만 열려 있어 휴대폰 접속이 안 됩니다.
 
 화면 구성:
 

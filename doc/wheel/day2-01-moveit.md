@@ -136,7 +136,7 @@ ros2 run mobile_openarm_apps arm_demo
 | 순서 | 코드 | 방법 | 보이는 동작 |
 |---|---|---|---|
 | 1 | `move_named("both_arms", "ready" → "hands_up" → "home")` | **이름 자세** | 양팔이 준비 → 만세 → 내림 |
-| 2 | `move_joints("right_arm", {… joint4: 1.2})` | **관절 목표** | 오른팔 팔꿈치만 1.2 rad 굽힘 |
+| 2 | `move_joints("right_arm", {… joint4: 1.2})` | **관절 목표** | `ready` 자세에서 joint4(팔꿈치)만 1.2 rad 로 바꾼 자세로 이동. 직전이 `home` 이라 오른팔 전체가 움직임 |
 | 3 | `move_pose(side, [0.50, ∓0.15, 0.95], 30° 숙인 방향)` | **손끝 자세 목표** (IK → 계획) | 손끝이 몸 앞 50 cm, 높이 95 cm로 |
 | 4 | `cartesian(side, [아래 10 cm])` → `cartesian(side, [원위치])` | **직선 경로** | 손끝이 똑바로 10 cm 내려갔다 올라옴 |
 | 5 | 3~4를 왼팔도 반복 후 `home` | | |

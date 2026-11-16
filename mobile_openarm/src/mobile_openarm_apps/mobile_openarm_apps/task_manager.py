@@ -82,7 +82,7 @@ class TaskManager:
         self.set(state="planning", command=command, steps=[], current=-1, message="계획 중...", warnings=[])
         try:
             plan, used = self.make_plan(command)
-            steps, warns = validate_plan(plan, start_location=self.location)
+            steps, warns = validate_plan(plan, start_location=self.location or "unknown")
         except Exception as e:  # noqa: BLE001
             self.set(state="rejected", message=str(e))
             self.sk.log(f"[task] 거부: {e}")
@@ -116,6 +116,7 @@ class TaskManager:
         a = s.action
         if a == "navigate":
             loc = s.location.value
+            self.location = None        # 주행 중 실패·취소하면 위치를 '모름'으로 → 다음 계획에서 이동 단계가 반드시 들어감
             self.sk.navigate(loc)
             self.location = loc
         elif a == "pick":

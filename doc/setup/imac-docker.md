@@ -286,7 +286,9 @@ ros2 topic pub --once /task/command std_msgs/msg/String \
 | 가상 화면 크기 | `RESOLUTION=1280x720x24` | 작은 창 = 빠른 렌더 |
 | 시뮬 속도 | `rate_factor:=0.5` | 느린 대신 매끄럽게 (모든 노드가 시뮬 시간 사용) |
 
-**옵션 주의:** `camera_hz`·`rate_factor`·`lidar_rays` 는 현재 `sim.launch.py` 인자입니다. `nav.launch.py` 와 `full_system.launch.py` 가 모두 전달하는 것은 아니므로 모든 launch 에 무작정 붙이지 않습니다. 먼저 `ros2 launch <패키지> <파일> --show-args` 와 launch 소스를 확인하세요.
+**옵션 전달:** `camera_hz`·`rate_factor`·`lidar_rays` 는 `sim`·`nav`·`full_system` launch 가 모두 받아 시뮬까지 전달합니다(`slam` 은 카메라를 켜지 않으므로 `camera_hz` 없음). 다른 launch 는 `ros2 launch <패키지> <파일> --show-args` 로 받는 인자를 확인하세요.
+
+**시간 초과:** 앱의 주행·팔 동작 시간 제한(예: 주행 600초)은 PC 시계 기준입니다. 시뮬이 실시간보다 많이 느리면 `[nav] … 시간 초과` 가 날 수 있으니 위 표의 옵션으로 `/clock` 을 100Hz 에 가깝게 맞추세요.
 
 ```bash
 # 컨테이너 터미널

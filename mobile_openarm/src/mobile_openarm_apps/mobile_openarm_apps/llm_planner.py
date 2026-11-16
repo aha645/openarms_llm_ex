@@ -1,9 +1,11 @@
 """Day2-04 LLM 작업 계획: 자연어 → RobotPlan (OpenAI Structured Outputs).
 
-ROS 비의존 모듈 — 단독 실행으로 테스트 가능:
+ROS 노드가 아닌 모듈 — 단독 실행으로 테스트 가능:
+    ros2 run mobile_openarm_apps llm_planner --offline "파란 상자 가져다 놔"   # API 없이 규칙 기반
     export OPENAI_API_KEY=sk-...
-    python3 -m mobile_openarm_apps.llm_planner "빨간 상자를 왼쪽 작업대로 옮기고 돌아와"
-    python3 -m mobile_openarm_apps.llm_planner --offline "파란 상자 가져다 놔"   # API 없이 규칙 기반
+    ros2 run mobile_openarm_apps llm_planner "빨간 상자를 왼쪽 작업대로 옮기고 돌아와"
+  python3 -m mobile_openarm_apps.llm_planner ... 로 직접 실행할 때는 먼저
+  source mobile_openarm/install/setup.bash && source mobile_openarm/.venv-mobile/bin/activate (openai·pydantic v2)
 
 로컬 LLM(LM Studio / Ollama / vLLM 등 OpenAI 호환 서버)도 사용 가능:
     export OPENAI_BASE_URL=http://localhost:1234/v1  OPENAI_API_KEY=local  OPENAI_MODEL=<모델명>
@@ -65,7 +67,7 @@ SYSTEM_PROMPT = f"""너는 주행형 양팔 로봇(OpenArm 상반신 + 바퀴 �
 
 [사용 가능한 행동]
 - navigate(location): 지정 위치로 자율주행
-- pick(object): 현재 위치의 작업대에서 물체를 집는다 (pick_station 또는 place_station 앞에서만 가능)
+- pick(object): pick_station(작업대 A) 앞에서 물체를 집는다 (이 계획기에서는 pick_station 에서만 집는다)
 - place(location): 들고 있는 물체를 그 위치의 작업대에 놓는다 (먼저 그 위치로 navigate 해야 함)
 - home_arms(): 팔을 기본 자세로
 - say(text): 상태를 말/로그로 보고
@@ -181,6 +183,8 @@ def validate_plan(plan: RobotPlan, start_location="home"):
         out.append(s)
     if holding:
         warns.append(f"계획 종료 시 {holding} 을(를) 들고 있음")
+    if len(out) > MAX_STEPS:     # 빠진 이동을 자동으로 넣은 뒤에도 제한을 지키는지 다시 확인
+        raise ValueError(f"자동 보정 후 단계가 너무 많음 ({len(out)} > {MAX_STEPS})")
     return out, warns
 
 

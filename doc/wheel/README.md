@@ -98,7 +98,11 @@ source install/setup.bash
 world:=world_light.xml        # 로봇의 시각용 메시를 빼서 메모리 1.9GB → 0.2GB
 ```
 
-iMac Docker(GPU 없음)는 sim launch에서 `camera_hz:=5.0`을 사용할 수 있습니다. 현재 nav/full_system은 이 인자를 전달하지 않으므로 모든 launch에 붙이지 마세요.
+iMac Docker(GPU 없음)·느린 PC는 다음도 함께 씁니다. sim·nav·full_system launch 가 모두 받아 시뮬까지 전달합니다(slam 은 `camera_hz` 제외 — 카메라를 켜지 않음).
+
+```
+camera_hz:=5.0 lidar_rays:=180 rate_factor:=0.5
+```
 
 ### 5. 월드 지도 (모든 챕터 공통 무대)
 

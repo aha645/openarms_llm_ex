@@ -3,6 +3,8 @@
 
     ros2 run mobile_openarm_apps nav_pick_place --ros-args -p object:=box_0
 """
+import sys
+
 from .robot_skills import RobotSkills, SkillError
 
 
@@ -14,6 +16,7 @@ def main():
     obj = sk.get_parameter("object").value
     a = sk.get_parameter("from_station").value
     b = sk.get_parameter("to_station").value
+    failed = False
     try:
         sk.home_arms()                 # 주행 전 팔을 footprint 안으로
         sk.navigate(a)
@@ -24,8 +27,10 @@ def main():
         sk.log("nav_pick_place 완료")
     except SkillError as e:
         sk.get_logger().error(str(e))
+        failed = True
     finally:
         sk.shutdown()
+    sys.exit(1 if failed else 0)       # 실패하면 종료 코드 1 (터미널·시험 스크립트에서 구분)
 
 
 if __name__ == "__main__":

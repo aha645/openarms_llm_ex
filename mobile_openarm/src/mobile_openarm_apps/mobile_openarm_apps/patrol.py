@@ -5,6 +5,7 @@
 """
 import math
 import os
+import sys
 
 import rclpy
 import yaml
@@ -36,6 +37,7 @@ def main():
                                            "config", "locations.yaml"), encoding="utf-8"))
     route = cfg["patrol_route"]
     nav.waitUntilNav2Active()          # AMCL + Nav2 lifecycle 활성화 대기
+    ok = True
     for k in range(loops):
         poses = [make_pose(nav, *cfg["locations"][n]) for n in route]
         nav.get_logger().info(f"순찰 {k+1}/{loops}: {route}")
@@ -51,12 +53,20 @@ def main():
         res = nav.getResult()
         nav.get_logger().info(f"  결과: {'성공' if res == TaskResult.SUCCEEDED else res}")
         if res != TaskResult.SUCCEEDED:
+            ok = False
             break
+    nav.get_logger().info("순찰 종료 → home 복귀 중")
     nav.goToPose(make_pose(nav, *cfg["locations"]["home"]))
     while not nav.isTaskComplete():
         pass
-    nav.get_logger().info("순찰 종료 → home 복귀")
+    res = nav.getResult()
+    if res == TaskResult.SUCCEEDED:
+        nav.get_logger().info("home 도착")
+    else:
+        nav.get_logger().error(f"home 복귀 실패: {res}")
+        ok = False
     rclpy.shutdown()
+    sys.exit(0 if ok else 1)          # 순찰 또는 복귀가 실패하면 종료 코드 1
 
 
 if __name__ == "__main__":

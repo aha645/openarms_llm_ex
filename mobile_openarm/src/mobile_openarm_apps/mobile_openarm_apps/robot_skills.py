@@ -594,6 +594,9 @@ class RobotSkills(Node):
         t0 = time.time()
         while time.time() - t0 < timeout:
             p = self.robot_pose("odom")
+            if p is None:               # TF 가 잠깐 끊긴 경우 — 이번 주기는 건너뜀
+                time.sleep(0.05)
+                continue
             turned = math.atan2(math.sin(p[2] - p0[2]), math.cos(p[2] - p0[2]))
             remain = dyaw - turned
             if abs(remain) < math.radians(0.8):
@@ -1304,11 +1307,17 @@ class RobotSkills(Node):
             time.sleep(0.5)
             # 파지 확인: 손가락이 끝까지 닫혔으면(물체 없음) 실패 — 실로봇에서도 같은 방법으로 판정
             opening = self.gripper_opening(side)
-            ok = opening is None or opening > 0.006
+            for _ in range(10):         # /joint_states 를 아직 못 받았으면 잠깐 기다림 (모르면 성공으로 치지 않음)
+                if opening is not None:
+                    break
+                time.sleep(0.1)
+                opening = self.gripper_opening(side)
+            ok = opening is not None and opening > 0.006
             self.cartesian(side, [center + np.array([0, 0, 0.10])], R, avoid_collisions=False, min_fraction=0.5)
             if ok:
                 break
-            self.log(f"[pick] 파지 실패(손가락 {opening:.3f} m) → 다시 인식해서 재시도 {attempt}/2")
+            got = "값 없음" if opening is None else f"{opening:.3f} m"
+            self.log(f"[pick] 파지 실패(손가락 {got}) → 다시 인식해서 재시도 {attempt}/2")
             self.open_gripper(side)
             center = self._refind_box(side, mid)
             other = "left" if side == "right" else "right"

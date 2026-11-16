@@ -6,6 +6,7 @@
 """
 
 import math
+import sys
 import time
 
 from geometry_msgs.msg import TransformStamped
@@ -44,6 +45,7 @@ def main():
     sk.current_station = sk.get_parameter("station").value
     g = lambda n: sk.get_parameter(n).value  # noqa: E731
     _br = ensure_map_frame(sk, g("start_x"), g("start_y"), g("start_yaw"))  # noqa: F841 (TF 유지용 참조)
+    failed = False
     try:
         sk.home_arms()
         dets = sk.detections(max_age=2.0)
@@ -53,8 +55,10 @@ def main():
         sk.log("pick_place 완료")
     except SkillError as e:
         sk.get_logger().error(str(e))
+        failed = True
     finally:
         sk.shutdown()
+    sys.exit(1 if failed else 0)       # 실패하면 종료 코드 1 (터미널·시험 스크립트에서 구분)
 
 
 if __name__ == "__main__":

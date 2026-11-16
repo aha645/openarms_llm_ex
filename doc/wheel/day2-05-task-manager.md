@@ -179,9 +179,13 @@ ros2 topic pub --once /task/command std_msgs/msg/String "{data: '순찰 한 바�
 ros2 service call /task/cancel std_srvs/srv/Trigger
 ```
 
-**`/task/cancel` 풀이:** `ros2 service call` 은 한 번 요청하고 응답을 받습니다. `std_srvs/srv/Trigger` 는 요청 필드가 없는 타입이라 뒤에 입력값이 없습니다. 취소는 **현재 단계가 끝난 뒤 적용되며 비상정지가 아닙니다.** 응답이 왔다고 주행이나 팔이 즉시 멈췄다고 판단하지 마세요.
+**`/task/cancel` 풀이:** `ros2 service call` 은 한 번 요청하고 응답을 받습니다. `std_srvs/srv/Trigger` 는 요청 필드가 없는 타입이라 뒤에 입력값이 없습니다. 취소는 **비상정지가 아닙니다.** 응답이 왔다고 로봇이 이미 멈췄다고 판단하지 말고 RViz·MuJoCo 창으로 확인하세요.
 
-취소는 **지금 단계가 끝난 뒤 다음 단계로 넘어갈 때** 적용됩니다(`사용자 취소` → `state: failed`). 주행 중이면 그 목표까지는 갈 수 있습니다.
+취소가 적용되는 방식(`robot_skills.py` 의 `_wait()`):
+
+- **진행 중인 주행(Nav2)·팔 동작(MoveIt)**: 결과를 기다리는 중에 취소를 확인하고 그 goal 에 취소 요청을 보냅니다. 로봇이 **도중에 멈춥니다**(`… 취소됨` → `state: failed`).
+- **도킹 미세 이동·제자리 회전·`wait` 단계**: 취소를 확인하지 않으므로 그 동작은 끝까지 하고, 다음 동작으로 넘어갈 때 멈춥니다.
+- 단계와 단계 사이에서도 확인합니다(`사용자 취소`).
 
 ### 주의: 상자 위치
 

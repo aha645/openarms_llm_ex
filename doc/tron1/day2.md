@@ -218,7 +218,7 @@ ros2 topic pub --once /task/command std_msgs/msg/String \
   "{data: '빨간 상자를 왼쪽 작업대로 옮기고 돌아와'}"
 ```
 
-**테스트:** planning → running → done/failed/rejected의 단계 상태와 실패 이유. 취소는 `ros2 service call /task/cancel std_srvs/srv/Trigger`로 요청하지만 현재 단계 사이에서 반영되므로 비상정지가 아닙니다.
+**테스트:** planning → running → done/failed/rejected의 단계 상태와 실패 이유. 취소는 `ros2 service call /task/cancel std_srvs/srv/Trigger`로 요청합니다. 진행 중인 주행·팔 동작은 도중에 취소되지만 도킹 미세 이동·옆걸음은 끝까지 하므로 비상정지가 아닙니다([휠형 2-05 단계 6](../wheel/day2-05-task-manager.md#단계-6--t5-취소해-보기)).
 
 **소스:** 공통 `task_manager.py`, `validate_plan()`, `robot_skills.py`. LLM은 다리 관절을 직접 제어하지 않습니다.
 

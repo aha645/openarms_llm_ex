@@ -21,11 +21,14 @@ def generate_launch_description():
         DeclareLaunchArgument("viewer", default_value="true"),
         DeclareLaunchArgument("world", default_value="world.xml"),
         DeclareLaunchArgument("rviz", default_value="true"),
+        DeclareLaunchArgument("lidar_rays", default_value="360"),
+        DeclareLaunchArgument("rate_factor", default_value="1.0", description="1.0=실시간, 느린 PC 는 0.5"),
         DeclareLaunchArgument("slam_params", default_value=os.path.join(share, "config", "slam_toolbox.yaml")),
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(os.path.join(share, "launch", "sim.launch.py")),
             launch_arguments={"viewer": lc("viewer"), "world": lc("world"), "rviz": lc("rviz"), "rviz_config": os.path.join(share, "rviz", "nav.rviz"),
-                              "camera": "false", "move_person": "false"}.items()),
+                              "camera": "false", "move_person": "false",
+                              "lidar_rays": lc("lidar_rays"), "rate_factor": lc("rate_factor")}.items()),
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(os.path.join(slam_share, "launch", "online_async_launch.py")),
             launch_arguments={"slam_params_file": lc("slam_params"), "use_sim_time": "true"}.items()),

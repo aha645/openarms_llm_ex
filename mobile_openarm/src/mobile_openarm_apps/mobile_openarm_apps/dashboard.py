@@ -2,6 +2,10 @@
 """Day2-06 웹 대시보드 (Flask · SSE · MJPEG).
 
     ros2 run mobile_openarm_apps dashboard        → 브라우저 http://localhost:8080
+    ros2 run mobile_openarm_apps dashboard --ros-args -p host:=0.0.0.0   # 같은 네트워크의 휴대폰에서도 접속
+
+  인증이 없으므로 기본은 이 PC 에서만 접속(127.0.0.1). host 기본값은 환경 변수 OPENARM_DASHBOARD_HOST 로 바꿀 수 있다
+  (Docker 이미지는 컨테이너 포트 연결을 위해 0.0.0.0 — Mac 쪽은 docker-compose 가 127.0.0.1 에만 연다).
 
   /            지도·로봇 위치·미션 상태·카메라·명령 입력 화면
   /events      Server-Sent Events: 0.5초마다 상태 JSON 푸시
@@ -38,6 +42,7 @@ class DashboardNode(Node):
     def __init__(self):
         super().__init__("dashboard", parameter_overrides=[Parameter("use_sim_time", value=True)])
         self.declare_parameter("port", 8080)
+        self.declare_parameter("host", os.environ.get("OPENARM_DASHBOARD_HOST", "127.0.0.1"))
         self.jpeg = None
         self.jpeg_seq = 0
         self.jpeg_cv = threading.Condition()
@@ -171,9 +176,12 @@ def main():
     ex.add_node(node)
     threading.Thread(target=ex.spin, daemon=True).start()
     port = node.get_parameter("port").value
+    host = node.get_parameter("host").value
     node.get_logger().info(f"dashboard: http://localhost:{port}")
+    if host != "127.0.0.1":
+        node.get_logger().warn(f"host={host}: 같은 네트워크의 누구나 인증 없이 로봇에 명령을 보낼 수 있습니다")
     try:
-        make_app(node).run(host="0.0.0.0", port=port, threaded=True, use_reloader=False)
+        make_app(node).run(host=host, port=port, threaded=True, use_reloader=False)
     finally:
         ex.shutdown()
         rclpy.try_shutdown()
