@@ -215,6 +215,8 @@ mobile_openarm/.venv-mobile/bin/python -c 'import numpy, cv2, mujoco, openai, py
 
 ## 5. 휠형 워크스페이스 — 에셋·모델 생성·빌드
 
+> **터미널:** 앞 절과 **같은 터미널**에서 이어서 진행합니다. 새 터미널이라면 먼저 `cd ~/Documents/openarms_llm_ex && export PYTHONNOUSERSITE=1` 을 입력하세요.
+
 ### 5-1. OpenArm 에셋
 
 ```bash
@@ -231,7 +233,7 @@ rm -rf mobile_openarm/src/mobile_openarm_sim/mjcf/meshes && cp -r mobile_openarm
 
 ### 5-2. 모델 생성 (MJCF → URDF → SRDF, 지도)
 
-패키지 폴더로 이동하고, 가상환경의 Python 을 변수로 둡니다.
+패키지 폴더로 이동하고, 가상환경의 Python 을 변수로 둡니다. `PY` 는 **이 터미널에서만** 유효합니다. 5-2·5-3 도중 새 터미널을 열었다면 아래 줄을 다시 입력하세요(빼먹으면 `$PY` 가 비어 `tools/...: Permission denied` 가 납니다).
 
 ```bash
 cd ~/Documents/openarms_llm_ex/mobile_openarm/src/mobile_openarm_sim && PY=../../.venv-mobile/bin/python
@@ -262,6 +264,8 @@ $PY ../mobile_openarm_moveit_config/tools/make_srdf.py --mjcf mjcf/mobile_openar
 ```
 
 ### 5-3. 시뮬레이션 단독 점검 (ROS 불필요)
+
+5-2와 같은 터미널(같은 폴더, `PY` 설정됨)에서 실행합니다.
 
 ```bash
 MUJOCO_GL=egl $PY tools/selftest.py world_light.xml
@@ -309,27 +313,39 @@ grep -qF "source $PWD/install/setup.bash" ~/.bashrc || echo "source $PWD/install
 
 ## 6. 첫 통합 실행 (API 키 불필요)
 
+| 터미널 | 상태 | 이 단계에서 |
+|---|---|---|
+| T1 | 5-4의 같은 터미널 → 🟢 | full_system 실행. 확인이 끝날 때까지 **끄지 않음** |
+| T2 | 🆕 새로 열기 → 🟢 | `/task/status` 계속 출력. **결과 관찰은 여기서** |
+| T3 | 🆕 새로 열기 → ⚪ | 시험 명령 한 번 보내고 끝남 |
+
+표기: 🆕 새로 열기 · 🟢 계속 실행(터미널을 붙잡음) · ⚪ 바로 끝남 — [휠형 공통 규칙](../wheel/README.md#1-터미널-여러-개-쓰기)과 같습니다. 새 터미널은 3-7·5-4 에서 `~/.bashrc` 에 넣은 줄 덕분에 ROS·패키지를 자동으로 불러오므로 `cd ~/Documents/openarms_llm_ex` 만 하면 됩니다.
+
+T1:
+
 ```bash
 ros2 launch mobile_openarm_apps full_system.launch.py planner:=offline world:=world_light.xml rviz:=false
 ```
 
-브라우저: **http://localhost:8080**. 새 터미널에서 상태를 봅니다.
+브라우저: **http://localhost:8080**. T2(새 터미널)에서 상태를 봅니다.
 
 ```bash
 ros2 topic echo /task/status --field data
 ```
 
-또 다른 터미널에서 명령을 보냅니다.
+T3(새 터미널)에서 명령을 보냅니다.
 
 ```bash
 ros2 topic pub --once /task/command std_msgs/msg/String "{data: '순찰하고 복귀해'}"
 ```
 
+**원인 → 결과:** T3에서 발행 → T1 로그에 계획·실행 → T2의 `state` 가 `planning` → `running` 으로 바뀜. 확인 후 T1에서 `Ctrl+C` 로 종료합니다.
+
 원격(SSH)으로 접속해 화면이 없으면 `viewer:=false` 를 붙이고 대시보드(포트 8080)로 봅니다. 여기까지 되면 [휠형 교육](../wheel/README.md)으로 넘어갑니다.
 
 ## 7. (TRON1) 모델 생성·overlay 빌드
 
-`tron1_openarm/scripts/10_setup_tron1.sh` 를 나눈 것입니다. 5절까지 끝난 상태에서 시작합니다.
+`tron1_openarm/scripts/10_setup_tron1.sh` 를 나눈 것입니다. 5절까지 끝난 상태에서 시작합니다. 6절의 full_system 은 `Ctrl+C` 로 끈 뒤, 그 터미널(또는 새 터미널)에서 7절을 **끝까지 한 터미널로** 진행합니다. 아래 셋째 블록이 정하는 `PY W D M` 변수는 그 터미널에서만 유효하므로, 중간에 새 터미널을 열었다면 첫 블록과 셋째 블록을 다시 입력하세요.
 
 ```bash
 cd ~/Documents/openarms_llm_ex && mkdir -p tron1_openarm/third_party && touch tron1_openarm/third_party/COLCON_IGNORE
@@ -419,7 +435,9 @@ source install/setup.bash && ros2 pkg prefix tron1_openarm_sim
 
 ## 8. (TRON1) 보행 PPO 학습용 가상환경 `.venv-biped` — JAX GPU
 
-ROS 쪽 NumPy(1.26)와 JAX 가 요구하는 NumPy(2.x)가 충돌하므로 **시스템 패키지를 보지 않는 독립 가상환경**을 따로 만듭니다. ROS 를 source 하지 않은 새 터미널에서 진행하는 것이 가장 깔끔합니다.
+ROS 쪽 NumPy(1.26)와 JAX 가 요구하는 NumPy(2.x)가 충돌하므로 **시스템 패키지를 보지 않는 독립 가상환경**을 따로 만듭니다.
+
+**터미널:** 🆕 새 터미널 하나에서 8절 끝까지 진행합니다. 3-7·5-4에서 `~/.bashrc` 에 ROS 줄을 넣었기 때문에 새 터미널도 ROS 가 자동으로 불러와져 있습니다. 그래서 아래 명령은 모두 `env -u PYTHONPATH` 로 **ROS 의 `PYTHONPATH` 를 지우고** 실행합니다. 이 접두어를 빼지 마세요. ROS launch 가 켜져 있어도 상관없지만 학습이 CPU 를 많이 쓰므로 끄는 편이 좋습니다.
 
 ```bash
 cd ~/Documents/openarms_llm_ex && export PYTHONNOUSERSITE=1
@@ -469,7 +487,7 @@ env -u PYTHONPATH PYTHONNOUSERSITE=1 XLA_PYTHON_CLIENT_PREALLOCATE=false ../.ven
 env -u PYTHONPATH ../.venv-biped/bin/python eval_policy.py ../policies/limx_pf_tron1a_pretrained.npz ../runs/my_run/best.npz
 ```
 
-결과가 좋으면 `cp ../runs/my_run/best.npz ../src/tron1_openarm_sim/policies/tron1_openarm_policy.npz` 로 배포 정책을 바꿉니다(npz 는 NumPy 배열이라 ROS 쪽에서 그대로 읽음).
+결과가 좋으면 `cp ../runs/my_run/best.npz ../src/tron1_openarm_sim/policies/tron1_openarm_policy.npz` 로 배포 정책을 바꿉니다(npz 는 NumPy 배열이라 ROS 쪽에서 그대로 읽음). **주의:** `tron1_openarm_policy.npz` 는 **Point-foot(PF)** 정책입니다. 교육 기준인 Sole-foot(`foot:=sf`)은 `tron1sf_openarm_policy.npz` 를 쓰므로 이 복사는 SF 교육에 영향을 주지 않습니다. 덮어쓰기 전에 원본을 백업해 두세요.
 
 ## 자주 막히는 부분
 

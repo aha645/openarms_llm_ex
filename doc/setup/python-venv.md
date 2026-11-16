@@ -64,7 +64,7 @@ head -n 1 mobile_openarm/install/mobile_openarm_apps/lib/mobile_openarm_apps/tas
 
 `#!/.../mobile_openarm/.venv-mobile/bin/python` 이 나와야 합니다. `/usr/bin/python3` 가 나오면 venv 밖에서 빌드된 것이므로 위 명령으로 다시 빌드하세요. 직접 `colcon build` 할 때도 같은 방식(`.venv-mobile/bin/python -m colcon build ...` 또는 venv 활성화 후 `python -m colcon build ...`)을 씁니다.
 
-반면 `python3` 로 도구를 직접 실행할 때(`selftest.py`, `python3 -m mujoco.viewer`, 모델 생성 도구)는 활성화가 필요합니다. 저장소 루트에서:
+반면 `python3` 로 도구를 직접 실행할 때(`selftest.py`, `python3 -m mujoco.viewer`, 모델 생성 도구)는 활성화가 필요합니다. 활성화는 **그 터미널에서만** 유지되므로, 새 터미널마다 다시 입력합니다. 저장소 루트에서:
 
 ```bash
 source /opt/ros/jazzy/setup.bash
@@ -122,16 +122,16 @@ bash tron1_openarm/scripts/11_train_policy.sh 90     # 90분 학습 → 평가
 
 `11_train_policy.sh` 는 `.venv-biped` 의 Python 을 `PYTHONPATH` 없이 실행합니다. 학습 환경(`tron1_openarm/rl/tron1_env.py`)은 에피소드 도중에도 팔 목표 자세를 이름 자세·무작위 자세로 1.5~3초에 걸쳐 계속 바꾸면서 보행을 학습합니다. 신경망(PPO 업데이트)은 JAX GPU, MuJoCo 물리 rollout 은 CPU 스레드에서 돕니다. JAX 가 GPU 메모리를 미리 75% 잡지 않도록 `XLA_PYTHON_CLIENT_PREALLOCATE=false` 를 기본으로 둡니다(CPU·GPU 메모리를 공유하는 DGX Spark 에서 중요).
 
-직접 실행할 때는 ROS 를 source 하지 않은 새 터미널에서:
+직접 실행할 때는 새 터미널에서 다음을 입력합니다. `04`·`03` 스크립트가 `~/.bashrc` 에 ROS 줄을 넣었다면 새 터미널에도 ROS 가 자동으로 불러와져 있으므로, `python` 명령 앞에 `env -u PYTHONPATH` 를 붙여 ROS 경로를 지웁니다(아래 설명 참고).
 
 ```bash
 export PYTHONNOUSERSITE=1
 source tron1_openarm/.venv-biped/bin/activate
 cd tron1_openarm/rl
-python train_ppo.py --minutes 90 --init-std 0.08 --lr 2e-5 --out ../runs/my_run
+env -u PYTHONPATH python train_ppo.py --minutes 90 --init-std 0.08 --lr 2e-5 --out ../runs/my_run
 ```
 
-`~/.bashrc` 가 ROS 를 자동 source 한다면 `env -u PYTHONPATH python ...` 처럼 `PYTHONPATH` 를 지우고 실행하세요. venv 는 환경 변수까지 격리하지 않습니다. 학습 결과(`best.npz`)는 NumPy 배열 파일이라 `.venv-mobile` 쪽 ROS 브리지에서 그대로 읽습니다.
+`env -u PYTHONPATH` 가 필요한 이유: venv 는 환경 변수까지 격리하지 않아서, ROS 가 설정한 `PYTHONPATH`(NumPy 1.26 용 패키지 경로)가 남아 있으면 JAX 쪽 NumPy 2.x 와 섞입니다. `~/.bashrc` 에 ROS 줄이 없는 터미널이라면 붙이지 않아도 됩니다. 학습 결과(`best.npz`)는 NumPy 배열 파일이라 `.venv-mobile` 쪽 ROS 브리지에서 그대로 읽습니다.
 
 ## 4. 사용 종료·재생성
 

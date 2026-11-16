@@ -27,6 +27,8 @@ bash mobile_openarm/scripts/00_check_system.sh
 
 이후 명령은 이 저장소 루트에서 실행합니다. `~/openarm_mobile_ws`로 이름을 바꿀 필요가 없습니다.
 
+**터미널:** 1~4절은 **한 터미널에서 순서대로** 진행합니다. `export OPENARM_WS` 같은 설정은 그 터미널에서만 유효하므로, 중간에 터미널을 닫았다면 각 절 첫 줄의 `cd ~/Documents/openarms_llm_ex`(다른 위치에 받았다면 그 경로)부터 다시 입력하세요.
+
 저장소 루트 아래 두 폴더가 각각 colcon 워크스페이스입니다.
 
 ```text
@@ -53,6 +55,8 @@ glxinfo -B
 
 ## 3. ROS 2 Jazzy 설치
 
+같은 터미널에서 이어서 진행합니다(새 터미널이면 먼저 `cd ~/Documents/openarms_llm_ex`).
+
 ```bash
 bash mobile_openarm/scripts/03_install_ros2_jazzy.sh
 source /opt/ros/jazzy/setup.bash
@@ -64,8 +68,10 @@ command -v colcon
 
 ## 4. 에셋·모델 생성 및 빌드
 
+같은 터미널에서 이어서 진행합니다. 03 스크립트가 `~/.bashrc` 에 ROS 줄을 넣었으므로 새 터미널이어도 됩니다.
+
 ```bash
-cd "$OPENARM_WS"
+cd ~/Documents/openarms_llm_ex          # 다른 위치에 받았다면 그 경로 (1절의 $OPENARM_WS)
 bash mobile_openarm/scripts/04_setup_workspace.sh
 source /opt/ros/jazzy/setup.bash
 source mobile_openarm/.venv-mobile/bin/activate
@@ -88,12 +94,23 @@ ros2 pkg prefix mobile_openarm_apps
 **주의:** 스크립트는 자체 점검과 rosdep 실패를 무시할 수 있습니다(`|| true`). 마지막에 빌드 완료라고 나와도 센서 렌더링까지 검증됐다는 의미는 아닙니다. `Failed` 패키지가 없는지 빌드 요약을 확인하고, 필요하면 직접 점검하세요.
 
 ```bash
+source mobile_openarm/.venv-mobile/bin/activate    # 위 블록과 같은 터미널이면 이미 켜져 있음
 python3 mobile_openarm/src/mobile_openarm_sim/tools/selftest.py world_light.xml
 ```
 
 실패하면 로그를 확인하고 수정한 뒤 재실행합니다. 그래픽 백엔드는 장치·세션에 따라 다르므로 EGL 실패만으로 CPU/화면 실행까지 실패한다고 단정하지 않습니다.
 
 ## 5. 첫 통합 실행 (API 키 불필요)
+
+| 터미널 | 상태 | 이 단계에서 |
+|---|---|---|
+| T1 | 4절의 같은 터미널 → 🟢 | full_system 실행. 확인이 끝날 때까지 **끄지 않음** |
+| T2 | 🆕 새로 열기 → 🟢 | `/task/status` 계속 출력. **결과 관찰은 여기서** |
+| T3 | 🆕 새로 열기 → ⚪ | 시험 명령 한 번 보내고 끝남 |
+
+표기: 🆕 새로 열기 · 🟢 계속 실행(터미널을 붙잡음) · ⚪ 바로 끝남 — [휠형 공통 규칙](../wheel/README.md#1-터미널-여러-개-쓰기)과 같습니다. 새 터미널은 `~/.bashrc` 가 ROS·패키지를 자동으로 불러옵니다(03·04 스크립트가 추가).
+
+T1:
 
 ```bash
 ros2 launch mobile_openarm_apps full_system.launch.py \
@@ -104,21 +121,23 @@ ros2 launch mobile_openarm_apps full_system.launch.py \
 
 시뮬+Nav2 → 약 5초 뒤 MoveIt → 약 12초 뒤 Task Manager·대시보드가 시작됩니다. 이는 고정 지연이지 준비 완료 판정은 아닙니다. 노드 초기화 로그를 기다리세요. 뷰어가 느리면 종료 후 `viewer:=false`를 추가합니다. 대시보드의 카메라는 계속 사용합니다.
 
-새 터미널에서 확인:
+T2(새 터미널)에서 확인:
 
 ```bash
-cd "$OPENARM_WS"                           # 새 터미널이면: cd ~/Documents/openarms_llm_ex
+cd ~/Documents/openarms_llm_ex
 source /opt/ros/jazzy/setup.bash
 source mobile_openarm/install/setup.bash
 ros2 topic echo /task/status --field data
 ```
 
-`state: idle`을 확인합니다. 시험 명령은 다른 터미널에서 보냅니다.
+`state: idle`을 확인합니다. 시험 명령은 T3(새 터미널)에서 보냅니다.
 
 ```bash
 ros2 topic pub --once /task/command std_msgs/msg/String \
   "{data: '순찰하고 복귀해'}"
 ```
+
+**원인 → 결과:** T3에서 명령 발행 → Task Manager 가 계획·실행(T1 로그) → T2의 `state` 가 `planning` → `running` 으로 바뀜, 대시보드 미션 영역도 같이 바뀜.
 
 이 단계의 완료 기준은 패키지 탐색 성공, 통합 launch가 유지됨, 대시보드 접속, Task Manager `idle` 및 명령에 대한 상태 전환입니다. 운반까지의 상세 검증은 2일차에서 합니다. 종료는 launch 터미널의 `Ctrl+C`입니다.
 
@@ -142,11 +161,25 @@ ros2 topic pub --once /task/command std_msgs/msg/String \
 
 ### 실시간 배속 확인
 
+5절의 full_system 은 먼저 `Ctrl+C` 로 끕니다.
+
+| 터미널 | 상태 | 이 단계에서 |
+|---|---|---|
+| T1 | 🆕 → 🟢 | sim 만 실행 |
+| T2 | 🆕 → 🟢 | `hz` 로 배속 확인 → `Ctrl+C`. 이어서 (NVIDIA 일 때만) `nvidia-smi dmon` → `Ctrl+C` |
+
 ```bash
-ros2 launch mobile_openarm_sim sim.launch.py rviz:=false viewer:=false &
-ros2 topic hz /clock     # 100Hz 가까우면 실시간. 크게 낮으면 lidar_rays:=180, camera_hz 낮추기, rate_factor:=0.5
-nvidia-smi dmon -s u     # 뷰어·카메라가 GPU 를 쓰는지 확인
+# T1
+ros2 launch mobile_openarm_sim sim.launch.py rviz:=false viewer:=false
 ```
+
+```bash
+# T2
+ros2 topic hz /clock     # 100Hz 가까우면 실시간. 크게 낮으면 lidar_rays:=180, camera_hz 낮추기, rate_factor:=0.5
+nvidia-smi dmon -s u     # (NVIDIA GPU 가 있을 때만) 뷰어·카메라가 GPU 를 쓰는지 확인
+```
+
+확인이 끝나면 T1·T2 모두 `Ctrl+C` 로 끕니다. 켜 둔 채 교육을 시작하면 같은 이름의 노드가 둘이 됩니다.
 
 모든 노드가 시뮬 시간을 쓰므로 실시간보다 느려도 동작 결과는 같습니다. 전원 연결·성능 모드에서 실행하세요.
 

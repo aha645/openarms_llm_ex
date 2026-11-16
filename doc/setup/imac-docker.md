@@ -79,11 +79,23 @@ cd openarms_llm_ex/docker
 
 ## 2. Ubuntu + ROS 이미지 빌드·시작
 
+이 문서에는 명령을 입력하는 곳이 세 군데 있습니다. 각 블록 앞의 표시를 보고 구분하세요.
+
+| 어디에서 | 프롬프트 모양 | 여는 법 |
+|---|---|---|
+| **Mac 터미널** | `사용자@iMac docker %` | macOS 터미널 앱, `cd ~/Documents/openarms_llm_ex/docker` |
+| **컨테이너 터미널** | `root@...:/#` | Mac 터미널에서 `docker compose exec openarm bash`, 또는 noVNC 화면의 xterm |
+| **Mac 브라우저** | — | Safari/Chrome |
+
 가장 간단한 방법은 시작 스크립트 하나입니다. 빌드 → 실행 → (처음이면) 워크스페이스 준비 → 브라우저 열기를 차례로 합니다.
+
+Mac 터미널(`docker/`)에서:
 
 ```bash
 bash mac_start.sh
 ```
+
+`mac_start.sh` 는 워크스페이스가 아직 빌드되지 않았으면 컨테이너 안에서 `04_setup_workspace.sh` 까지 **자동으로 실행**합니다. 이 스크립트를 썼다면 3절은 **마지막 확인 명령만** 하면 됩니다.
 
 단계별로 직접 하려면 Mac 터미널(`docker/`)에서:
 
@@ -166,7 +178,9 @@ docker run -d --name openarm --platform linux/amd64 --shm-size=2g \
 
 ## 3. 에셋 준비·colcon 빌드
 
-컨테이너 안:
+> `mac_start.sh` 를 썼다면 아래 블록 대신 컨테이너 터미널에서 `ros2 pkg prefix mobile_openarm_apps` 로 경로가 나오는지만 확인하고 4절로 넘어갑니다. `04` 를 다시 돌려도 망가지지는 않지만 시간이 오래 걸립니다.
+
+컨테이너 터미널(2절에서 연 터미널을 그대로 사용):
 
 ```bash
 cd /root/openarm_mobile_ws
@@ -212,7 +226,16 @@ rviz2      # 실패하면 LIBGL_ALWAYS_INDIRECT=1 을 붙여 보고, 그래도 �
 
 ## 5. 첫 통합 실행
 
-컨테이너 안:
+| 터미널 | 어디에서 | 상태 | 이 단계에서 |
+|---|---|---|---|
+| T1 | 컨테이너 | 🟢 | full_system 실행. 확인이 끝날 때까지 **끄지 않음** |
+| — | Mac 브라우저 | — | `http://localhost:8080` 대시보드 |
+| T2 | 🆕 컨테이너 (Mac 터미널에서 `docker compose exec openarm bash`) | 🟢 | `/task/status` 계속 출력. **결과 관찰은 여기서** |
+| T3 | 🆕 컨테이너 (같은 방법으로 하나 더) | ⚪ | 시험 명령 한 번 보내고 끝남 |
+
+표기: 🆕 새로 열기 · 🟢 계속 실행(터미널을 붙잡음) · ⚪ 바로 끝남 — [휠형 공통 규칙](../wheel/README.md#1-터미널-여러-개-쓰기)과 같습니다. 컨테이너 터미널은 이미지의 `~/.bashrc` 가 ROS·패키지를 자동으로 불러오므로 아래 `source` 두 줄은 확인용이며 생략해도 됩니다.
+
+T1(컨테이너):
 
 ```bash
 source /opt/ros/jazzy/setup.bash
@@ -225,7 +248,7 @@ Mac 브라우저: **http://localhost:8080**
 
 `viewer:=false` 는 MuJoCo 별도 창만 끄며 대시보드 카메라는 유지됩니다. 시뮬/주행 → 5초 뒤 MoveIt → 12초 뒤 Task Manager·웹이 시작되며 실제 초기화는 더 걸릴 수 있습니다.
 
-새 Mac 터미널에서 ROS 터미널을 추가하려면:
+T2: 새 Mac 터미널에서 컨테이너 터미널을 추가합니다.
 
 ```bash
 cd ~/Documents/openarms_llm_ex/docker
@@ -240,12 +263,14 @@ source /root/openarm_mobile_ws/mobile_openarm/install/setup.bash
 ros2 topic echo /task/status --field data
 ```
 
-`idle` 을 확인하고 다른 컨테이너 터미널에서 다음을 보냅니다.
+`idle` 을 확인하고 T3(같은 방법으로 연 또 하나의 컨테이너 터미널)에서 다음을 보냅니다.
 
 ```bash
 ros2 topic pub --once /task/command std_msgs/msg/String \
   "{data: '순찰하고 복귀해'}"
 ```
+
+**원인 → 결과:** T3에서 발행 → T1 로그에 계획·실행 → T2의 `state` 가 `planning` → `running` 으로 바뀌고, Mac 브라우저의 대시보드 미션 영역도 바뀝니다.
 
 이 단계에서는 웹 접속·상태 수신·명령에 대한 상태 전환까지 확인합니다. 실제 운반 검증은 [휠형 2일차](../wheel/README.md)에서 진행합니다. 교육의 T1/T2/T3 는 각각 별도 **컨테이너 터미널**입니다.
 
@@ -264,13 +289,18 @@ ros2 topic pub --once /task/command std_msgs/msg/String \
 **옵션 주의:** `camera_hz`·`rate_factor`·`lidar_rays` 는 현재 `sim.launch.py` 인자입니다. `nav.launch.py` 와 `full_system.launch.py` 가 모두 전달하는 것은 아니므로 모든 launch 에 무작정 붙이지 않습니다. 먼저 `ros2 launch <패키지> <파일> --show-args` 와 launch 소스를 확인하세요.
 
 ```bash
-ros2 topic hz /clock      # 100Hz 가까우면 실시간, 50Hz 면 0.5배
-docker stats openarm      # Mac 터미널: 컨테이너 CPU·메모리 사용량
+# 컨테이너 터미널
+ros2 topic hz /clock      # 100Hz 가까우면 실시간, 50Hz 면 0.5배 (확인 후 Ctrl+C)
+```
+
+```bash
+# Mac 터미널
+docker stats openarm      # 컨테이너 CPU·메모리 사용량 (Ctrl+C 로 멈춤)
 ```
 
 ## 6. 종료·재개와 문제 해결
 
-launch 터미널에서 `Ctrl+C` 후 Mac 의 `docker/` 에서 실행합니다.
+순서: ① **컨테이너 터미널**(T1)에서 launch 를 `Ctrl+C` → ② 다른 컨테이너 터미널은 `exit` → ③ **Mac 터미널**(`docker/` 폴더)에서 아래 명령.
 
 ```bash
 docker compose stop         # 일시 정지
@@ -279,7 +309,7 @@ docker compose start        # 재개
 docker compose down
 ```
 
-`docker compose down -v` 는 빌드·설치 볼륨을 삭제하므로 평소에는 사용하지 않습니다. 재개 후 컨테이너 터미널에 들어가 환경을 source 하고 launch 를 다시 실행합니다.
+`docker compose down -v` 는 빌드·설치 볼륨을 삭제하므로 평소에는 사용하지 않습니다. 재개 후 Mac 터미널에서 `docker compose exec openarm bash` 로 컨테이너 터미널에 들어가 launch 를 다시 실행합니다(ROS 환경은 `~/.bashrc` 가 자동으로 불러옴).
 
 | 증상 | 원인 | 조치 |
 | --- | --- | --- |
