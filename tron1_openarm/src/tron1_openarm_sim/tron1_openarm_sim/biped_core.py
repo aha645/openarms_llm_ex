@@ -63,7 +63,7 @@ ARM_GRAVCOMP = os.environ.get("TRON1_ARM_GRAVCOMP", "1") == "1"
 # /joint_states 로 발행한다. 값은 실로봇에서도 얻을 수 있는 것만 쓴다 — IMU 자세 + 디딘 발의 다리 기구학 높이
 TILT_JOINTS = ("base_height_joint", "base_pitch_joint", "base_roll_joint")
 HEIGHT_TAU = 0.04                # 높이 추정 저역통과 시간상수 [s] (발 디딤 순간의 튐만 거름, 보행 출렁임은 그대로 반영)
-# 디딘 발이 바닥에 눌려 들어가는 깊이 [m] (시뮬 접촉 측정: PF 공 모양 발 약 11 mm, SF 평발 약 1.5 mm).
+# 디딘 발이 바닥에 눌려 들어가는 깊이 [m] (시뮬 접촉 측정: PF 공 모양 발 약 11 mm, SF 발바닥 상자 약 1.4 mm).
 # 실로봇에서는 발 고무가 눌리는 양에 해당하며, 서 있는 높이를 한 번 재서 맞춘다
 SOLE_SINK = {"pf": 0.011, "sf": 0.0015}
 

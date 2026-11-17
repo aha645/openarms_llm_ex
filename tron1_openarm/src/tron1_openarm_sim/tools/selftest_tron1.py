@@ -49,7 +49,9 @@ check("모델 로드", True, f"질량 {m.body_subtreemass[sim.base_id]:.1f} kg, 
 sim.set_base_pose(0.0, -0.6, 0.0)
 ok = run(sim, 8.0)
 h, tilt = sim.base_height_and_tilt()
-check("제자리 서기 8 s (명령 0, 제자리 걸음)", ok and 0.62 < h < 0.74 and tilt < 8, f"몸통 높이 {h:.3f} m, 기울기 {tilt:.1f}°")
+# 서 있는 높이는 발 형태마다 다르다 (PF 0.68, SF 0.73 m). 예전 판정 0.62~0.74 m 는 PF 기준이라 SF(0.75 m)가 늘 실패했다
+check("제자리 서기 8 s (명령 0, 제자리 걸음)", ok and abs(h - sim.nominal_height) < 0.06 and tilt < 8,
+      f"몸통 높이 {h:.3f} m (기준 {sim.nominal_height:.2f} ± 0.06), 기울기 {tilt:.1f}°")
 gt0 = sim.ground_truth_pose()
 od0 = sim.odom.copy()
 ok = run(sim, 10.0, 0.3, 0.0)

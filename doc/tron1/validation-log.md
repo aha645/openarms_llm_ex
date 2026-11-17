@@ -539,6 +539,7 @@ LOG_DIR=/tmp/tron1_logs bash tron1_openarm/tools/validation/mission_test.sh sf 1
 
 `rl/tron1_env.py` (`TRON1_SF_STAGE`), 학습: `train_ppo.py --foot sf --init <이전 best> --minutes 110 --init-std 0.2 --lr 1e-4` (2 코어 CPU 110 분).
 배포 정책: `policies/tron1sf_openarm_policy.npz` = `runs/sf_v4/best.npz`.
+(이후 발 충돌을 상자로 바꾸며 `runs/box/seed3/best.npz` 로 교체 — [보행 학습 10절](locomotion-rl.md#10-sf-발바닥-상자로-통일).)
 
 #### 6-2-2. SF 오도메트리 (`biped_core.py`)
 
@@ -712,7 +713,7 @@ ROS 확인: `sim.launch.py foot:=sf` + `move_group.launch.py foot:=sf` → `/joi
 - 중력 보상을 켜면 팔이 처지며 힘을 빼지 않아 작업대를 더 세게 밀었고, 그 반력으로 몸통이 0.87 m 밀려 돌았다.
 - 시험 의도(팔 동작 중 균형)에 맞게 0.5 m 물러나 시험하도록 바꿨다 → SF 0.02 m, PF 0.09 m (보상 끔: 0.004 / 0.093 m).
 - **주의:** 중력 보상을 켜면 계획에 없던 접촉에서 팔이 덜 양보한다. MoveIt 충돌 객체(작업대 여유)를 정확히 두는 것이 더 중요해졌다.
-- SF 의 '제자리 서기 8 s' 실패는 이번 변경과 무관하다 (변경 전에도 실패). 판정 범위 0.62~0.74 m 가 PF 기준인데 SF 는 0.73 m 를 목표로 서서 0.75 m 가 나온다.
+- SF 의 '제자리 서기 8 s' 실패는 이번 변경과 무관하다 (변경 전에도 실패). 판정 범위 0.62~0.74 m 가 PF 기준인데 SF 는 0.73 m 를 목표로 서서 0.75 m 가 나온다. → 이후 판정을 발 형태별 기준 높이 ± 0.06 m 로 바꿔 SF·PF 모두 10/10.
 
 ```bash
 # 재현 (tron1_openarm/src/tron1_openarm_sim 에서, mjcf/sf/meshes 가 있어야 함 — 10_setup_tron1.sh 가 만듦)

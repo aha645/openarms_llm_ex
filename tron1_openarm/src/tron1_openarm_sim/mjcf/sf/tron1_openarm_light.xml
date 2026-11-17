@@ -97,7 +97,7 @@
             <inertial pos="0.11452 0.0013 -0.19367" quat="0.965543 0.00476557 -0.259713 -0.0159388" mass="1.22" diaginertia="0.0144103 0.0143581 0.00061582" />
             <joint name="knee_L_joint" pos="0 0 0" axis="0 -1 0" range="-0.872665 1.36136" actuatorfrcrange="-80 80" armature="0.01" damping="0.01" />
             <body name="ankle_L_Link" pos="0.15 0 -0.25981">
-              <geom name="ankle_L_collision" type="mesh" rgba="0.75 0.78 0.9 1" mesh="ankle_L_Link" group="2" contype="1" conaffinity="1" friction="0.8 0.005 0.0001" condim="3" />
+              <geom name="ankle_L_collision" type="box" pos="0.0067 -0.0001 -0.0549" size="0.0909 0.0230 0.0050" rgba="0.75 0.78 0.9 1" group="2" contype="1" conaffinity="1" friction="0.8 0.005 0.0001" condim="3" />
               <inertial pos="0.01074 -0.00061 -0.03314" quat="0.013732 0.694322 0.0150212 0.719377" mass="0.62" diaginertia="0.0019759 0.00181179 0.000523633" />
               <joint name="ankle_L_joint" pos="0 0 0" axis="0 -1 0" range="-1.15192 1.5708" actuatorfrcrange="-20 20" armature="0.01" damping="0.01" />
               <site name="foot_L_site" pos="0 0 0" size="0.12" group="4" />
@@ -118,7 +118,7 @@
             <inertial pos="0.11452 -0.0013 -0.19367" quat="0.965543 -0.00476557 -0.259713 0.0159388" mass="1.22" diaginertia="0.0144103 0.0143581 0.00061582" />
             <joint name="knee_R_joint" pos="0 0 0" axis="0 1 0" range="-1.36136 0.872665" actuatorfrcrange="-80 80" armature="0.01" damping="0.01" />
             <body name="ankle_R_Link" pos="0.15 0 -0.25981">
-              <geom name="ankle_R_collision" type="mesh" rgba="0.75 0.78 0.9 1" mesh="ankle_R_Link" group="2" contype="1" conaffinity="1" friction="0.8 0.005 0.0001" condim="3" />
+              <geom name="ankle_R_collision" type="box" pos="0.0067 -0.0001 -0.0549" size="0.0909 0.0230 0.0050" rgba="0.75 0.78 0.9 1" group="2" contype="1" conaffinity="1" friction="0.8 0.005 0.0001" condim="3" />
               <inertial pos="0.01074 0.00061 -0.03314" quat="-0.013732 0.694322 -0.0150212 0.719377" mass="0.62" diaginertia="0.0019759 0.00181179 0.000523633" />
               <joint name="ankle_R_joint" pos="0 0 0" axis="0 -1 0" range="-1.15192 1.5708" actuatorfrcrange="-20 20" armature="0.01" damping="0.01" />
               <site name="foot_R_site" pos="0 0 0" size="0.12" group="4" />
