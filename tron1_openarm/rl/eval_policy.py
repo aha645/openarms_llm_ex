@@ -139,7 +139,15 @@ def evaluate(npz, seeds=(0, 1, 2)):
 
 if __name__ == "__main__":
     allres = {}
-    for p in sys.argv[1:]:
+    # --out=<경로>: 결과 저장 위치 (기본: 저장소에 커밋된 policies/eval_results.json 을 덮어씀)
+    out_path = os.path.join(ROOT, "policies", "eval_results.json")
+    args = []
+    for x in sys.argv[1:]:
+        if x.startswith("--out="):
+            out_path = x.split("=", 1)[1]
+        else:
+            args.append(x)
+    for p in args:
         r = evaluate(p)
         key = os.path.basename(p) if os.path.basename(p) not in ("best.npz", "final.npz") else \
             os.path.basename(os.path.dirname(p)) + "/" + os.path.basename(p)
@@ -147,5 +155,5 @@ if __name__ == "__main__":
         print(key)
         for k, v in r.items():
             print(f"  {k:6s} {v}")
-    with open(os.path.join(ROOT, "policies", "eval_results.json"), "w") as fp:
+    with open(out_path, "w") as fp:
         json.dump(allres, fp, indent=1, ensure_ascii=False)

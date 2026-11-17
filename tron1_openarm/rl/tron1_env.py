@@ -57,7 +57,10 @@ def quat_rot_inv(q, v):
 
 class Tron1OpenArmEnv:
     def __init__(self, xml, num_envs=128, num_models=8, seed=0, nthread=2, randomize=True,
-                 episode_s=20.0, cmd_ranges=None, push=True, foot="pf"):
+                 episode_s=20.0, cmd_ranges=None, push=True, foot="pf", load_model=None):
+        # load_model: xml → MjModel 함수 (기본 mujoco.MjModel.from_xml_path). MJX 와 같은 단순화 모델로 비교할 때
+        #             mjx_model.build_mjx_model 을 넘긴다 (mjx_parity.py --cpu-sole box)
+        load = load_model or mujoco.MjModel.from_xml_path
         self.rng = np.random.default_rng(seed)
         self.foot = foot
         self.sp = PF if foot == "pf" else SF
@@ -84,7 +87,7 @@ class Tron1OpenArmEnv:
             if os.environ.get("TRON1_SF_STAGE", "4") == "4":
                 self.rs["tracking_ang_vel"] = 6.0
                 self.ang_sigma = 0.25
-        base = mujoco.MjModel.from_xml_path(xml)
+        base = load(xml)
         self.dt = base.opt.timestep
         self.nsub = int(round(POLICY_DT / self.dt))
         self.N = num_envs
@@ -114,7 +117,7 @@ class Tron1OpenArmEnv:
         self.models = []
         bid = base.body("base_link").id
         for k in range(num_models):
-            m = mujoco.MjModel.from_xml_path(xml)
+            m = load(xml)
             if randomize and k > 0:
                 m.body_mass[bid] += self.rng.uniform(-0.5, 2.0)
                 m.body_ipos[bid] += self.rng.uniform([-0.02, -0.015, -0.02], [0.02, 0.015, 0.02])
