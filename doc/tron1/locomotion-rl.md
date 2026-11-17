@@ -225,7 +225,7 @@ env -u PYTHONPATH ../.venv-biped/bin/python export_onnx.py ../policies/tron1_ope
 ## 7. 더 좋은 정책을 원할 때 (GPU PC)
 
 - **Isaac Gym / Isaac Lab 에서 처음부터 학습**: `limxdynamics/tron1-rl-isaacgym` 의 `resources/robots/PF_TRON1A/urdf/robot.urdf` 대신 이 저장소의 `mjcf/tron1_openarm.urdf.generated` 에 OpenArm 링크를 붙인 URDF 를 넣고, `terminate_after_contacts_on` 에 팔 링크를 추가, `added_mass_range` 를 상반신 기준으로 다시 잡아 학습합니다. 학습 후 `export_policy_as_onnx.py` 로 나온 ONNX 를 `onnx→npz` 변환(이 문서 2절과 같은 방법)해서 쓰면 됩니다.
-- **팔 관절각을 관측에 넣기**: 지금 정책은 팔이 어디 있는지 모르고 몸통 반동으로만 알아챕니다. 관측에 팔 14관절을 넣으면 더 안정적이지만 네트워크 입력이 바뀌어 사전학습을 쓸 수 없습니다 (처음부터 학습 필요).
+- **팔 관절각을 관측에 넣기**: 지금 정책은 팔이 어디 있는지 모르고 몸통 반동으로만 알아챕니다. 관측에 팔 14관절을 넣으면 더 안정적이지만 네트워크 입력이 바뀌어 사전학습을 쓸 수 없습니다 (처음부터 학습 필요 → [9절 GPU 학습](#9-gpu-물리-학습-mjx--mujoco-warp)).
 
 ## 8. 이후 변경 — v8·Sole-foot·현재 설정 (구현 기록)
 
@@ -390,6 +390,75 @@ env -u PYTHONPATH ../.venv-biped/bin/python eval_policy.py ../src/tron1_openarm_
 | 팔 동작 중 서기 | 3/3 | 0/3, 0.48 m | 0/3, 0.23 m |
 | 옆으로 밀기 10회 | 3/3 | 0/3 | 0/3 |
 | 한 팔만 carry | - | 0/3 | **3/3** |
+
+## 9. GPU 물리 학습 (MJX + MuJoCo Warp)
+
+> 1~8절의 학습은 물리를 CPU 스레드(`mujoco.rollout`)에서 돌린다. 이 절은 **물리까지 GPU 에서** 돌리는 판이다.
+> 관측·행동·보상·명령·팔 동작·랜덤화·PPO·정책 파일 형식(npz)은 같다. 그래서 결과 정책을 그대로 배포 시뮬에 넣을 수 있다.
+
+### 9-1. 파일
+
+| 파일 | 하는 일 |
+|---|---|
+| `rl/mjx_model.py` | 학습 모델(`*_train.xml`) → GPU 용 단순화 모델: SF 발 메시 → 발바닥 상자, 바닥과는 발만 닿게, 솔버 반복 지정 |
+| `rl/tron1_mjx_env.py` | `tron1_env.py` 와 같은 규약의 순수 JAX 환경. 환경 수천 개를 `vmap` 으로 한꺼번에 진행 |
+| `rl/train_mjx.py` | 수집·GAE·PPO·인코더 갱신을 모두 `jit` 안에서 (CPU↔GPU 복사는 기록용 숫자뿐) |
+| `rl/mjx_parity.py` | 같은 정책을 CPU 환경과 MJX 환경에 넣어 결과가 같은지 비교 |
+| `scripts/12_train_mjx.sh` | GPU 고정 → 학습 → 배포 조건 평가(`eval_policy.py --out=run 폴더`) |
+| `scripts/_gpu_select.sh` | GPU·드라이버를 보고 JAX 변형·GPU 를 고름 |
+
+### 9-2. 측정 (RTX 3090, 드라이버 550, SF, 정책 스텝/s)
+
+| 방식 | 속도 |
+|---|---|
+| CPU 물리 (`train_ppo.py`), 환경 128 / 1024 개, 32 스레드 | 7,600 / **20,800** |
+| MJX 순수 JAX 백엔드, 환경 4096 개 (학습 전체) | 14,700 — 물리가 병목 (서 있는 상태 물리만 16,000) |
+| **MJX + MuJoCo Warp 백엔드**, 환경 4096 / 8192 개 (학습 전체) | **80,000 / 92,000** |
+
+### 9-3. 만들며 확인한 것
+
+| 문제 | 확인 | 결정 |
+|---|---|---|
+| SF 발 충돌 메시(꼭짓점 8,259 개)는 GPU 에서 매우 느림 | 메시 바닥면은 18.2 × 4.6 cm 평면 (가운데 3.3 cm 평평, 가장자리 둥금) | 발바닥 상자 0.182 × 0.046 m (최저점 2 mm 안 꼭짓점 범위). 처음 1 cm 띠로 잡은 7.8 cm 폭은 너무 넓어 고침 |
+| 솔버 반복 4 회 (MJX 권장값) | CPU 에서도 이 모델이 발산(NaN), 8 회 3~8 % 낙상, **16 회부터 기본값(100)과 같음** | 반복 16 / 선 탐색 16 |
+| 상자 발 vs 메시 발 (CPU, 기본 솔버) | 서기·걷기 같음, **제자리 회전 0.17 vs 0.53 rad/s** | MuJoCo 메시–평면 충돌이 접촉점을 1 개만 만드는 경우가 많아(회전 마찰 0) 메시 발이 잘 돈다. 실제 고무 발바닥은 상자 쪽에 가깝다고 보고 상자로 학습 |
+| CPU(상자 발) vs MJX-Warp | 서기·걷기·회전·옆걸음·느린 걸음 5 개 시험, 환경 256 개: 낙상 0, 속도·높이·기울기 차이 1 cm/s·1 mm·0.1° 수준 | 물리 동등 |
+| 도메인 랜덤화가 Warp 에도 적용되는가 | 게인 ×0.6, 몸통 +6 kg, 마찰 0.05 에서 JAX·Warp 가 같은 방향·크기로 반응 | 적용됨 |
+| 학습 중 NaN (환경 4096·16384 개) | 환경당 제약 버퍼 `njmax` 64 가 부족 | `njmax` 128, 발산 환경은 넘어짐 처리 + 그 스텝 값 0 (기록 `diverged`) |
+| Warp 최신판은 CUDA 13 드라이버(≥ 580) 필요 | 드라이버 550 에서 GPU 를 못 찾음 | 드라이버 < 580 이면 `warp-lang==1.12.1`(CUDA 12.9 빌드) |
+
+### 9-4. 배포 조건에서의 결과 (5 분 미세조정, 환경 4096 개)
+
+배포 SF 정책에서 시작해 MJX-Warp 로 5 분(약 2,400 만 스텝) 학습한 `final.npz` 를 **CPU·메시 발·물리 2 ms**(`eval_policy.py`)로 평가:
+
+| 시험 | 배포 정책 | MJX 5 분 |
+|---|---|---|
+| 넘어짐 (6 개 시험 × 시드 3) | 0 | 0 |
+| 직진 0.3 m/s → 실제 | 0.19 | **0.22** |
+| 회전 0.6 rad/s → 실제 | 0.42 | **0.57** |
+| 기울기 서기 / 팔 동작 / 밀기 [°] | 4.2 / 4.0 / 3.3 | **2.8 / 1.6 / 1.8** |
+| 제자리 흔들림 30 s [m] | 0.063 | 0.117 (나빠짐) |
+
+GPU 에서 상자 발로 학습한 정책이 메시 발 배포 시뮬로 옮겨도 넘어지지 않고 동작한다.
+
+**주의 — 짧은 학습은 결과가 흔들린다.** `12_train_mjx.sh 3 sf` 로 3 분 다시 학습한 정책은 회전이 오히려 나빠졌다
+(best 0.27 / final 0.23 rad/s, final 은 직진도 0.10 m/s). 위 5 분 결과(회전 0.57)는 한 번의 실행이며,
+상자 발은 메시 발보다 회전 마찰이 커서(9-3) 회전 성능이 학습마다 달라질 수 있다.
+배포 정책은 바꾸지 않았다 — 더 긴 학습(30 분 이상)·여러 시드·제자리 흔들림·집기 시험으로 확인한 뒤 교체한다.
+
+### 9-5. 실행
+
+```bash
+bash tron1_openarm/scripts/setup_venv_biped.sh            # 처음 1 회 (MuJoCo Warp 포함)
+bash tron1_openarm/scripts/12_train_mjx.sh 30 sf           # 30 분, SF, 환경 4096 개
+bash tron1_openarm/scripts/12_train_mjx.sh 60 sf --envs 8192 --init scratch    # 처음부터 (관측 규약을 바꿀 때)
+# 물리 동등성 확인 (CPU 상자 발 vs MJX)
+cd tron1_openarm/rl && env -u PYTHONPATH ../.venv-biped/bin/python mjx_parity.py --foot sf --impl warp --only cpu,mjx_elliptic
+```
+
+- 첫 반복은 컴파일 때문에 약 1 분 걸린다 (`Module ... load on device` 줄은 Warp 커널 컴파일).
+- 환경 수를 바꾸면 Warp 접촉 버퍼(`환경 수 × 12`)도 같이 바뀐다.
+- `--impl jax` 로 순수 JAX 백엔드도 쓸 수 있다 (느림, Warp 가 안 될 때 확인용).
 
 ## 확인 질문
 

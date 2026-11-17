@@ -95,16 +95,19 @@ bash tron1_openarm/scripts/setup_venv_biped.sh
 
 하는 일:
 
-1. GPU 확인 후 JAX 변형 결정 (`JAX_SPEC` 으로 직접 지정 가능)
+1. GPU 확인 후 JAX 변형 결정 (`JAX_SPEC` 으로 직접 지정 가능). GPU 가 여러 대면 compute capability 가 가장 높은 GPU 기준 (`scripts/_gpu_select.sh`)
 
    | 조건 | 설치 |
    |---|---|
-   | compute capability ≥ 7.5 (RTX 20xx 이후, DGX Spark GB10 등) | `jax[cuda13]` |
-   | 7.5 미만 (GTX 1050 = 6.1 등, CUDA 13 미지원) | `jax[cuda12]` |
-   | NVIDIA GPU 없음 | `jax[cpu]` |
+   | 드라이버 ≥ 580 이고 compute capability ≥ 7.5 (DGX Spark GB10 등) | `jax[cuda13]` + `mujoco-warp` |
+   | 드라이버 ≥ 525 (예: 드라이버 550 + RTX 3090) | `jax[cuda12]` + `mujoco-warp` + `warp-lang==1.12.1` |
+   | NVIDIA GPU 없음 / 드라이버 < 525 | `jax[cpu]` |
+
+   CUDA 13 wheel 은 드라이버 580 이상이 필요합니다. 예전 스크립트는 compute capability 만 봐서 드라이버 550 PC 에 `cuda13` 을 깔아 실패할 수 있었습니다.
+   GPU 가 여러 대(예: GTX 1080 Ti + RTX 3090)면 학습 스크립트가 `CUDA_VISIBLE_DEVICES` 를 가장 좋은 GPU 로 고정합니다 (JAX 는 PCI 순서상 첫 GPU 에 계산을 올리기 때문).
 
 2. `tron1_openarm/.venv-biped` 를 시스템 패키지가 **안 보이는** 독립 venv 로 생성 (ROS 의 `PYTHONPATH` 도 지우고 실행)
-3. JAX, optax, `mujoco==3.5.0`(ROS 쪽과 같은 버전 → 같은 모델 파일 사용), onnx, onnxruntime, pyyaml, scipy 설치
+3. JAX, optax, `mujoco==3.5.0`(ROS 쪽과 같은 버전 → 같은 모델 파일 사용), `mujoco-mjx==3.5.0`, onnx, onnxruntime, pyyaml, scipy 설치 (+ GPU 면 MuJoCo Warp)
 4. NumPy 버전, `jax.devices()`, GPU 행렬곱을 출력해 GPU 사용 여부 확인
 
 JAX 는 소스에서 빌드하지 않습니다. 공식 wheel 에 CUDA 런타임이 들어 있어 **NVIDIA 드라이버만 있으면** 됩니다(CUDA Toolkit 불필요). 자동 선택이 맞지 않으면:
@@ -117,8 +120,11 @@ JAX_SPEC='jax[cuda12]' bash tron1_openarm/scripts/setup_venv_biped.sh
 ### 학습 실행
 
 ```bash
-bash tron1_openarm/scripts/11_train_policy.sh 90     # 90분 학습 → 평가
+bash tron1_openarm/scripts/11_train_policy.sh 90     # CPU 물리: 90분 학습 → 평가
+bash tron1_openarm/scripts/12_train_mjx.sh 30 sf     # GPU 물리(MJX + MuJoCo Warp): 30분 학습 → 배포 조건 평가
 ```
+
+`12_train_mjx.sh` 는 물리까지 GPU 에서 돌립니다 (RTX 3090 기준 약 4배 빠름). 자세한 내용: [보행 학습 9절](../tron1/locomotion-rl.md#9-gpu-물리-학습-mjx--mujoco-warp).
 
 `11_train_policy.sh` 는 `.venv-biped` 의 Python 을 `PYTHONPATH` 없이 실행합니다. 학습 환경(`tron1_openarm/rl/tron1_env.py`)은 에피소드 도중에도 팔 목표 자세를 이름 자세·무작위 자세로 1.5~3초에 걸쳐 계속 바꾸면서 보행을 학습합니다. 신경망(PPO 업데이트)은 JAX GPU, MuJoCo 물리 rollout 은 CPU 스레드에서 돕니다. JAX 가 GPU 메모리를 미리 75% 잡지 않도록 `XLA_PYTHON_CLIENT_PREALLOCATE=false` 를 기본으로 둡니다(CPU·GPU 메모리를 공유하는 DGX Spark 에서 중요).
 

@@ -10,6 +10,9 @@ T1=$(cd "$(dirname "$0")/.." && pwd)
 MIN=${1:-90}
 VENV=$T1/.venv-biped
 [ -x "$VENV/bin/python" ] || bash "$T1/scripts/setup_venv_biped.sh"
+# GPU 가 여러 대면 가장 좋은 GPU 하나만 보이게 (JAX 가 PCI 순서상 첫 GPU 를 쓰지 않도록)
+source "$T1/scripts/_gpu_select.sh"
+pin_gpu
 # ROS 환경(PYTHONPATH)·~/.local 이 섞이지 않게 실행.
 # XLA_PYTHON_CLIENT_PREALLOCATE=false: JAX 가 GPU 메모리 75% 를 미리 잡지 않게
 #   (DGX Spark 처럼 CPU·GPU 가 메모리를 공유하는 장비에서 MuJoCo rollout 메모리가 부족해지는 것 방지)
