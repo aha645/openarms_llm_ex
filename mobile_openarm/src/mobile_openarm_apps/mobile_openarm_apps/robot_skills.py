@@ -898,10 +898,12 @@ class RobotSkills(Node):
             # 이족: 지도·오도메트리로 계산한 작업대 위치가 실제보다 9 cm 멀었다(시험 10: 실제 모서리 0.33 m, 계획 0.42 m —
             # 제자리 걸음 미끄러짐). 그래서 home→carry 경로의 손가락이 상판 모서리를 쳤다. 카메라로 잰 상자는 정확하므로
             # '상자는 모서리에서 최소 BOX_EDGE_MIN 안쪽에 있다' 는 가정으로 모서리 위치의 상한을 둔다 (가까운 쪽으로만 옮김).
+            # 반대로 오도메트리가 실제보다 앞서 있으면(SF 미세 이동·서기 중 방향 바로잡기 걸음을 다리 오도메트리가 못 봄, 20~33 cm)
+            # 작업대가 몸통 '안'에 놓여 다리·몸통·팔 전체가 충돌(MoveIt −10)했다 (검증 기록 10절) → 하한(BOX_EDGE_MAX)도 둔다
             edge_map = float(local[0] - t["size"][1] / 2)
-            edge_cam = self._box_seen_fwd - self.BOX_EDGE_MIN
-            if edge_cam < edge_map:
-                local = np.array([local[0] + edge_cam - edge_map, local[1]])
+            edge = float(np.clip(edge_map, self._box_seen_fwd - self.BOX_EDGE_MAX, self._box_seen_fwd - self.BOX_EDGE_MIN))
+            if edge != edge_map:
+                local = np.array([local[0] + edge - edge_map, local[1]])
         box.dimensions = [float(t["size"][0]) + 2 * pad, float(t["size"][1]) + 2 * pad, float(h)]
         p = Pose()
         p.position.x, p.position.y, p.position.z = float(local[0]), float(local[1]), h / 2
@@ -1001,6 +1003,7 @@ class RobotSkills(Node):
     PRE_LIFT = 0.07         # 이족: 접근점을 이만큼 위에 둠 [m] (4 cm 로는 SF 시험 11 에서도 손가락이 상판에 닿음)
     HOLD_VEL = 0.1          # 이족: 물체를 쥔 팔을 움직이는 속도 배율 (보통 0.3)
     BOX_EDGE_MIN = 0.10     # 이족: 상자는 작업대 앞 모서리에서 적어도 이만큼 안쪽에 놓여 있다고 가정 [m] (시뮬 월드 0.12~0.20)
+    BOX_EDGE_MAX = 0.25     # 이족: 상자는 작업대 앞 모서리에서 이보다 안쪽 깊이 있지 않다고 가정 [m]
     GRASP_PUSH = 0.0
     LATERAL_OK = 0.18
     LATERAL_IDEAL = 0.12

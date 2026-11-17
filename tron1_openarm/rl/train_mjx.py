@@ -134,7 +134,8 @@ def main():
             out = dict(bad=info["bad"], obs=obs, hist=hist, cmd=cmd, lin=lin, act=act, lp=lp, rew=rew, done=done.astype(jnp.float32),
                        val=v, tout=info["timeout"].astype(jnp.float32), fell=info["fell"],
                        ep_ret=jnp.where(done, info["ep_ret"], 0.0), ep_t=jnp.where(done, info["ep_t"], 0),
-                       lin_track=info["terms"]["tracking_lin_vel"], ang_track=info["terms"]["tracking_ang_vel"])
+                       lin_track=info["terms"]["tracking_lin_vel"], ang_track=info["terms"]["tracking_ang_vel"],
+                       stand_drift=info["terms"]["stand_drift"], standing=st.standing.astype(jnp.float32))
             return (st, key), out
         (states, key), tr = jax.lax.scan(body, (states, key), None, length=T)
         obs, hist, cmd, lin = vobs(states)
@@ -151,7 +152,8 @@ def main():
         _, adv = jax.lax.scan(gae, jnp.zeros(N), (rew, tr["val"], next_v, tr["done"]), reverse=True)
         tr["adv"], tr["ret"] = adv, adv + tr["val"]
         stats = dict(bad=tr["bad"].sum(), falls=tr["fell"].sum(), n_done=(tr["done"] > 0).sum(), ret_sum=tr["ep_ret"].sum(),
-                     len_sum=tr["ep_t"].sum(), lin_track=tr["lin_track"].mean(), ang_track=tr["ang_track"].mean())
+                     len_sum=tr["ep_t"].sum(), lin_track=tr["lin_track"].mean(), ang_track=tr["ang_track"].mean(),
+                     stand_drift=tr["stand_drift"].sum() / jnp.maximum(tr["standing"].sum(), 1.0), standing=tr["standing"].mean())
         return states, tr, stats, key
 
     @partial(jax.jit, static_argnums=(7,))
@@ -251,7 +253,8 @@ def main():
                    ep_len=round(float(np.mean(lens[-20:])), 1) if lens else 0.0, kl=round(kl, 5), lr=lr,
                    std=[round(float(x), 3) for x in np.exp(np.asarray(log_std))], value_loss=round(float(vl), 4),
                    enc_loss=round(float(el), 4), lin_track=round(float(st["lin_track"]), 3),
-                   ang_track=round(float(st["ang_track"]), 3), diverged=int(st["bad"]))
+                   ang_track=round(float(st["ang_track"]), 3), diverged=int(st["bad"]),
+                   stand_drift=round(float(st["stand_drift"]), 4), standing=round(float(st["standing"]), 3))
         log.append(rec)
         if it % 5 == 0 or it == 1:
             print(json.dumps(rec, ensure_ascii=False), flush=True)
