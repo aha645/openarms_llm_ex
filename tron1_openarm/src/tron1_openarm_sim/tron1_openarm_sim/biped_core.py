@@ -55,6 +55,17 @@ VEL_I_MAX = np.array([0.25, 0.45, 0.4])
 SF_IDLE_I_MAX = np.array([0.06, 0.06, 0.1])             # SF 제자리 유지 중 적분항 상한
 SF_IDLE_CORR_MAX = np.array([0.08, 0.08, 0.15])         # SF 제자리 유지 중 보정량 상한
 CORR_MAX = np.array([0.2, 0.45, 0.4])                    # 외곽 루프가 정책 명령에 더할 수 있는 최대 보정
+# 팔 중력 보상: 위치 제어(kp 190~230)만으로는 팔이 중력에 처져 손끝이 2~5 cm 덜 간다 (몸통을 고정해도 남음).
+# 실로봇 OpenArm 제어기처럼 '지금 관절각에서 팔 무게를 버티는 데 필요한 관절 토크'를 피드포워드로 더한다.
+# 0 으로 끄면 예전 동작 (비교 시험용)
+ARM_GRAVCOMP = os.environ.get("TRON1_ARM_GRAVCOMP", "1") == "1"
+# 동적 base_footprint → base_link: URDF 의 고정 높이(0.68/0.73 m) 대신 가상 관절 3개(높이·pitch·roll)를
+# /joint_states 로 발행한다. 값은 실로봇에서도 얻을 수 있는 것만 쓴다 — IMU 자세 + 디딘 발의 다리 기구학 높이
+TILT_JOINTS = ("base_height_joint", "base_pitch_joint", "base_roll_joint")
+HEIGHT_TAU = 0.04                # 높이 추정 저역통과 시간상수 [s] (발 디딤 순간의 튐만 거름, 보행 출렁임은 그대로 반영)
+# 디딘 발이 바닥에 눌려 들어가는 깊이 [m] (시뮬 접촉 측정: PF 공 모양 발 약 11 mm, SF 평발 약 1.5 mm).
+# 실로봇에서는 발 고무가 눌리는 양에 해당하며, 서 있는 높이를 한 번 재서 맞춘다
+SOLE_SINK = {"pf": 0.011, "sf": 0.0015}
 
 
 def default_policy_path():
@@ -134,6 +145,8 @@ class BipedOpenArmSim(W.MobileOpenArmSim):
         self._slip_vx = 0.0
         self._slip_off = np.zeros(2)
 
+        self._init_gravcomp()
+        self._init_tilt_estimator()
         self._init_arms()
         self.cmd = (0.0, 0.0)
         self.cmd_eff = np.zeros(2)
@@ -179,6 +192,110 @@ class BipedOpenArmSim(W.MobileOpenArmSim):
         self.wall_t0 = None
         self.set_base_pose(0.0, 0.0, 0.0)
 
+    # ------------------------------------------------------------------ 팔 중력 보상
+    def _init_gravcomp(self):
+        m = self.m
+        jids, gc_lo, gc_hi = [], [], []
+        for s in ARM_JOINTS:
+            jids += [m.joint(n).id for n in ARM_JOINTS[s]]
+            for a in self.arm_act[s]:
+                lim = bool(m.actuator_forcelimited[a])
+                gc_lo.append(m.actuator_forcerange[a, 0] if lim else -np.inf)
+                gc_hi.append(m.actuator_forcerange[a, 1] if lim else np.inf)
+        assert all(m.jnt_type[j] == mujoco.mjtJoint.mjJNT_HINGE for j in jids)
+        self.gc_jnt = np.array(jids)
+        self.gc_dofs = np.array([int(m.jnt_dofadr[j]) for j in jids])
+        self.gc_body = np.array([int(m.jnt_bodyid[j]) for j in jids])
+        # 관절이 달린 몸체부터 그 아래 전부(팔 끝·그리퍼)의 질량 × 중력 = 그 관절이 버텨야 하는 무게
+        self.gc_weight = m.body_subtreemass[self.gc_body][:, None] * -m.opt.gravity[None, :]
+        self.gc_lim = (np.array(gc_lo), np.array(gc_hi))
+        self.arm_gravcomp = ARM_GRAVCOMP
+
+    def _apply_arm_gravcomp(self):
+        """팔 관절에만 중력 보상 토크를 더한다 (모터가 내는 내부 토크라 몸통·다리에 가짜 힘이 생기지 않는다).
+        관절 j: τ_j = ((c_j − p_j) × (−M_j g)) · a_j   (c_j·M_j = 관절 아래 몸체들의 무게중심·질량, p_j·a_j = 관절 위치·축)
+        = 지금 관절각과 몸통 자세(IMU 로 아는 중력 방향)에서 팔 무게를 버티는 토크. 14 관절을 한 번에 계산한다.
+        MuJoCo 의 body gravcomp 속성은 떠 있는 몸통(freejoint)에도 위로 미는 힘을 넣어 로봇을 가볍게 만들므로 쓰지 않는다."""
+        d = self.d
+        if not self.arm_gravcomp:
+            d.qfrc_applied[self.gc_dofs] = 0.0
+            return
+        r = d.subtree_com[self.gc_body] - d.xanchor[self.gc_jnt]
+        tau = np.einsum("ij,ij->i", np.cross(r, self.gc_weight), d.xaxis[self.gc_jnt])
+        d.qfrc_applied[self.gc_dofs] = np.clip(tau, *self.gc_lim)
+
+    # ------------------------------------------------------------------ 몸통 높이·기울기 추정 (동적 base_footprint → base_link)
+    def _init_tilt_estimator(self):
+        m = self.m
+        # 발마다 [(geom id, 충돌 형상 위의 점들 — geom 좌표)]. 메시(SF 평발)는 꼭짓점 그대로, 구(PF 공 모양 발)는 반지름.
+        # (경계 상자 꼭짓점을 쓰면 발목이 기운 SF 에서 실제 발바닥보다 2~4 cm 낮게 잡혔다)
+        self._sole_pts = []
+        for fb in self.foot_body:
+            pts = []
+            for g in range(m.ngeom):
+                if m.geom_bodyid[g] != fb or not (m.geom_contype[g] or m.geom_conaffinity[g]):
+                    continue
+                if m.geom_type[g] == mujoco.mjtGeom.mjGEOM_MESH:
+                    mid = m.geom_dataid[g]
+                    a, n = m.mesh_vertadr[mid], m.mesh_vertnum[mid]
+                    v = np.array(m.mesh_vert[a:a + n], float)
+                    ga = m.mesh_graphadr[mid]
+                    if ga >= 0:      # 최저점은 볼록 껍질 위에 있다 → 껍질 꼭짓점만 (SF 발 8259 → 수백 개, 결과 동일)
+                        nv = int(m.mesh_graph[ga])
+                        v = v[np.asarray(m.mesh_graph[ga + 2 + nv:ga + 2 + 2 * nv], int)]
+                    pts.append((g, v, 0.0))
+                elif m.geom_type[g] == mujoco.mjtGeom.mjGEOM_SPHERE:
+                    pts.append((g, np.zeros((1, 3)), float(m.geom_size[g, 0])))
+                else:      # 그 밖의 형상은 경계 상자 꼭짓점으로 근사
+                    c, h = m.geom_aabb[g, :3], m.geom_aabb[g, 3:]
+                    pts.append((g, np.array([[x, y, z] for x in (-1, 1) for y in (-1, 1) for z in (-1, 1)]) * h + c, 0.0))
+            self._sole_pts.append(pts)
+        self._reset_tilt()
+
+    def _reset_tilt(self):
+        self.base_tilt = np.array([self.nominal_height, 0.0, 0.0])   # (높이 m, pitch rad, roll rad)
+        self._tilt_t = None
+
+    def _foot_lowest_z(self, k):
+        d = self.d
+        # 세계 z 만 필요하므로 회전 행렬의 셋째 행만 쓴다
+        return min(float(np.min(c @ d.geom_xmat[g][6:9]) + d.geom_xpos[g][2] - r) for g, c, r in self._sole_pts[k])
+
+    def _update_tilt(self):
+        """IMU 자세 → roll·pitch, 디딘 발의 기구학 → 바닥에서 몸통까지 높이.
+        (몸통 − 발 바닥) 높이 차는 관절각과 몸통 자세만으로 정해지는 값이라 실로봇에서도 같은 계산이 된다."""
+        d = self.d
+        q = d.sensordata[self.quat_adr:self.quat_adr + 4]
+        R = np.zeros(9)
+        mujoco.mju_quat2Mat(R, q / max(np.linalg.norm(q), 1e-9))
+        R = R.reshape(3, 3)
+        pitch = math.atan2(-R[2, 0], math.hypot(R[2, 1], R[2, 2]))   # R = Rz(yaw)·Ry(pitch)·Rx(roll)
+        roll = math.atan2(R[2, 1], R[2, 2])
+        F = [d.sensordata[self.m.sensor_adr[s]] for s in self.foot_touch]
+        h = self.base_tilt[0]
+        loaded = [k for k in range(len(F)) if F[k] > 20.0]
+        if loaded:
+            # 하중이 실린 발 중 가장 낮은 점이 바닥 (발을 바꿔 딛는 순간 막 떨어지는 발을 고르지 않도록)
+            ground = min(self._foot_lowest_z(k) for k in loaded) + SOLE_SINK[self.foot]
+            h_raw = float(d.xpos[self.base_id][2]) - ground
+            dt = 0.0 if self._tilt_t is None else max(0.0, d.time - self._tilt_t)
+            h = h_raw if self._tilt_t is None else h + min(1.0, dt / HEIGHT_TAU) * (h_raw - h)
+            self._tilt_t = d.time
+        self.base_tilt[:] = [h, pitch, roll]
+
+    def base_link_to_footprint(self, p, R=None):
+        """base_link 좌표의 점(·자세)을 base_footprint(중력 정렬, 바닥 높이) 좌표로. TF 와 같은 변환."""
+        h, pitch, roll = self.base_tilt
+        cp, sp, cr, sr = math.cos(pitch), math.sin(pitch), math.cos(roll), math.sin(roll)
+        Rrp = np.array([[cp, 0, sp], [0, 1, 0], [-sp, 0, cp]]) @ np.array([[1, 0, 0], [0, cr, -sr], [0, sr, cr]])
+        p2 = Rrp @ np.asarray(p, float) + np.array([0.0, 0.0, h])
+        return p2 if R is None else (p2, Rrp @ R)
+
+    def step(self, n=1):
+        with self.lock:
+            super().step(n)
+            self._update_tilt()
+
     def _init_arms(self):
         for s in ARM_JOINTS:
             for qa, a, v in zip(self.arm_qadr[s], self.arm_act[s], HOME_ARM[s]):
@@ -209,6 +326,7 @@ class BipedOpenArmSim(W.MobileOpenArmSim):
             self._slip_off = np.zeros(2)
             self._vi = np.zeros(3)
             self._odom_reset()
+            self._reset_tilt()
 
     def reset(self, x=0.0, y=0.0, yaw=0.0):
         with self.lock:
@@ -242,6 +360,7 @@ class BipedOpenArmSim(W.MobileOpenArmSim):
 
     def _apply_base(self):
         """물리 스텝마다 호출. policy_every 스텝(=20 ms)마다 보행 정책으로 다리 목표각을 새로 계산."""
+        self._apply_arm_gravcomp()          # 팔 중력 보상은 물리 스텝마다 (자세가 바뀌면 토크도 바뀜)
         if self._substep % self.policy_every == 0:
             v, w = self.cmd
             vyc = self.cmd_vy
@@ -431,7 +550,9 @@ class BipedOpenArmSim(W.MobileOpenArmSim):
         vel = [float(d.qvel[a]) for a in self.pub_dadr]
         eff = [float(d.actuator_force[self.pub_eff_act[n]]) if n in self.pub_eff_act else 0.0
                for n in self.published_joints]
-        return list(self.published_joints), pos, vel, eff
+        # 가상 관절: base_footprint → (높이) → (pitch) → (roll) → base_link. URDF(make_urdf_tron1.py)에 같은 이름으로 있음
+        return (list(self.published_joints) + list(TILT_JOINTS), pos + [float(v) for v in self.base_tilt],
+                vel + [0.0] * 3, eff + [0.0] * 3)
 
     def base_height_and_tilt(self):
         R = self.d.xmat[self.base_id].reshape(3, 3)

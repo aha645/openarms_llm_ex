@@ -93,8 +93,10 @@ if dets:
         bw = sim.d.xpos[sim.m.body(f"box_{det['id']}").id] + np.array([0, 0, 0.025])
         errs.append(float(np.linalg.norm(Rb.T @ (bw - pb) - det["position_base"])))
     check("ArUco 위치 오차 < 2 cm (정답 대비)", max(errs) < 0.02, f"최대 {max(errs) * 100:.1f} cm")
-# 팔 동작 중 균형
-ok = True
+# 팔 동작 중 균형 — 작업대에서 물러난 뒤 시험 (작업대 바로 앞에서는 ready·carry 자세의 손가락이 상판을 눌러
+# 균형이 아니라 '작업대를 미는 반력'을 재게 된다. 팔 중력 보상을 켜면 팔이 처지며 힘을 빼지 않아 몸통이 밀려 돌았다)
+ok = run(sim, 2.5, -0.2) and run(sim, 3.0)
+gt_arm0 = sim.ground_truth_pose()
 from tron1_openarm_sim.arm_poses import POSES  # noqa: E402  SRDF 와 같은 이족용 이름 자세
 for name in ("ready", "carry", "hands_up", "home"):
     q, qr = POSES[name]
@@ -102,6 +104,6 @@ for name in ("ready", "carry", "hands_up", "home"):
     sim.start_arm_trajectory("right", [f"openarm_right_joint{i}" for i in range(1, 8)], [(2.0, qr, None)])
     ok &= run(sim, 2.5)
 gtp = sim.ground_truth_pose()
-check("팔 자세 바꾸는 동안 서 있기 (ready→carry→hands_up→home)", ok, f"그동안 몸통 이동 {np.hypot(gtp[0] - 2.5, gtp[1] - 2.45):.3f} m")
+check("팔 자세 바꾸는 동안 서 있기 (ready→carry→hands_up→home)", ok, f"그동안 몸통 이동 {np.hypot(gtp[0] - gt_arm0[0], gtp[1] - gt_arm0[1]):.3f} m")
 print(f"총 {len(results)}개 중 실패 {results.count(False)}개 ({time.time() - t0:.0f} s)")
 sys.exit(0 if all(results) else 1)
