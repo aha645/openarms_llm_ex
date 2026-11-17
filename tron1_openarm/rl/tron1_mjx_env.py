@@ -24,7 +24,7 @@ from mujoco import mjx
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src", "tron1_openarm_sim"))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from mjx_model import build_mjx_model  # noqa: E402
-from tron1_env import REWARD_SCALES  # noqa: E402  보상 계수는 CPU 판과 공유
+from tron1_env import REWARD_SCALES, STAND_DRIFT_SCALE, STAND_DRIFT_SIGMA  # noqa: E402  보상 계수는 CPU 판과 공유
 from tron1_openarm_sim.arm_poses import POSES as ARM_POSES  # noqa: E402
 from tron1_openarm_sim.locomotion_policy import PF, SF, SF_BASE_HEIGHT_CMD  # noqa: E402
 
@@ -67,7 +67,7 @@ class RandParams(NamedTuple):
 
 class Tron1MjxEnv:
     def __init__(self, xml, foot="sf", iterations=16, ls_iterations=16, cone=None, episode_s=20.0, randomize=True, push=True,
-                 impl="jax", num_envs=4096, contacts_per_env=12, njmax=128):
+                 impl="jax", num_envs=4096, contacts_per_env=16, njmax=128):
         """impl: "jax" (MJX 순수 JAX) 또는 "warp" (MuJoCo Warp 커널 — 같은 결과, RTX 3090 에서 수 배 빠름).
         warp 는 접촉 버퍼를 모든 환경이 함께 쓰므로 환경 수(num_envs)·환경당 접촉 상한을 미리 정한다.
         njmax 는 환경당 제약(접촉·관절 한계·등식) 행 수 상한 (서 있을 때 약 22, 팔이 관절 한계에 닿으면 더 늘어난다).
@@ -84,6 +84,7 @@ class Tron1MjxEnv:
         if foot == "sf":                       # CPU 판 SF 4차 설정과 같음
             self.rs["tracking_ang_vel"] = 6.0
             self.ang_sigma = 0.25
+            self.rs["stand_drift"] = -STAND_DRIFT_SCALE
         self.randomize, self.push = randomize, push
         m, self.model_notes = build_mjx_model(xml, iterations=iterations, ls_iterations=ls_iterations, cone=cone)
         self.m = m
@@ -382,6 +383,8 @@ class Tron1MjxEnv:
             feet_distance=jnp.clip(0.115 - jnp.linalg.norm(fp), 0, 1),
             contact_force=jnp.mean((1 - des) * (1 - jnp.exp(-F ** 2 / 25.0))),
             contact_vel=jnp.mean(des * (1 - jnp.exp(-fv ** 2 / 0.25))),
+            stand_drift=s.standing * (1 - jnp.exp(-(gyro[2] / STAND_DRIFT_SIGMA[0]) ** 2
+                                                  - jnp.sum(lin[:2] ** 2) / STAND_DRIFT_SIGMA[1] ** 2)),
         )
         r = sum(self.rs[k] * v for k, v in t.items()) * POLICY_DT
         return r, t

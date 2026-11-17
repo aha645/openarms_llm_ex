@@ -29,7 +29,14 @@ from tron1_openarm_sim.arm_poses import POSES as ARM_POSES  # noqa: E402  SRDF �
 REWARD_SCALES = dict(
     keep_balance=1.0, tracking_lin_vel=3.0, tracking_ang_vel=1.5, base_height=-20.0, lin_vel_z=-0.5,
     ang_vel_xy=-0.05, torques=-8e-5, action_rate=-0.01, action_smooth=-0.01, orientation=-60.0,
-    dof_pos_limits=-2.0, feet_distance=-100.0, contact_force=-2.0, contact_vel=-2.0, termination=-20.0)
+    dof_pos_limits=-2.0, feet_distance=-100.0, contact_force=-2.0, contact_vel=-2.0, termination=-20.0, stand_drift=0.0)
+# SF 서기 모드 제자리 흐름 벌점 (SF 만 켬, 아래 Tron1OpenArmEnv·Tron1MjxEnv). 이 항이 없을 때 서기 모드 정책이 발을 디딘 채
+# 0.15~0.5 °/s 로 몸통을 돌렸다 — 회전 추종 보상(허용 폭 0.25)·발 속도 벌점(0.5 m/s)으로는 이렇게 느린 흐름이 벌점이 안 됨.
+# 서 있는 동안 몸통 회전·수평 속도를 허용 폭 STAND_DRIFT_SIGMA 로 좁게 본다.
+# 기본은 꺼 둠(0): 4.0 으로 30 분 × 2 시드 학습해도 흐름이 0.21~0.35 °/s 로 조금만 줄었고 한 팔 carry 에서 넘어졌다
+# → 배포는 biped_core 의 서기 중 방향 바로잡기(STAND_YAW_TOL)로 해결 (보행 학습 11절). 실험할 때 TRON1_STAND_DRIFT=4 로 켠다
+STAND_DRIFT_SCALE = float(os.environ.get("TRON1_STAND_DRIFT", 0.0))
+STAND_DRIFT_SIGMA = (0.02, 0.02)   # (회전 rad/s, 수평 속도 m/s)
 
 
 def ncdf(x, s=0.05):
@@ -87,6 +94,7 @@ class Tron1OpenArmEnv:
             if os.environ.get("TRON1_SF_STAGE", "4") == "4":
                 self.rs["tracking_ang_vel"] = 6.0
                 self.ang_sigma = 0.25
+            self.rs["stand_drift"] = -STAND_DRIFT_SCALE
         base = load(xml)
         self.dt = base.opt.timestep
         self.nsub = int(round(POLICY_DT / self.dt))
@@ -431,6 +439,8 @@ class Tron1OpenArmEnv:
             feet_distance=np.clip(0.115 - np.linalg.norm(fp, axis=1), 0, 1),
             contact_force=np.mean((1 - des) * (1 - np.exp(-F ** 2 / 25.0)), 1),
             contact_vel=np.mean(des * (1 - np.exp(-fv ** 2 / 0.25)), 1),
+            stand_drift=self.standing * (1 - np.exp(-(gyro[:, 2] / STAND_DRIFT_SIGMA[0]) ** 2
+                                                    - np.sum(lin[:, :2] ** 2, 1) / STAND_DRIFT_SIGMA[1] ** 2)),
         )
         r = sum(self.rs[k] * v for k, v in t.items()) * POLICY_DT
         return r, t

@@ -55,6 +55,12 @@ VEL_I_MAX = np.array([0.25, 0.45, 0.4])
 SF_IDLE_I_MAX = np.array([0.06, 0.06, 0.1])             # SF 제자리 유지 중 적분항 상한
 SF_IDLE_CORR_MAX = np.array([0.08, 0.08, 0.15])         # SF 제자리 유지 중 보정량 상한
 CORR_MAX = np.array([0.2, 0.45, 0.4])                    # 외곽 루프가 정책 명령에 더할 수 있는 최대 보정
+# SF 서기 모드 방향·위치 유지: 서 있는 동안 정책이 발을 디딘 채 몸통을 0.2~0.6 °/s 로 돌리고(두 발이 함께 비틀림),
+# 서기 모드의 정책은 wz·v 명령에 반응하지 않는다 (검증 기록 10절). 기준 자세에서 이만큼 벗어나면 서기 모드를 잠깐 풀어
+# 제자리 유지 루프가 발을 디뎌 되돌리게 하고, DONE 안쪽으로 들어오면 다시 선다.
+STAND_YAW_TOL, STAND_YAW_DONE = math.radians(5.0), math.radians(0.7)
+STAND_POS_TOL, STAND_POS_DONE = 0.05, 0.02
+STAND_FIX_MAX = 4.0                                        # 한 번 바로잡는 최대 시간 [s] (넘으면 포기하고 그 자리에 선다)
 # 팔 중력 보상: 위치 제어(kp 190~230)만으로는 팔이 중력에 처져 손끝이 2~5 cm 덜 간다 (몸통을 고정해도 남음).
 # 실로봇 OpenArm 제어기처럼 '지금 관절각에서 팔 무게를 버티는 데 필요한 관절 토크'를 피드포워드로 더한다.
 # 0 으로 끄면 예전 동작 (비교 시험용)
@@ -136,6 +142,8 @@ class BipedOpenArmSim(W.MobileOpenArmSim):
         self.quat_adr = m.sensor_adr[m.sensor("imu_quat").id]
         self.fallen = False
         self.hold_position = True      # 명령 0 일 때 제자리 유지 (False: 정책 그대로)
+        self.stand_heading_hold = True # SF: 서 있다가 흐르면 잠깐 걸어서 기준 자세로 되돌림 (STAND_* 참고)
+        self._stand_fix = None
         self._hold = None
         self.cmd_ramp = np.zeros(2)
         self.cmd_vy = 0.0                 # 옆걸음 명령 (/cmd_vel linear.y) — 바퀴형에는 없는 이족만의 동작
@@ -319,6 +327,7 @@ class BipedOpenArmSim(W.MobileOpenArmSim):
             self.fallen = False
             self.cmd_eff[:] = 0
             self._hold = None
+            self._stand_fix = None
             self.cmd_ramp = np.zeros(2)
             self.cmd_vy = 0.0
             self.vy_ramp = 0.0
@@ -402,6 +411,7 @@ class BipedOpenArmSim(W.MobileOpenArmSim):
                                  self.cmd_ramp[1] + np.clip(-HOLD_KW * eyaw, -0.3, 0.3)])
             else:
                 want = np.array([self.cmd_ramp[0], self.vy_ramp, self.cmd_ramp[1]])
+                bx = by = eyaw = 0.0
             # 속도 외곽 루프(PI): 목표 속도와 측정 속도(다리 오도메트리)의 차이로 정책 명령을 보정.
             # 정책 고유의 치우침(느림·옆 흐름·회전 흐름, 제자리에서의 흐름)을 적분항이 상쇄한다.
             meas = np.array([self.odom_vel[0], self.odom_vy, self.odom_vel[1]])
@@ -432,11 +442,26 @@ class BipedOpenArmSim(W.MobileOpenArmSim):
                 unstable = (sum(F) > 50 and min(F) < 0.06 * sum(F)) or gxy > 0.8
                 if self.policy.standing and unstable:
                     self._stand_block = d.time + 1.5
-                self.policy.stand_still = bool(self.stand_when_idle and idle and d.time > getattr(self, "_stand_block", -1.0))
+                # 서기 중 기준 자세(_hold)에서 벗어남 → 잠깐 걸어서 바로잡기 (위 STAND_* 설명)
+                off_yaw, off_pos = abs(eyaw), math.hypot(bx, by)
+                if not (idle and self.hold_position and self.stand_heading_hold):
+                    self._stand_fix = None
+                elif self._stand_fix is None:
+                    if self.policy.standing and (off_yaw > STAND_YAW_TOL or off_pos > STAND_POS_TOL):
+                        self._stand_fix = d.time
+                elif (off_yaw < STAND_YAW_DONE and off_pos < STAND_POS_DONE) or d.time - self._stand_fix > STAND_FIX_MAX:
+                    if d.time - self._stand_fix > STAND_FIX_MAX:
+                        self._hold = self.odom.copy()          # 못 돌아오면 지금 자리를 새 기준으로
+                    self._stand_fix = None
+                fixing = self._stand_fix is not None
+                self.policy.stand_still = bool(self.stand_when_idle and idle and not fixing
+                                               and d.time > getattr(self, "_stand_block", -1.0))
                 if self.policy.standing:
-                    # 서 있는 동안은 보정 루프를 멈추고 기준 자세를 현재 자세로 (다시 걸을 때 튀지 않게)
+                    # 서 있는 동안은 보정 루프를 멈춘다 (정책이 명령에 반응하지 않으므로 적분항만 쌓인다).
+                    # 기준 자세는 그대로 두어 서 있는 사이 흐른 만큼을 위에서 걸어서 되돌린다
                     self._vi[:] = 0.0
-                    self._hold = self.odom.copy()
+                    if not (self.hold_position and self.stand_heading_hold):
+                        self._hold = self.odom.copy()
                     self.cmd_eff[:] = 0.0
                     vy = 0.0
             gyro = d.sensordata[self.gyro_adr:self.gyro_adr + 3]
