@@ -399,6 +399,14 @@ def build(tron1_dir, openarm_xml, out_dir, xacro_file, mount_x=None, shoulder=No
     train.find("option").set("timestep", "0.004")   # 학습은 4 ms (정책 50 Hz = 5 스텝) — 속도 2배, 배포는 2 ms 로 검증
     with open(os.path.join(out_dir, "tron1_openarm_train.xml"), "w", encoding="utf-8") as fp:
         fp.write(header + ET.tostring(train, encoding="unicode"))
+    if foot == "sf":
+        # SF 발목 메시 → 평평한 발바닥 상자 (메시 충돌은 접촉점이 1 개뿐인 경우가 많아 제자리에서 비현실적으로 잘 돈다.
+        # GPU 학습 모델과 같은 발을 써야 학습 결과가 그대로 옮겨진다 — tron1_openarm_sim/sole.py)
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from sf_sole_box import apply_sole_box
+        for fn in ("tron1_openarm.xml", "tron1_openarm_light.xml", "tron1_openarm_train.xml"):
+            for note in apply_sole_box(os.path.join(out_dir, fn)):
+                print(f"[sf] {fn}: {note}")
 
     # ---------------- 요약
     m = mujoco.MjModel.from_xml_path(full)
