@@ -1,7 +1,7 @@
 """몸통 흔들림 원인 분해 실험 (오프라인 MuJoCo, 실제 배포 제어기 BipedOpenArmSim 사용).
     python3 tools/sway_analysis.py <world_light.xml> <정책.npz> <normal|massless_arms|slow|fixed_base|short_column>
 
-조작 순서: 서기 4 s → 오른팔 carry → pre(접근점) → grasp(상자 앞), 각 이동 T_move 초 + 유지 3 s
+조작 순서: 서기 4 s → 오른팔 carry(arm_poses.py) → pre(접근점) → grasp(상자 앞), 각 이동 T_move 초 + 유지 3 s
 지표(각 단계): 몸통 위치 출렁임 범위, 기울기 범위, 손끝 오차(실제 − 이상) 와 그 분해:
   몸통 몫 = (실제 몸통 자세 + 명령 관절각)으로 계산한 손끝 − 이상(처음 몸통 자세 + 명령 관절각)
   팔 몫   = 실제 손끝 − (실제 몸통 자세 + 명령 관절각) = 관절 추종 오차(중력 처짐)
@@ -9,6 +9,7 @@
 import sys, json, math, numpy as np, mujoco
 sys.path.insert(0, '.'); sys.path.insert(0, '../../../mobile_openarm/src/mobile_openarm_sim')
 from tron1_openarm_sim.biped_core import BipedOpenArmSim
+from tron1_openarm_sim.arm_poses import RIGHT as ARM_POSES
 world, policy, variant = sys.argv[1], sys.argv[2], sys.argv[3]
 T_move = 6.0 if variant == "slow" else 2.0
 sim = BipedOpenArmSim(world, enable_camera=False, move_person=False, policy_path=policy)
@@ -41,7 +42,8 @@ step(4.0)
 a = sim.base_qadr; base0 = d.qpos[a:a+7].copy()
 d_ideal = mujoco.MjData(m)
 out = {}
-for tag, q in (("carry", [0.3, 0, -1.2, 2.0, 0, 0, 0]), ("pre", [0.25, 0.35, -0.5, 1.45, 0.44, -0.41, -0.73]),
+for tag, q in (("carry", ARM_POSES["carry"]),   # SRDF·시뮬과 같은 carry (옛 값은 몸통을 관통)
+               ("pre", [0.25, 0.35, -0.5, 1.45, 0.44, -0.41, -0.73]),
                ("grasp", [0.44, 0.2, -0.48, 0.96, 0.45, -0.26, -0.5])):
     sim.start_arm_trajectory("right", names, [(T_move, q, None)])
     rec = step(T_move + 3.0)

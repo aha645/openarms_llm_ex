@@ -519,10 +519,13 @@ for s in 1 2 3; do env -u PYTHONPATH ../.venv-biped/bin/python train_mjx.py --fo
 | seed2 final | 2.3 | 8.5 | 1.2, 1.9 | +7.6° |
 | **seed3 best** | 2.4 | 6.8 | 1.9, 2.4 | **+4.6°** |
 
+(위 표는 옛 carry 자세로 잰 값. carry 를 `arm_poses.py` 값으로 고친 뒤 다시 재면 grasp 손끝 오차 기존 3.9 cm / seed3 best 7.0 cm, 둘 다 팔 몫 0 — [검증 기록 9-3](validation-log.md#9-3-같이-고친-것).)
+
 - 팔을 뻗는 동안 출렁임(흔들림·기울기)은 줄었다 (pre 4.4 → 2.4 cm, 기울기 1.4~4.1° → 0.2~1.1°).
 - 손끝 오차는 대부분 **팔을 앞으로 뻗을 때 몸통이 천천히 도는 것**(약 0.3°/s) 때문이다. 기존 정책도 같은 크기로 반대 방향으로 돈다.
   seed2 final 은 걷기·회전 수치가 가장 좋지만 이 회전이 가장 커서, 이 회전이 가장 작은 seed3 best 를 골랐다.
 - 남은 과제: 명령 0 일 때 방향 유지(제자리 yaw 고정) 보상 또는 바깥 루프 보정. 지금은 집기 직전 마커를 다시 보고 손 목표를 고치는 것(시각 피드백, [검증 기록 5절](validation-log.md#5-시각-피드백-집기-손목-마커-visual-servoing))이 이 오차를 줄인다.
+- 실제 집기 절차(`pick_test.sh sf`, 5 회)에서도 서 있는 동안 회전 흐름이 0.50 °/s 로 기존 정책(0.14 °/s)보다 컸다. 집기 성공률은 1/5 vs 0/5 로 둘 다 낮다 ([검증 기록 9절](validation-log.md#9-sf-집기-성공률-기준선-2026-11-18)).
 
 `tools/selftest_tron1.py` SF·PF 10/10. 제자리 회전 0.5 rad/s × 8 s: 111° → 약 226°. 배포: `policies/tron1sf_openarm_policy.npz` = `runs/box/seed3/best.npz`.
 
