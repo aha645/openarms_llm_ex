@@ -294,6 +294,10 @@ class MujocoBridge(Node):
         s.ranges = [float(v) for v in r]
         self.pub_scan.publish(s)
 
+    def _base_link_to_footprint(self, p, R):
+        """base_link 좌표 → base_footprint 좌표. 바퀴형은 높이만 다르다 (이족 브리지는 몸통 기울기까지 반영하도록 바꿔 씀)."""
+        return p + np.array([0, 0, BASE_LINK_Z]), R
+
     def publish_detections(self, t, dets):
         out = []
         pa = PoseArray()
@@ -304,8 +308,7 @@ class MujocoBridge(Node):
         clear.action = Marker.DELETEALL
         ma.markers.append(clear)
         for det in dets:
-            p = det["position_base"] + np.array([0, 0, BASE_LINK_Z])   # base_link → base_footprint
-            R = det["rotation_base"]
+            p, R = self._base_link_to_footprint(det["position_base"], det["rotation_base"])
             qw, qx, qy, qz = mat_to_quat(R)
             # 마커 z축(면 법선)으로부터 상자 yaw 추정 (상자 윗면 마커 → 마커 x축의 수평 방향)
             yaw = math.atan2(R[1, 0], R[0, 0])

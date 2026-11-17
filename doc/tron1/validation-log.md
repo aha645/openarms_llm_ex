@@ -13,6 +13,7 @@
 | [5](#5-시각-피드백-집기-손목-마커-visual-servoing) | 손목 마커 시각 피드백 집기, 시험 7~20 | 08장 |
 | [6](#6-sole-footsf-로-전체-미션-완주) | Sole-foot 로 전체 미션 완주와 고친 것 | 09장 |
 | [7](#7-실행-명령-모음과-남은-과제) | 실행 명령 모음, 남은 과제 | 07장 12~13 |
+| [8](#8-팔-중력-보상과-몸통-기울기-tf) | 팔 중력 보상, 몸통 높이·기울기 TF | - |
 
 ## 1. 2026-11-05 시점 상태와 전체 구조
 
@@ -656,7 +657,68 @@ ros2 launch tron1_openarm_sim full_system.launch.py foot:=sf planner:=offline
 1. 어깨를 낮춘 설계로 재학습 완료(PF·SF) → 흔들림 재측정 → 집기 → 전체 미션.
 2. 그래도 부족하면 (4절 대책):
    - 팔 속도 낮추기
-   - 팔 중력 보상
+   - ~~팔 중력 보상~~ → 8절에서 적용
    - 보행 정책 관측에 팔 관절각 추가 재학습
    - 손목 마커로 손–상자 상대 오차를 보며 보정 (visual servoing)
 3. SF 직진·회전 추종 개선 (Nav2 주행에 필요).
+
+## 8. 팔 중력 보상과 몸통 기울기 TF
+
+4절 분석에서 손끝 오차의 두 몫 중 **팔 처짐(2~3 cm)** 과, 몸통 기울기를 모르는 **좌표 어긋남**을 구조적으로 없앴다.
+보행 정책은 바꾸지 않았다 (몸통 몫은 그대로 — 정책 재학습 과제).
+
+### 8-1. 무엇을 바꿨나
+
+| 기능 | 파일 | 내용 |
+|---|---|---|
+| 팔 중력 보상 | `biped_core.py` `_apply_arm_gravcomp()` | 물리 스텝마다 팔 관절 j 에 τ_j = ((c_j − p_j) × (−M_j g)) · a_j 를 `qfrc_applied` 로 더함 (c·M: 관절 아래 몸체들의 무게중심·질량, p·a: 관절 위치·축). 구동기 힘 한계로 자름. `TRON1_ARM_GRAVCOMP=0` 이면 끔 |
+| 몸통 높이·기울기 추정 | `biped_core.py` `_update_tilt()` | roll·pitch = IMU 자세. 높이 = 몸통 − (하중이 실린 발 중 가장 낮은 발바닥 점) + 발 눌림(`SOLE_SINK`). 실로봇에서도 관절각·IMU·발 접지만으로 같은 계산 |
+| 동적 TF | `tools/base_tilt_urdf.py`, `make_urdf_tron1.py`, URDF 2개 | 고정 `base_footprint→base_link` → `base_height_joint`(prismatic z) · `base_pitch_joint`(y) · `base_roll_joint`(x). 값은 브리지가 `/joint_states` 로 발행 → robot_state_publisher·MoveIt 이 그대로 반영 |
+| ArUco 좌표 | `bridge_node.py` `_base_link_to_footprint()` (바퀴형: 높이만, 동작 같음), `bridge_biped.py` | 이족은 같은 기울기·높이로 base_link → base_footprint 변환 |
+| 자체 시험 | `tools/selftest_tron1.py` | '팔 동작 중 균형' 항목을 작업대에서 0.5 m 물러나 시험 (아래 8-3) |
+
+MuJoCo 의 body `gravcomp` 속성을 쓰지 않은 이유: 팔 몸체에 위로 미는 힘을 넣으면 떠 있는 몸통(freejoint)에도 그 힘이 걸려 로봇 전체가 팔 무게(12 kg)만큼 가벼워진다.
+여기서는 팔 관절 토크로만 넣으므로(모터 내부 토크) 다리·몸통이 받는 하중은 그대로다.
+
+### 8-2. 측정 (`tools/sway_analysis.py`, 오른팔 pre → grasp, cm)
+
+| 조건 | 손끝 오차 pre | 그중 팔 처짐 | 손끝 오차 grasp | 그중 팔 처짐 | 몸통 몫 grasp |
+|---|---|---|---|---|---|
+| SF 몸통 고정, 보상 끔 → 켬 | 3.3 → **0.4** | 3.3 → 0.4 | 2.0 → **0.6** | 2.0 → 0.6 | 0 |
+| SF 보행 정책, 보상 끔 → 켬 | 4.1 → **2.8** | 2.2 → 0.0 | 5.7 → **4.4** | 2.6 → 0.0 | 3.9 → 4.4 |
+| PF 몸통 고정, 보상 끔 → 켬 | 2.3 → **0.1** | 2.4 → 0.1 | 2.6 → **0.3** | 2.6 → 0.3 | 0 |
+| PF 보행 정책, 보상 끔 → 켬 | 6.3 → **4.0** | 2.2 → 0.1 | 7.6 → **4.4** | 2.5 → 0.3 | 5.3 → 4.7 |
+
+- 팔 처짐은 거의 0 이 되었고, **남은 손끝 오차는 몸통 몫(흔들림·자리 이동)** 이다 → 보행 정책 재학습(관측에 팔 관절)이 다음 과제.
+- 이 스크립트의 carry 자세는 어깨를 낮추기 전(⑦ 이전) 값이라 몸통과 겹쳐 20~30 cm 로 나온다. 비교에서 뺐다.
+
+몸통 높이·기울기 추정 vs 시뮬 정답 (15 s: 서기 → 팔 동작 → 0.2 m/s 걷기 → 정지)
+
+| | 높이 오차 평균 / 95% | 서서 팔 동작 중 (집기 상황) | roll·pitch |
+|---|---|---|---|
+| SF | +3 mm / 20 mm | **−0.4 mm / 0.6 mm** | IMU 그대로 (시뮬 IMU 는 잡음 없음) |
+| PF | +1 mm / 10 mm | 0.9 mm / 9 mm | 같음 |
+
+- 큰 오차는 걷는 중 발을 바꿔 딛는 순간이다 (조작에는 쓰지 않는 구간).
+- 발 눌림 `SOLE_SINK`: 시뮬 접촉은 부드러워서 공 모양 발이 약 11 mm, 평발이 약 1.5 mm 바닥에 파고든다. 이 값을 빼지 않으면 PF 높이가 12 mm 높게 나왔다.
+
+ROS 확인: `sim.launch.py foot:=sf` + `move_group.launch.py foot:=sf` → `/joint_states` 에 가상 관절 3개, `tf2_echo base_footprint base_link` 가 높이 0.751 m·roll 1.8°·pitch −2.0° 처럼 매번 바뀜, move_group 정상 로드("You can start planning now").
+
+계산 비용: 물리 한 스텝 305 → 376 µs (SF, 이 PC). 실시간 대비 여유 5.3 배.
+
+### 8-3. 자체 시험에서 찾은 것
+
+- '팔 자세 바꾸는 동안 서 있기' 는 ArUco 시험 직후 **작업대 바로 앞**에서 팔을 움직여, 보상이 없어도 손가락·손목이 상판을 누르고 있었다 (접촉 기록, 몸통 기울기 11~13°).
+- 중력 보상을 켜면 팔이 처지며 힘을 빼지 않아 작업대를 더 세게 밀었고, 그 반력으로 몸통이 0.87 m 밀려 돌았다.
+- 시험 의도(팔 동작 중 균형)에 맞게 0.5 m 물러나 시험하도록 바꿨다 → SF 0.02 m, PF 0.09 m (보상 끔: 0.004 / 0.093 m).
+- **주의:** 중력 보상을 켜면 계획에 없던 접촉에서 팔이 덜 양보한다. MoveIt 충돌 객체(작업대 여유)를 정확히 두는 것이 더 중요해졌다.
+- SF 의 '제자리 서기 8 s' 실패는 이번 변경과 무관하다 (변경 전에도 실패). 판정 범위 0.62~0.74 m 가 PF 기준인데 SF 는 0.73 m 를 목표로 서서 0.75 m 가 나온다.
+
+```bash
+# 재현 (tron1_openarm/src/tron1_openarm_sim 에서, mjcf/sf/meshes 가 있어야 함 — 10_setup_tron1.sh 가 만듦)
+source ../../../mobile_openarm/.venv-mobile/bin/activate
+for g in 0 1; do TRON1_ARM_GRAVCOMP=$g python3 tools/sway_analysis.py mjcf/sf/world_light.xml policies/tron1sf_openarm_policy.npz fixed_base; done
+python3 tools/selftest_tron1.py sf/world_light.xml policies/tron1sf_openarm_policy.npz
+python3 tools/base_tilt_urdf.py urdf/tron1_openarm.urdf urdf/tron1_openarm_sf.urdf   # 이미 적용됨 (URDF 를 새로 만들면 make_urdf_tron1.py 가 자동 적용)
+```
+

@@ -73,6 +73,8 @@ flowchart TB
 | ⑭ 앱의 SRDF 경로 (기존 코드 수정 ①) | `mobile_openarm/src/mobile_openarm_apps/.../robot_skills.py` | 이름 자세를 읽을 SRDF 를 환경변수 `OPENARM_SRDF` 로 바꿀 수 있게 함. 없으면 예전과 같은 바퀴형 SRDF | 이족 `home` 자세가 바퀴형과 달라졌기 때문. TRON1 `full_system.launch.py` 가 이 변수를 자동으로 넣는다. 바퀴형 동작은 그대로 |
 | ⑮ 머리 카메라 해상도 | `launch/sim.launch.py` | 640×480 → **960×720** | 어깨를 1.08 m 로 올리며 카메라도 높아져 작업대 상자의 ArUco 마커가 작게 보였고, 검출이 실패했다 |
 | ⑯ 옆걸음 (기존 코드 수정 ②, 이족만) | `biped_core.py` `set_cmd_vel(v, w, vy)`, `bridge_biped.py`, `robot_skills.strafe_base()` | `/cmd_vel` 의 `linear.y` 를 정책의 옆 속도 명령으로 전달. 집기 직전 상자가 옆으로 0.18 m 넘게 치우쳐 있으면 옆걸음으로 0.12 m 에 맞춤 (`OPENARM_BIPED=1` 일 때만) | 이족은 AMCL 위치 오차와 제자리 걸음 흐름 때문에 작업대 앞에서 옆으로 0.15 m 가까이 어긋나 서는 일이 있었고, 그러면 오른팔 직선 접근이 64% 에서 막혀 미션이 실패했다. 바퀴형(차동 구동)은 옆으로 못 가므로 이 단계를 건너뛴다 |
+| ⑰ 팔 중력 보상 (이족만) | `biped_core.py` `_apply_arm_gravcomp()` | 물리 스텝마다 팔 14관절에 "지금 자세에서 팔 무게를 버티는 토크"를 피드포워드로 더함 (`TRON1_ARM_GRAVCOMP=0` 으로 끔) | 위치 제어만으로는 팔이 중력에 처져 손끝이 2~3 cm 덜 갔다 (몸통을 고정해도 남음). MuJoCo body `gravcomp` 는 떠 있는 몸통에도 위로 미는 가짜 힘을 넣어 쓰지 않고, 팔 관절 토크로만 넣는다 ([검증 기록 8절](validation-log.md#8-팔-중력-보상과-몸통-기울기-tf)) |
+| ⑱ 몸통 높이·기울기 TF (이족만) | `tools/base_tilt_urdf.py`, `biped_core.py` `_update_tilt()`, `bridge_biped.py` | URDF 의 고정 `base_footprint→base_link`(높이 0.68/0.73 m) 를 가상 관절 3개(`base_height/pitch/roll_joint`)로 바꾸고, 브리지가 IMU 자세 + 디딘 발 기구학 높이를 `/joint_states` 로 발행. ArUco 위치도 같은 변환으로 `base_footprint` 에 옮김 | 팔을 뻗으면 몸통이 최대 7° 숙여지는데 TF·MoveIt 은 기울기 0 으로 알아, 0.5 m 앞 손끝·상자·상판 높이가 수 cm 어긋났다 |
 
 ## 그대로 쓰는 부분과 이유
 

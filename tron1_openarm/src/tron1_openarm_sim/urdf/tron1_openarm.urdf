@@ -14,10 +14,29 @@
     <color rgba="0.95 0.35 0.55 1" />
   </material>
   <link name="base_footprint" />
-  <joint name="base_footprint_to_base_link" type="fixed">
+  <!-- 이족: 서 있는 높이 0.68 m 고정 대신 실제 높이·기울기 (tools/base_tilt_urdf.py). 값은 브리지가 /joint_states 로 발행 -->
+  <joint name="base_height_joint" type="prismatic">
     <parent link="base_footprint" />
+    <child link="base_height_link" />
+    <origin xyz="0 0 0" rpy="0 0 0" />
+    <axis xyz="0 0 1" />
+    <limit lower="0.3" upper="1.0" effort="0" velocity="10" />
+  </joint>
+  <link name="base_height_link" />
+  <joint name="base_pitch_joint" type="revolute">
+    <parent link="base_height_link" />
+    <child link="base_pitch_link" />
+    <origin xyz="0 0 0" rpy="0 0 0" />
+    <axis xyz="0 1 0" />
+    <limit lower="-1.0" upper="1.0" effort="0" velocity="10" />
+  </joint>
+  <link name="base_pitch_link" />
+  <joint name="base_roll_joint" type="revolute">
+    <parent link="base_pitch_link" />
     <child link="base_link" />
-    <origin xyz="0 0 0.68" rpy="0 0 0" />
+    <origin xyz="0 0 0" rpy="0 0 0" />
+    <axis xyz="1 0 0" />
+    <limit lower="-1.0" upper="1.0" effort="0" velocity="10" />
   </joint>
   <link name="base_link">
     <inertial>
