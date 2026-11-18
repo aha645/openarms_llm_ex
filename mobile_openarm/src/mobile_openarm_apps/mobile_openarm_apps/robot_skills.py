@@ -91,6 +91,7 @@ class RobotSkills(Node):
             # (시뮬 접촉 기록). 어깨→상자 거리는 0.45 m 로 팔 길이(0.63 m) 안이므로 바퀴형과 비슷하게 떨어져 선다
             self.DOCK_GAP = float(os.environ.get("OPENARM_DOCK_GAP", 0.42))
             self.IDEAL_REACH = float(os.environ.get("OPENARM_IDEAL_REACH", 0.52))
+            self.REACH_TOL = 0.04
             # 시뮬 정답 기록: 손끝(TCP)이 목표보다 접근 방향으로 3.5 cm 덜 들어가 상자 앞 모서리만 잡고 미끄러졌다
             # (팔 처짐 약 1.5 cm + 팔을 뻗을 때 몸통 반동). 접근 방향(45° 아래)으로 더 넣으면 손가락이 상판에 걸리므로
             # 접근은 1.5 cm 까지, 그다음 같은 높이에서 수평으로 3.5 cm 더 민다 (pick 의 GRASP_PUSH)
@@ -260,7 +261,7 @@ class RobotSkills(Node):
     def find_marker(self, marker_id, samples=5, timeout=5.0):
         """여러 프레임 평균한 마커 위치 (base_footprint)."""
         pts = []
-        time.sleep(1.0)                 # 베이스 정지 후의 프레임만 쓰도록 잠깐 대기
+        time.sleep(0.3)                 # 베이스 정지 후의 프레임만 쓰도록 잠깐 대기 (카메라 10 Hz, 신선도는 FRESH_S 로 확인)
         t0 = time.time()
         last_t = None
         while len(pts) < samples and time.time() - t0 < timeout:
@@ -336,7 +337,7 @@ class RobotSkills(Node):
         self.cmd_pub.publish(Twist())
         if moved:
             self.log(f"[station{label}] 마커 기준 제자리 복귀 (남은 차이 {np.round(last_s * 100, 1) if last_s is not None else '?'} cm)")
-            time.sleep(0.5)
+            time.sleep(0.2)
             self.wait_still(timeout=8.0)
         return True
 
@@ -430,11 +431,12 @@ class RobotSkills(Node):
             self.cmd_pub.publish(msg)
             time.sleep(0.05)
         self.cmd_pub.publish(Twist())
-        time.sleep(0.5)
+        time.sleep(0.2)
 
-    def wait_still(self, tol=0.006, need=3, period=0.5, timeout=20.0, yaw_tol=0.006):
+    def wait_still(self, tol=0.004, need=2, period=0.3, timeout=20.0, yaw_tol=0.004):
         """이족: 팔을 크게 움직이면 몸통이 균형을 잡느라 5~10 cm 출렁인다 (시뮬 측정). 오도메트리 위치가
-        period 마다 tol 미만으로만 바뀌는 상태가 need 번 이어질 때까지 기다린다. 바퀴형은 바로 반환."""
+        period 마다 tol 미만으로만 바뀌는 상태가 need 번 이어질 때까지 기다린다. 바퀴형은 바로 반환.
+        (예전 0.5 s × 3 번, 6 mm: 최소 1.5 s. 같은 속도 기준(1.3 cm/s)으로 0.3 s × 2 번 — 집기 한 번에 20 번 넘게 불림)"""
         if not self.can_strafe:
             return
         last, ok, t0 = None, 0, time.time()
@@ -475,7 +477,7 @@ class RobotSkills(Node):
         """같은 카메라 프레임에서 '손목 마커로 잰 손끝' 과 '상자 중심' 을 함께 잰다 (base_footprint).
         둘 다 같은 카메라로 같은 순간에 재므로 카메라 위치 오차·몸통 출렁임이 상대 오차에서 거의 지워진다.
         반환: (손끝, box_center 또는 None, tcp_fk, 손끝 출처) — 손목 마커도 정기구학도 없으면 SkillError"""
-        time.sleep(0.6)
+        time.sleep(0.3)
         w = self._measure_box_wrist(side, box_id)
         if w is not None:
             return w[0], w[1], w[0], "손목 카메라"
@@ -1049,6 +1051,7 @@ class RobotSkills(Node):
     GRASP_DEPTH = 0.01      # 상자 중심보다 접근방향으로 더 들어가는 거리 [m]
     WRIST_MID_BACK = 0.05   # 손목 카메라가 있을 때 직선 접근 중간 보정 위치: 상자 중심 앞 [m] (손가락 끝이 상자에 닿기 전)
     IDEAL_REACH = 0.52      # base_footprint 기준 상자까지 이상적 전방 거리 [m]
+    REACH_TOL = 0.03        # 이 안이면 미세 이동 안 함 (이족은 생성자에서 0.04: 미세 이동 한 번에 7~10 s, 0.54~0.57 m 에서도 집기 성공)
     # approach_rotation(roll=0) 에서 손가락이 닫히는 축(TCP y)은 '위-아래' 방향 → roll ±70~90 이 손가락을 수평으로 만들어
     # 상자 옆면을 잡는다. MuJoCo 오프라인 실험: ±70 이 가장 안정(상자 밀림 1~2cm), 0 은 모서리 집기라 밀림 3~4cm, ±20 은 놓침.
     ROLL_CANDIDATES = [70, -70, 90, -90, 50, -50, 0]
@@ -1302,13 +1305,20 @@ class RobotSkills(Node):
         # 이족은 미세 이동이 명령보다 덜/더 가므로(SF 미션 시험 4: +0.40 m 명령에 실제 +0.22 m) 카메라로 재며 최대 4 번 반복.
         # 바퀴형은 한 번이면 충분하다 (그대로 1 번)
         for _ in range(4 if self.can_strafe else 1):
-            if abs(center[0] - self.IDEAL_REACH) <= 0.03:
+            if abs(center[0] - self.IDEAL_REACH) <= self.REACH_TOL:
                 break
-            self.nudge_base(center[0] - self.IDEAL_REACH)
+            dx = center[0] - self.IDEAL_REACH
+            self.nudge_base(dx)
             if self.can_strafe:
                 self.wait_still(timeout=8.0)
             self.set_table()
+            prev_fwd = center[0]
             center = self.find_marker(mid) - np.array([0, 0, self.box_size / 2])
+            if self.can_strafe and abs((prev_fwd - center[0]) - dx) > 0.06:
+                # 명령한 이동과 6 cm 넘게 어긋난 측정 → 몸통이 아직 흔들리는 중에 잰 값일 수 있다 (집기 시험: +5 cm 이동 뒤
+                # 상자가 18 cm 가까워진 것으로 재고 −12 cm 되돌아감 → 미세 이동 4 번). 멈추길 기다려 한 번 더 잰다
+                self.wait_still(timeout=8.0)
+                center = self.find_marker(mid) - np.array([0, 0, self.box_size / 2])
             self._table_top_seen = float(center[2] - self.box_size / 2)
             self._box_seen_fwd = float(center[0])
             self.set_table()
