@@ -2,6 +2,7 @@
     ros2 launch tron1_openarm_sim sim.launch.py                    # Sole-foot (기본, 교육 기준. 발목 있음, 제자리에 가만히 섬)
     ros2 launch tron1_openarm_sim sim.launch.py foot:=pf           # Point-foot (PF 정책·기록 비교용)
     ros2 launch tron1_openarm_sim sim.launch.py world:=world_light.xml viewer:=false
+    ros2 launch tron1_openarm_sim sim.launch.py ekf:=true          # odom→base_footprint 를 EKF(다리 오도메트리 + IMU, config/ekf_tron1.yaml)가 냄
   policy:= 로 정책을 바꿀 때는 그 정책의 발 형태와 foot 를 맞춘다 (다르면 브리지가 오류로 멈춤)
 바퀴형 mobile_openarm_sim/sim.launch.py 와 인자·토픽이 같다. 다른 점: 브리지 실행파일(tron1_bridge), URDF, 보행 정책 파일(policy).
 """
@@ -36,6 +37,7 @@ def _setup(context):
     with open(os.path.join(share, "urdf", urdf), encoding="utf-8") as f:
         robot_description = f.read()
     policy = lc("policy").perform(context) or os.path.join(share, "policies", pol)
+    ekf = lc("ekf").perform(context).lower() in ("true", "1")
     bridge = Node(
         package="tron1_openarm_sim", executable="tron1_bridge", name="mujoco_bridge", output="screen",
         parameters=[{
@@ -47,13 +49,19 @@ def _setup(context):
             # 머리 카메라가 바퀴형보다 8 cm 높아(1.24 m) 4 cm 마커가 640x480 에서 너무 작게 보임 → 960x720
             "camera_width": 960, "camera_height": 720,
             "start_x": lc("start_x"), "start_y": lc("start_y"), "start_yaw": lc("start_yaw"),
+            "publish_odom_tf": not ekf,      # EKF 를 쓰면 TF 는 EKF 가 낸다 (둘이 같이 내면 TF 가 튐)
         }],
     )
+    nodes = []
+    if ekf:
+        nodes.append(Node(package="robot_localization", executable="ekf_node", name="ekf_filter_node", output="screen",
+                          parameters=[os.path.join(share, "config", "ekf_tron1.yaml")],
+                          remappings=[("odometry/filtered", "/odometry/filtered")]))
     rsp = Node(package="robot_state_publisher", executable="robot_state_publisher", output="screen",
                parameters=[{"robot_description": robot_description, "use_sim_time": True}])
     rviz = Node(package="rviz2", executable="rviz2", arguments=["-d", lc("rviz_config")],
                 parameters=[{"use_sim_time": True}], condition=IfCondition(lc("rviz")), output="log")
-    return [SetEnvironmentVariable("TRON1_POLICY", policy), bridge, rsp, rviz]
+    return [SetEnvironmentVariable("TRON1_POLICY", policy), bridge, rsp, rviz] + nodes
 
 
 def generate_launch_description():
@@ -75,6 +83,8 @@ def generate_launch_description():
         DeclareLaunchArgument("start_yaw", default_value="0.0"),
         DeclareLaunchArgument("rviz", default_value="true"),
         DeclareLaunchArgument("rviz_config", default_value=os.path.join(share, "rviz", "sim.rviz")),
+        DeclareLaunchArgument("ekf", default_value="false",
+                              description="true = robot_localization EKF 가 odom TF 를 냄 (다리 오도메트리 + IMU)"),
         DeclareLaunchArgument("policy", default_value="",
                               description="보행 정책 가중치(npz). 비우면 발 형태별 기본값. LimX 사전학습: policies/limx_pf_tron1a_pretrained.npz"),
     ]

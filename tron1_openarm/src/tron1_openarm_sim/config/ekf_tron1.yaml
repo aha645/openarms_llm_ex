@@ -1,0 +1,45 @@
+# robot_localization EKF (odom 프레임): 다리 오도메트리 + IMU → odom→base_footprint
+#   ros2 launch tron1_openarm_sim sim.launch.py ekf:=true     (브리지는 odom TF 를 내지 않고 이 노드가 냄)
+# 다리 오도메트리(/odom)는 위치 변화량(x, y)만, 방향은 IMU(/imu)의 yaw·yaw rate 로.
+#  - 시뮬은 IMU 자세가 정확해 효과가 작다. 실로봇은 IMU yaw 가 천천히 흐르고 다리 오도메트리의 회전은 발 미끄러짐으로 틀어지므로
+#    두 값을 공분산으로 섞는 자리. 나중에 VIO(카메라 오도메트리)를 odom1 로 더하면 된다.
+#  - map→odom 은 지금처럼 AMCL / slam_toolbox 가 낸다.
+ekf_filter_node:
+  ros__parameters:
+    use_sim_time: true
+    frequency: 50.0
+    sensor_timeout: 0.2
+    two_d_mode: true
+    publish_tf: true
+    map_frame: map
+    odom_frame: odom
+    base_link_frame: base_footprint
+    world_frame: odom
+
+    odom0: /odom
+    #            x     y     z      roll   pitch  yaw    vx     vy     vz     vroll  vpitch vyaw   ax     ay     az
+    odom0_config: [true, true, false, false, false, false, false, false, false, false, false, false, false, false, false]
+    odom0_differential: true        # 위치를 '변화량' 으로만 (다리 오도메트리의 절대 위치는 흐름이 쌓임)
+    odom0_queue_size: 10
+
+    imu0: /imu
+    imu0_config: [false, false, false, false, false, true, false, false, false, false, false, true, false, false, false]
+    imu0_relative: true             # 시작 방향 = 0 (다리 오도메트리와 같은 원점)
+    imu0_remove_gravitational_acceleration: true
+    imu0_queue_size: 10
+
+    process_noise_covariance: [0.05, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                               0.0, 0.05, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                               0.0, 0.0, 0.06, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                               0.0, 0.0, 0.0, 0.03, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                               0.0, 0.0, 0.0, 0.0, 0.03, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                               0.0, 0.0, 0.0, 0.0, 0.0, 0.06, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                               0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.025, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                               0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.025, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                               0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.04, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                               0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.01, 0.0, 0.0, 0.0, 0.0, 0.0,
+                               0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.01, 0.0, 0.0, 0.0, 0.0,
+                               0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.02, 0.0, 0.0, 0.0,
+                               0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.01, 0.0, 0.0,
+                               0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.01, 0.0,
+                               0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.015]

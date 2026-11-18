@@ -13,6 +13,7 @@
   * /biped/status (std_msgs/String JSON): 몸통 높이·기울기·넘어짐 여부·정책이 받는 명령
 """
 import json
+import sys
 
 import rclpy
 from rclpy.executors import MultiThreadedExecutor
@@ -84,6 +85,11 @@ class BipedBridge(B.MujocoBridge):
 
 
 def main():
+    # GIL 전환 간격 5 ms → 0.5 ms. 물리 스레드는 스텝마다 짧은 파이썬 연산(보행 정책·제어기·중력 보상)을 수백 번 하고,
+    # 그때마다 GIL 을 다시 받아야 한다. /cmd_vel 이 들어오는 동안 rclpy MultiThreadedExecutor 가 대기 집합을 파이썬으로
+    # 다시 만들며 GIL 을 58~76 % 쥐어, 물리 스레드가 매번 최대 5 ms 씩 기다려 걷는 동안 실시간의 0.1~0.4 배로 느려지고
+    # 몇 초씩 멈췄다 (Nav2 lifecycle heartbeat 끊김 → 주행 중단). 0.5 ms 로 줄이면 걷는 동안에도 실시간 1.00 (검증 기록 11절)
+    sys.setswitchinterval(0.0005)
     rclpy.init()
     node = BipedBridge()
     ex = MultiThreadedExecutor(num_threads=4)

@@ -24,7 +24,8 @@ from mujoco import mjx
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src", "tron1_openarm_sim"))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from mjx_model import build_mjx_model  # noqa: E402
-from tron1_env import REWARD_SCALES, STAND_DRIFT_SCALE, STAND_DRIFT_SIGMA  # noqa: E402  보상 계수는 CPU 판과 공유
+from tron1_env import (REWARD_SCALES, STAND_DRIFT_SCALE, STAND_DRIFT_SIGMA, STAND_YAW_SCALE, STAND_YAW_REF,
+                       STAND_YAW_SETTLE, STAND_YAW_TAU, STAND_LONG_P, STAND_LONG_STEPS)  # noqa: E402  보상 계수는 CPU 판과 공유
 from tron1_openarm_sim.arm_poses import POSES as ARM_POSES  # noqa: E402
 from tron1_openarm_sim.locomotion_policy import PF, SF, SF_BASE_HEIGHT_CMD  # noqa: E402
 
@@ -44,6 +45,9 @@ class EnvState(NamedTuple):
     cmd: jax.Array
     want_still: jax.Array
     standing: jax.Array
+    stand_t: jax.Array       # SF: 서기 시작 뒤 경과 시간 [s]
+    yaw0: jax.Array          # SF: 서기 방향 기준
+    cmd_until: jax.Array     # 다음 명령 재설정 스텝
     hist: jax.Array
     obs: jax.Array           # 마지막 관측 (잡음 포함, hist 의 마지막 항목과 같음)
     t: jax.Array
@@ -85,6 +89,7 @@ class Tron1MjxEnv:
             self.rs["tracking_ang_vel"] = 6.0
             self.ang_sigma = 0.25
             self.rs["stand_drift"] = -STAND_DRIFT_SCALE
+            self.rs["stand_yaw"] = -STAND_YAW_SCALE
         self.randomize, self.push = randomize, push
         m, self.model_notes = build_mjx_model(xml, iterations=iterations, ls_iterations=ls_iterations, cone=cone)
         self.m = m
@@ -205,10 +210,14 @@ class Tron1MjxEnv:
             c = jnp.where((z >= 0.6) & (z < 0.75), slow, c)
             c = jnp.where(jnp.abs(c) < 0.015, 0.0, c)
             want_still = jnp.all(c == 0) & (jax.random.uniform(k[12]) < 0.8)
+            k13a, k13b = jax.random.split(k[13])
+            long = want_still & (jax.random.uniform(k13a) < STAND_LONG_P)
+            dur = jnp.where(long, jax.random.randint(k13b, (), STAND_LONG_STEPS[0], STAND_LONG_STEPS[1] + 1), 250)
         else:
             c = jnp.where(jnp.abs(c) < 0.05, 0.0, c)
             want_still = jnp.array(False)
-        return c.astype(jnp.float32), want_still
+            dur = jnp.array(250)
+        return c.astype(jnp.float32), want_still, dur.astype(jnp.int32)
 
     def command_vector(self, s):
         c = s.cmd * CMD_SCALE
@@ -245,11 +254,12 @@ class Tron1MjxEnv:
         ctrl = jnp.zeros_like(self.d0.ctrl).at[self.arm_act].set(arm).at[self.finger_act].set(0.044).at[self.leg_act].set(self.q_def)
         d = self.d0.replace(qpos=q, qvel=jnp.zeros_like(self.d0.qvel), ctrl=ctrl, time=jnp.zeros_like(self.d0.time),
                             sensordata=jnp.zeros_like(self.d0.sensordata))
-        cmd, still = self._sample_cmd(k[3])
+        cmd, still, dur = self._sample_cmd(k[3])
         delay = jax.random.randint(k[4], (), 0, 1 + jnp.round(3 * difficulty).astype(jnp.int32)) * int(self.randomize)
         z = jnp.zeros(self.nj, jnp.float32)
         s = EnvState(d=d, last_action=z, last_action2=z, last_target=self.q_def, gait_index=jnp.array(0.0),
-                     cmd=cmd, want_still=still, standing=jnp.array(False), hist=jnp.zeros(self.HIST * self.obs_dim, jnp.float32),
+                     cmd=cmd, want_still=still, standing=jnp.array(False), stand_t=jnp.array(0.0), yaw0=jnp.array(0.0),
+                     cmd_until=dur, hist=jnp.zeros(self.HIST * self.obs_dim, jnp.float32),
                      obs=jnp.zeros(self.obs_dim, jnp.float32),
                      t=jnp.array(0, jnp.int32), delay=delay, arm_from=arm, arm_to=arm, arm_t0=jnp.array(0.0),
                      arm_T=jnp.array(1.0), ep_ret=jnp.array(0.0), key=k[5])
@@ -317,10 +327,11 @@ class Tron1MjxEnv:
         done = fell | timeout
         info = {"fell": fell, "bad": bad, "timeout": timeout, "terms": terms, "ep_ret": ep_ret, "ep_t": s.t}
         # 명령 재설정 (5초마다)
-        rs = (s.t % 250 == 0) & ~done
-        c, still = self._sample_cmd(k_cmd)
+        rs = (s.t >= s.cmd_until) & ~done
+        c, still, dur = self._sample_cmd(k_cmd)
         s = s._replace(cmd=jnp.where(rs, c, s.cmd), want_still=jnp.where(rs, still, s.want_still),
-                       standing=jnp.where(rs, False, s.standing), ep_ret=ep_ret, key=key)
+                       standing=jnp.where(rs, False, s.standing), stand_t=jnp.where(rs, 0.0, s.stand_t),
+                       cmd_until=jnp.where(rs, s.t + dur, s.cmd_until), ep_ret=ep_ret, key=key)
         # 관측 기록 갱신 (CPU 판은 observe() 에서 하던 일)
         obs = jnp.nan_to_num(self._noise(k_noise, self._obs_raw(s), difficulty), nan=0.0, posinf=0.0, neginf=0.0)
         s = s._replace(obs=obs, hist=jnp.concatenate([s.hist[self.obs_dim:], obs]))
@@ -350,7 +361,11 @@ class Tron1MjxEnv:
             g = jnp.where(win, jnp.where((g >= 0.5) & (g < 0.55), 0.5, 0.0), g)
             standing = (s.standing | win) & s.want_still
             g = jnp.where(standing, g, (g + POLICY_DT * self.GAIT[0]) % 1.0)
-            return s._replace(gait_index=g, standing=standing)
+            stand_t = jnp.where(standing, s.stand_t + POLICY_DT, 0.0)
+            yaw = _yaw(s.d.qpos[3:7])
+            follow = POLICY_DT / STAND_YAW_TAU if STAND_YAW_TAU > 0 else 0.0
+            yaw0 = jnp.where(stand_t < STAND_YAW_SETTLE, yaw, s.yaw0 + follow * _wrap(yaw - s.yaw0))
+            return s._replace(gait_index=g, standing=standing, stand_t=stand_t, yaw0=yaw0)
         return s._replace(gait_index=(g + POLICY_DT * self.GAIT[0]) % 1.0)
 
     def _reward(self, s, a):
@@ -385,9 +400,19 @@ class Tron1MjxEnv:
             contact_vel=jnp.mean(des * (1 - jnp.exp(-fv ** 2 / 0.25))),
             stand_drift=s.standing * (1 - jnp.exp(-(gyro[2] / STAND_DRIFT_SIGMA[0]) ** 2
                                                   - jnp.sum(lin[:2] ** 2) / STAND_DRIFT_SIGMA[1] ** 2)),
+            stand_yaw=(s.standing & (s.stand_t >= STAND_YAW_SETTLE))
+            * jnp.minimum(jnp.abs(_wrap(_yaw(quat) - s.yaw0)) / STAND_YAW_REF, 2.0),
         )
         r = sum(self.rs[k] * v for k, v in t.items()) * POLICY_DT
         return r, t
+
+
+def _yaw(q):
+    return jnp.arctan2(2 * (q[0] * q[3] + q[1] * q[2]), 1 - 2 * (q[2] ** 2 + q[3] ** 2))
+
+
+def _wrap(a):
+    return (a + jnp.pi) % (2 * jnp.pi) - jnp.pi
 
 
 def quat_rot_inv(q, v):

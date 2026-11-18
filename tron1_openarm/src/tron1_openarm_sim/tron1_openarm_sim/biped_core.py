@@ -55,11 +55,12 @@ VEL_I_MAX = np.array([0.25, 0.45, 0.4])
 SF_IDLE_I_MAX = np.array([0.06, 0.06, 0.1])             # SF 제자리 유지 중 적분항 상한
 SF_IDLE_CORR_MAX = np.array([0.08, 0.08, 0.15])         # SF 제자리 유지 중 보정량 상한
 CORR_MAX = np.array([0.2, 0.45, 0.4])                    # 외곽 루프가 정책 명령에 더할 수 있는 최대 보정
-# SF 서기 모드 방향·위치 유지: 서 있는 동안 정책이 발을 디딘 채 몸통을 0.2~0.6 °/s 로 돌리고(두 발이 함께 비틀림),
-# 서기 모드의 정책은 wz·v 명령에 반응하지 않는다 (검증 기록 10절). 기준 자세에서 이만큼 벗어나면 서기 모드를 잠깐 풀어
+# SF 서기 모드 방향 유지: 서 있는 동안 정책이 발을 디딘 채 몸통을 0.2~0.6 °/s 로 돌리고(두 발이 함께 비틀림),
+# 서기 모드의 정책은 wz·v 명령에 반응하지 않는다 (검증 기록 10절). 기준 방향에서 이만큼 벗어나면 서기 모드를 잠깐 풀어
 # 제자리 유지 루프가 발을 디뎌 되돌리게 하고, DONE 안쪽으로 들어오면 다시 선다.
+# 위치는 보지 않는다: 서 있는 동안 발은 옮겨 가지 않고, 몸통이 발 위에서 자리 잡으며 옆 5~10 cm 옮겨 가는 것은 서기 자세의 일부다
+# (다리 기구학 오도메트리가 이것을 보게 된 뒤 위치로 판정하면 걸어서 되돌리고 → 다시 서며 또 옮겨 가기를 끝없이 반복했다, 검증 기록 11절)
 STAND_YAW_TOL, STAND_YAW_DONE = math.radians(5.0), math.radians(0.7)
-STAND_POS_TOL, STAND_POS_DONE = 0.05, 0.02
 STAND_FIX_MAX = 4.0                                        # 한 번 바로잡는 최대 시간 [s] (넘으면 포기하고 그 자리에 선다)
 # 팔 중력 보상: 위치 제어(kp 190~230)만으로는 팔이 중력에 처져 손끝이 2~5 cm 덜 간다 (몸통을 고정해도 남음).
 # 실로봇 OpenArm 제어기처럼 '지금 관절각에서 팔 무게를 버티는 데 필요한 관절 토크'를 피드포워드로 더한다.
@@ -361,11 +362,14 @@ class BipedOpenArmSim(W.MobileOpenArmSim):
 
     # ------------------------------------------------------------------ 하반신 제어
     def set_cmd_vel(self, v, w, vy=0.0):
-        """바퀴형과 같은 (v, w) + 이족만 가능한 옆걸음 vy. 바퀴형 코드가 (v, w) 로 불러도 그대로 동작."""
-        with self.lock:
-            self.cmd = (float(v), float(w))
-            self.cmd_vy = float(vy)
-            self.cmd_stamp = self.d.time
+        """바퀴형과 같은 (v, w) + 이족만 가능한 옆걸음 vy. 바퀴형 코드가 (v, w) 로 불러도 그대로 동작.
+        잠금을 잡지 않는다: 값 대입은 원자적이고, 물리 스레드는 정책 주기(20 ms)마다 한 번 읽을 뿐이다.
+        잠금을 기다리면 ROS 브리지의 MultiThreadedExecutor 가 '준비됐지만 실행 못 하는' /cmd_vel 콜백을 계속 다시 검사하며
+        GIL 을 76 % 쥐고 헛돌아, 물리 스레드가 실시간의 0.1~0.4 배로 느려지고 몇 초씩 멈췄다
+        (Nav2 lifecycle 이 heartbeat 를 못 받아 주행 중단, 검증 기록 11절)."""
+        self.cmd_stamp = self.d.time
+        self.cmd_vy = float(vy)
+        self.cmd = (float(v), float(w))
 
     def _apply_base(self):
         """물리 스텝마다 호출. policy_every 스텝(=20 ms)마다 보행 정책으로 다리 목표각을 새로 계산."""
@@ -443,13 +447,13 @@ class BipedOpenArmSim(W.MobileOpenArmSim):
                 if self.policy.standing and unstable:
                     self._stand_block = d.time + 1.5
                 # 서기 중 기준 자세(_hold)에서 벗어남 → 잠깐 걸어서 바로잡기 (위 STAND_* 설명)
-                off_yaw, off_pos = abs(eyaw), math.hypot(bx, by)
+                off_yaw = abs(eyaw)
                 if not (idle and self.hold_position and self.stand_heading_hold):
                     self._stand_fix = None
                 elif self._stand_fix is None:
-                    if self.policy.standing and (off_yaw > STAND_YAW_TOL or off_pos > STAND_POS_TOL):
+                    if self.policy.standing and off_yaw > STAND_YAW_TOL:
                         self._stand_fix = d.time
-                elif (off_yaw < STAND_YAW_DONE and off_pos < STAND_POS_DONE) or d.time - self._stand_fix > STAND_FIX_MAX:
+                elif off_yaw < STAND_YAW_DONE or d.time - self._stand_fix > STAND_FIX_MAX:
                     if d.time - self._stand_fix > STAND_FIX_MAX:
                         self._hold = self.odom.copy()          # 못 돌아오면 지금 자리를 새 기준으로
                     self._stand_fix = None
@@ -458,7 +462,8 @@ class BipedOpenArmSim(W.MobileOpenArmSim):
                                                and d.time > getattr(self, "_stand_block", -1.0))
                 if self.policy.standing:
                     # 서 있는 동안은 보정 루프를 멈춘다 (정책이 명령에 반응하지 않으므로 적분항만 쌓인다).
-                    # 기준 자세는 그대로 두어 서 있는 사이 흐른 만큼을 위에서 걸어서 되돌린다
+                    # 기준 자세는 그대로 둔다: 서 있는 사이 돈 만큼을 위에서 걸어서 되돌리고, 그 걸음 동안 위치도 서기 전 자리로 돌아간다.
+                    # (위치 기준을 서 있는 몸통 위치로 옮기면, 자리 잡으며 기운 만큼씩 바로잡기 걸음마다 옆으로 옮겨 가 45 s 에 17 cm 흘렀다)
                     self._vi[:] = 0.0
                     if not (self.hold_position and self.stand_heading_hold):
                         self._hold = self.odom.copy()
@@ -481,6 +486,11 @@ class BipedOpenArmSim(W.MobileOpenArmSim):
         self._origin_yaw = yaw_of(d.xquat[self.base_id])
         self._stance = None
         self._anchor = None
+        self._stand_anchor = None
+        self._kin_xy = self._est_xy.copy()
+        self._kin_prev = self._kin_xy.copy()
+        self._kin_st = None
+        self._kin_anchor = None
         self._last_est = self._est_xy.copy()
         self._last_yaw = 0.0
         self.odom[:] = 0
@@ -503,11 +513,32 @@ class BipedOpenArmSim(W.MobileOpenArmSim):
             # 실제 이동의 67~90 % 만 읽었다 (0.03~0.25 m/s 오프라인 측정). 보행 정책의 속도 추정기(학습 때 실제 속도로
             # 지도학습)를 적분하면 +3~11 % 로 훨씬 정확했다 → 걸을 때는 추정 속도를 적분, 발을 디딘 채 서 있으면 0
             dt_e = t - getattr(self, "_last_roll_t", t)
+            if self.policy.standing:
+                # 서기 모드(두 발을 디딘 채 보행 시계 정지): 두 발이 땅에 고정 → 두 발 가운데 기준 다리 기구학으로 몸통 위치.
+                # 예전에는 이 동안 오도메트리를 멈췄는데, 서기에 들어가 자세가 자리 잡는 동안 몸통이 발 위에서 옆 5~10 cm·
+                # 뒤 2~3 cm 옮겨 가는 것을 못 봐서, 멈춰 설 때마다 오차가 쌓였다 (집기 1 회에 20~33 cm, 검증 기록 11절)
+                fm = 0.5 * (rel[0] + rel[1])
+                if self._stand_anchor is None:
+                    self._stand_anchor = self._est_xy + fm[:2]
+                self._est_xy = self._stand_anchor - fm[:2]
+            else:
+                self._stand_anchor = None
+            # 디딘 발 고정 기구학 위치 (따로 적분): 앞뒤는 발이 굴러 짧게 읽지만 옆 방향은 그런 문제가 없다
+            if st is not None:
+                if st != self._kin_st or self._kin_anchor is None:
+                    self._kin_st = st
+                    self._kin_anchor = self._kin_xy + rel[st][:2]
+                self._kin_xy = self._kin_anchor - rel[st][:2]
+            dk = self._kin_xy - self._kin_prev
+            self._kin_prev = self._kin_xy.copy()
             if dt_e > 0 and not self.policy.standing:
                 yw = yaw_of(d.xquat[self.base_id])
                 e = self.policy.estimated_velocity
                 c_, s_ = math.cos(yw), math.sin(yw)
-                self._est_xy = self._est_xy + dt_e * np.array([c_ * e[0] - s_ * e[1], s_ * e[0] + c_ * e[1]])
+                # 앞뒤 = 속도 추정기, 옆 = 기구학. 추정기의 옆 속도는 걷기 시작할 때 몸통이 발 위 가운데로 돌아오는 움직임
+                # (서기 자세에서 옆 5~10 cm)을 거의 못 봐서, 멈췄다 걸을 때마다 옆 오차가 4~7 cm 씩 쌓였다 (검증 기록 11절)
+                lat = -s_ * dk[0] + c_ * dk[1]
+                self._est_xy = self._est_xy + dt_e * e[0] * np.array([c_, s_]) + lat * np.array([-s_, c_])
             st = None
             self._anchor = None
         if st is not None:

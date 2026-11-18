@@ -46,6 +46,7 @@ def generate_launch_description():
         DeclareLaunchArgument("camera_hz", default_value="10.0", description="GPU 없는 환경은 5.0"),
         DeclareLaunchArgument("lidar_rays", default_value="360"),
         DeclareLaunchArgument("rate_factor", default_value="1.0", description="1.0=실시간, 느린 PC 는 0.5"),
+        DeclareLaunchArgument("ekf", default_value="false", description="true = EKF(다리 오도메트리 + IMU)가 odom TF 를 냄"),
         DeclareLaunchArgument("dashboard_host",
                               default_value=EnvironmentVariable("OPENARM_DASHBOARD_HOST", default_value="127.0.0.1"),
                               description="127.0.0.1=이 PC 에서만, 0.0.0.0=같은 네트워크 전체(인증 없음)"),
@@ -53,7 +54,7 @@ def generate_launch_description():
                                  launch_arguments={"foot": lc("foot"), "viewer": lc("viewer"), "rviz": lc("rviz"),
                                                    "world": lc("world"), "policy": lc("policy"),
                                                    "camera_hz": lc("camera_hz"), "lidar_rays": lc("lidar_rays"),
-                                                   "rate_factor": lc("rate_factor")}.items()),
+                                                   "rate_factor": lc("rate_factor"), "ekf": lc("ekf")}.items()),
         TimerAction(period=5.0, actions=[IncludeLaunchDescription(
             PythonLaunchDescriptionSource(os.path.join(mv, "launch", "move_group.launch.py")),
             launch_arguments={"rviz": "false", "foot": lc("foot")}.items())]),
