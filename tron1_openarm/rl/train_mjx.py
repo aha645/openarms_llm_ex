@@ -137,7 +137,7 @@ def main():
                        lin_track=info["terms"]["tracking_lin_vel"], ang_track=info["terms"]["tracking_ang_vel"],
                        stand_drift=info["terms"]["stand_drift"], stand_yaw=info["terms"]["stand_yaw"],
                        stand_feet=info["terms"]["stand_feet"], stand_load=info["terms"]["stand_load"],
-                       stand_twist=info["terms"]["stand_twist"],
+                       stand_twist=info["terms"]["stand_twist"], stand_tilt=info["terms"]["stand_tilt"],
                        standing=st.standing.astype(jnp.float32))
             return (st, key), out
         (states, key), tr = jax.lax.scan(body, (states, key), None, length=T)
@@ -160,7 +160,8 @@ def main():
                      stand_yaw=tr["stand_yaw"].sum() / jnp.maximum(tr["standing"].sum(), 1.0),
                      stand_feet=tr["stand_feet"].sum() / jnp.maximum(tr["standing"].sum(), 1.0),
                      stand_load=tr["stand_load"].sum() / jnp.maximum(tr["standing"].sum(), 1.0),
-                     stand_twist=tr["stand_twist"].sum() / jnp.maximum(tr["standing"].sum(), 1.0), standing=tr["standing"].mean())
+                     stand_twist=tr["stand_twist"].sum() / jnp.maximum(tr["standing"].sum(), 1.0),
+                     stand_tilt=tr["stand_tilt"].sum() / jnp.maximum(tr["standing"].sum(), 1.0), standing=tr["standing"].mean())
         return states, tr, stats, key
 
     @partial(jax.jit, static_argnums=(7,))
@@ -264,7 +265,7 @@ def main():
                    ang_track=round(float(st["ang_track"]), 3), diverged=int(st["bad"]),
                    stand_drift=round(float(st["stand_drift"]), 4), stand_yaw=round(float(st["stand_yaw"]), 4),
                    stand_feet=round(float(st["stand_feet"]), 4), stand_load=round(float(st["stand_load"]), 4),
-                   stand_twist=round(float(st["stand_twist"]), 4),
+                   stand_twist=round(float(st["stand_twist"]), 4), stand_tilt=round(float(st["stand_tilt"]), 4),
                    standing=round(float(st["standing"]), 3))
         log.append(rec)
         if it % 5 == 0 or it == 1:

@@ -50,6 +50,15 @@ REACH_P = float(os.environ.get("TRON1_REACH_P", 0.0))             # 팔 목표�
 STAND_FEET_SCALE = float(os.environ.get("TRON1_STAND_FEET", 0.0))
 STAND_LOAD_SCALE = float(os.environ.get("TRON1_STAND_LOAD", 0.0))
 STAND_TWIST_SCALE = float(os.environ.get("TRON1_STAND_TWIST", 0.0))
+# v3 (서 있을 때 기울기·오래 서기): v2 정책은 손 외력에 대비해 서 있을 때 앞으로 6~8.5° 숙였다 (이전 3.8°).
+# orientation(전체, −60·sin²)은 8° 에서도 작아 숙임을 막지 못했다 → 서기 1 s 뒤부터 STAND_TILT_FREE 를 넘는 기울기에 선형 벌점.
+# 집기는 한 자리에 2~5 분 서 있는데 에피소드 20 s·서기 구간 10~20 s 였다 → 에피소드·긴 서기 구간을 늘릴 수 있게.
+STAND_TILT_SCALE = float(os.environ.get("TRON1_STAND_TILT", 0.0))
+STAND_TILT_FREE = math.sin(math.radians(3.0))     # 이만큼은 벌점 없음 (예전 정책 3.8°)
+STAND_TILT_REF = math.sin(math.radians(5.0))      # 3 + 5 = 8° 에서 벌점 1 (상한 2)
+EP_S = float(os.environ.get("TRON1_EP_S", 20.0))
+STAND_LONG_MAX_S = float(os.environ.get("TRON1_STAND_LONG_MAX_S", STAND_LONG_STEPS[1] * POLICY_DT))
+STAND_LONG_RANGE = (STAND_LONG_STEPS[0], int(round(STAND_LONG_MAX_S / POLICY_DT)))
 STAND_FEET_SIGMA = 0.05        # 발 수평 속도 허용 폭 [m/s]
 STAND_TWIST_SIGMA = 0.05       # 발바닥 수직축 회전 속도 허용 폭 [rad/s]
 # stand_twist (v2): stand_feet 는 발의 직선 이동만 봐서, v1 학습(seed1)은 손 외력에 몸통이 돌 때 발바닥을 비틀어 받아냈다
@@ -131,7 +140,7 @@ class Tron1MjxEnv:
         self.mx = mjx.put_model(m, impl=impl)
         self.dt = m.opt.timestep
         self.nsub = int(round(POLICY_DT / self.dt))
-        self.ep_len = int(episode_s / POLICY_DT)
+        self.ep_len = int((EP_S if episode_s == 20.0 else episode_s) / POLICY_DT)   # TRON1_EP_S
         J = sp.joints
         self.qadr = jnp.array([m.jnt_qposadr[m.joint(j).id] for j in J])
         self.vadr = jnp.array([m.jnt_dofadr[m.joint(j).id] for j in J])
@@ -166,8 +175,9 @@ class Tron1MjxEnv:
             self.rs["stand_feet"] = -STAND_FEET_SCALE
             self.rs["stand_load"] = -STAND_LOAD_SCALE
             self.rs["stand_twist"] = -STAND_TWIST_SCALE
+            self.rs["stand_tilt"] = -STAND_TILT_SCALE
         else:
-            self.rs["stand_feet"] = self.rs["stand_load"] = self.rs["stand_twist"] = 0.0
+            self.rs["stand_feet"] = self.rs["stand_load"] = self.rs["stand_twist"] = self.rs["stand_tilt"] = 0.0
         # 랜덤화 대상 인덱스
         self.base_bid = m.body("base_link").id
         self.contact_geoms = jnp.array([g for g in range(m.ngeom) if m.geom_contype[g] or m.geom_conaffinity[g]])
@@ -269,7 +279,7 @@ class Tron1MjxEnv:
             want_still = jnp.all(c == 0) & (jax.random.uniform(k[12]) < 0.8)
             k13a, k13b = jax.random.split(k[13])
             long = want_still & (jax.random.uniform(k13a) < STAND_LONG_P)
-            dur = jnp.where(long, jax.random.randint(k13b, (), STAND_LONG_STEPS[0], STAND_LONG_STEPS[1] + 1), 250)
+            dur = jnp.where(long, jax.random.randint(k13b, (), STAND_LONG_RANGE[0], STAND_LONG_RANGE[1] + 1), 250)
         else:
             c = jnp.where(jnp.abs(c) < 0.05, 0.0, c)
             want_still = jnp.array(False)
@@ -495,6 +505,7 @@ class Tron1MjxEnv:
             stand_feet=settled * jnp.mean(1 - jnp.exp(-(fvxy / STAND_FEET_SIGMA) ** 2)),
             stand_twist=settled * jnp.mean(1 - jnp.exp(-(d.cvel[self.foot_bid, 2] / STAND_TWIST_SIGMA) ** 2)),
             stand_load=settled * jnp.clip((STAND_LOAD_MIN - jnp.min(F) / jnp.maximum(jnp.sum(F), 1.0)) / STAND_LOAD_MIN, 0.0, 1.0),
+            stand_tilt=settled * jnp.clip((jnp.linalg.norm(grav[:2]) - STAND_TILT_FREE) / STAND_TILT_REF, 0.0, 2.0),
         )
         r = sum(self.rs[k] * v for k, v in t.items()) * POLICY_DT
         return r, t
