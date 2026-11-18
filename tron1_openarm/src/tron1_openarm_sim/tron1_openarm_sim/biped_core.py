@@ -349,6 +349,17 @@ class BipedOpenArmSim(W.MobileOpenArmSim):
             self.set_base_pose(x, y, yaw)
             self._last_lidar_t = self._last_cam_t = -1e9
 
+    def set_box_pose(self, name, x, y, yaw=0.0):
+        """상자(freejoint)를 월드 (x, y) 에 방향 yaw[rad] 로 옮긴다. 높이는 MJCF 의 처음 높이(작업대 위) 그대로.
+        반복 집기 시험에서 상자 위치·방향을 바꿔 보려고 (tools/validation/pick_series.sh)."""
+        b = self.m.body(name)
+        a = self.m.jnt_qposadr[self.m.body_jntadr[b.id]]
+        v = self.m.jnt_dofadr[self.m.body_jntadr[b.id]]
+        with self.lock:
+            self.d.qpos[a:a + 7] = [x, y, self.m.body_pos[b.id][2], math.cos(yaw / 2), 0, 0, math.sin(yaw / 2)]
+            self.d.qvel[v:v + 6] = 0
+            mujoco.mj_forward(self.m, self.d)
+
     def ground_truth_pose(self):
         q = self.d.qpos[self.base_qadr:self.base_qadr + 7]
         return np.array([q[0], q[1], yaw_of(q[3:7])])

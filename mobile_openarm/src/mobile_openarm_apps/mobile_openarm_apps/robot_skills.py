@@ -1069,10 +1069,38 @@ class RobotSkills(Node):
         GRASP_DEPTH 가 1 cm(바퀴형)면 0.95 이상 그대로, 이족처럼 더 깊이 넣으라고 한 몫은 다 못 가도 된다."""
         return min(0.95, (back + 0.005) / (back + self.GRASP_DEPTH))
 
-    def _solve_approach(self, side, target, back=0.10, exclude_id=None):
+    STAGE_BACK = 0.08       # 대기점: 접근점에서 접근 방향 반대로 [m]
+    STAGE_UP = 0.04         # 대기점: 접근점보다 위로 [m]
+
+    def _go_to_approach(self, side, R, pre, q_pre):
+        """접근점으로: 상자에서 떨어진 대기점에서 손 방향(R)을 먼저 맞추고, 대기점 → 접근점은 손 방향을 고정한 직선.
+        carry → 접근점을 관절 공간 직선으로 바로 가면 손끝이 곡선을 그리고 손목이 −90° 까지 돌며 들어가
+        손목 카메라 화면에서 상자가 흔들리거나 벗어났다. 대기점부터는 카메라가 상자를 계속 같은 방향에서 본다."""
+        group = f"{side}_arm"
+        if not self.can_strafe:
+            self.move_joints(group, q_pre)
+            return
+        stage = pre - R[:, 2] * self.STAGE_BACK + np.array([0.0, 0.0, self.STAGE_UP])
+        q_st = self.compute_ik(side, stage, R, seed=q_pre)
+        if q_st is not None and self._cart_fraction(side, q_st, R, pre) >= 0.95:
+            self.move_joints(group, q_st)
+            try:
+                self.cartesian(side, [pre], R, vel=0.1, min_fraction=0.9)
+                self.log(f"[pick] 대기점(접근점 {self.STAGE_BACK * 100:.0f} cm 뒤)에서 손 방향을 맞추고 직선으로 접근점까지")
+                return
+            except SkillError as e:
+                self.log(f"[pick] 대기점 → 접근점 직선 실패({e}) → 관절 이동")
+        else:
+            self.log("[pick] 대기점 IK/직선 불가 → 접근점으로 바로")
+        self.move_joints(group, q_pre)
+
+    def _solve_approach(self, side, target, back=0.10, exclude_id=None, yaw=0.0):
         """접근 자세 후보(roll × 물러선 거리)들 중 '접근점 IK + 목표 IK + 접근점→목표 직선 경로' 가 모두 되는 것 → (R, pre, q_pre).
         직선 경로까지 미리 검사하는 이유: 두 끝점의 IK 가 풀려도 중간에 관절 한계에 걸려 직선이 끊길 수 있다
-        (TRON1 이족에서 실제로 64%·45% 에서 끊김). 그러면 같은 roll 로 더 가까이(0.07, 0.05 m)에서 시작하거나 다른 roll 을 쓴다."""
+        (TRON1 이족에서 실제로 64%·45% 에서 끊김). 그러면 같은 roll 로 더 가까이(0.07, 0.05 m)에서 시작하거나 다른 roll 을 쓴다.
+        yaw: 접근 방향을 수평으로 이만큼 돌림 [rad] — 돌아간 상자의 옆면에 수직으로 들어가 두 손가락이 옆면에 함께 닿게.
+        돌리지 않으면 손가락 하나가 상자 모서리에 먼저 닿아 닫히며 상자를 옆으로 10 cm 밀었다 (무작위 배치 시험 s1c, 상자 −8°)"""
+        fwd = (math.cos(yaw), math.sin(yaw), 0.0)
         best = None
         # 이족: 어깨를 몸통 위로 낮춘 설계(어깨 0.78~0.83 m, 상자 0.69 m)에서는 거의 수평 접근이 자연스럽고,
         # 45° 로 내려오면 아래쪽 손가락이 상판에 걸린다 → 낮은 pitch 부터 시도
@@ -1088,7 +1116,7 @@ class RobotSkills(Node):
             self.set_boxes(exclude_id=exclude_id)
         try:
             for pitch, b, roll in cands:
-                R = approach_rotation(pitch, roll)
+                R = approach_rotation(pitch, roll, forward=fwd)
                 pre = target - R[:, 2] * b
                 if self.can_strafe:
                     # 이족: 팔을 뻗으면 몸통이 앞으로 숙여져(SF 최대 7°) 손이 3~5 cm 내려가 접근점에서 손가락이 상판에 닿았다
@@ -1140,16 +1168,45 @@ class RobotSkills(Node):
             time.sleep(0.05)
         return float(np.median(vals)) if vals else None
 
+    def _table_yaw(self, samples=5, timeout=5.0, agree=math.radians(6)):
+        """작업대 방향 (base 기준 yaw) — 보이는 상자 마커들의 방향이 서로 맞을 때만.
+        상자 하나의 방향은 상자가 놓인 방향일 뿐 작업대 방향이 아니다: 무작위 배치 시험(s1)에서 −8° 돌아간 상자에
+        몸통을 맞추느라 −11° 돌고 옆걸음을 4 번 하며 11 cm 밀려나, 놓을 때 다른 상자를 쳤다.
+        마커 2 개 이상의 방향이 agree 안에서 같으면 '작업대와 나란히 놓인 상자들' 로 보고 그 중앙값, 아니면 None."""
+        per = {}
+        t0 = time.time()
+        seen = {}
+        while time.time() - t0 < timeout and (not per or min(len(v) for v in per.values()) < samples):
+            with self._det_lock:
+                items = dict(self._detections)
+            now = time.time()
+            for i, (t, _p, yaw) in items.items():
+                if now - t < self.FRESH_S and seen.get(i) != t:
+                    seen[i] = t
+                    per.setdefault(i, []).append((yaw + math.pi / 4) % (math.pi / 2) - math.pi / 4)
+            time.sleep(0.05)
+        meds = [float(np.median(v)) for v in per.values() if len(v) >= 2]
+        if len(meds) < 2:
+            return None, meds
+        if max(meds) - min(meds) > agree:
+            return None, meds
+        return float(np.median(meds)), meds
+
     def _visual_dock(self, mid, top):
         """이족: Nav2 도착 오차(SF 미션 시험 3: 옆 0.36 m, 방향 20°)를 카메라로 바로잡는 도킹.
-        ① 상자 마커 방향으로 몸통 방향을 작업대와 직각으로 맞춘다 (상자는 작업대와 나란히 놓여 있다고 가정)
+        ① 상자 마커들의 방향이 서로 맞으면(작업대와 나란히 놓인 상자들) 그 방향으로 몸통을 작업대와 직각으로 맞춘다.
+           상자들이 제각각 돌아가 있으면 돌리지 않는다 (_table_yaw)
         ② 상자가 옆으로 많이 벗어나 있으면 앞으로 다가가기 '전에' 옆걸음으로 맞춘다
            (먼저 다가가면 상자가 카메라 시야 밖으로 나가 '마커를 찾지 못함' 으로 실패했다)"""
         for _ in range(3):
-            yaw = self._box_yaw(mid)
-            if yaw is None or abs(yaw) < math.radians(4):
+            yaw, meds = self._table_yaw()
+            if yaw is None:
+                if len(meds) >= 2:
+                    self.log(f"[dock] 상자 방향이 제각각 ({', '.join(f'{math.degrees(v):+.0f}' for v in meds)}°) → 몸통 방향은 그대로")
                 break
-            self.log(f"[dock] 상자 마커 기준 방향 오차 {math.degrees(yaw):+.1f}° → 회전")
+            if abs(yaw) < math.radians(4):
+                break
+            self.log(f"[dock] 상자 마커들 기준 방향 오차 {math.degrees(yaw):+.1f}° → 회전")
             self.rotate_base(yaw)
             self.wait_still(timeout=8.0)
             top = self.find_marker(mid)
@@ -1225,6 +1282,13 @@ class RobotSkills(Node):
             self.log(f"[pick] 옆걸음 후 상자 위치 base {np.round(center, 3)}")
         # 이족: 도킹을 마친 자세를 기준으로 기억 — 팔을 들 때 몸통이 밀리면(SF 미션 11: 뒤로 9 cm) 이 자세로 되돌린다
         dock_ref = self._other_markers(exclude=None) if self.can_strafe else None
+        # 상자 방향 (base 기준, 90° 주기로 접어 ±45°): 접근 방향을 이만큼 돌려 손가락이 옆면에 수직으로 닿게 (_solve_approach)
+        box_yaw = 0.0
+        if self.can_strafe:
+            y = self._box_yaw(mid)
+            if y is not None and abs(y) > math.radians(3):
+                box_yaw = float(np.clip(y, -math.radians(30), math.radians(30)))
+                self.log(f"[pick] 상자 방향 {math.degrees(y):+.1f}° → 접근 방향을 {math.degrees(box_yaw):+.1f}° 돌림")
         for attempt in (1, 2):
             self.open_gripper(side)
             # 몸 쪽 carry 자세에서 출발 → 접근점까지의 경로가 상자들 위쪽으로 지나감
@@ -1245,7 +1309,7 @@ class RobotSkills(Node):
             if self.can_strafe:
                 self.set_table()                               # 접근 자세 계산은 실제 상판 높이로
             try:
-                R, pre, q_pre = self._solve_approach(side, center, exclude_id=mid)
+                R, pre, q_pre = self._solve_approach(side, center, exclude_id=mid, yaw=box_yaw)
             except SkillError as e:
                 if not self.can_strafe:
                     raise
@@ -1260,7 +1324,7 @@ class RobotSkills(Node):
                 self.set_table()
                 self.move_named(f"{side}_arm", "carry")
                 self.set_boxes()
-                R, pre, q_pre = self._solve_approach(side, center, exclude_id=mid)
+                R, pre, q_pre = self._solve_approach(side, center, exclude_id=mid, yaw=box_yaw)
             if self.can_strafe:
                 self.set_table(pad=self.TRANSIT_PAD)           # carry → 접근점 이동도 여유를 두고
             servo = self.can_strafe and (WRIST is not None or self.wrist_cameras)
@@ -1280,11 +1344,11 @@ class RobotSkills(Node):
                         else:
                             # 원래 접근점으로 가면 손이 상자 옆에 붙어 상자를 밀었다 (시험 14: 14 cm 어긋난 접근점) → 접근 자세를 새로 푼다
                             self.log("[pick] 옮긴 접근점 IK 실패 → 지금 상자 위치로 접근 자세를 다시 푼다")
-                            R, pre, q_pre = self._solve_approach(side, c3, exclude_id=mid)
+                            R, pre, q_pre = self._solve_approach(side, c3, exclude_id=mid, yaw=box_yaw)
                     center = c3
                 except SkillError:
                     pass
-            self.move_joints(f"{side}_arm", q_pre)
+            self._go_to_approach(side, R, pre, q_pre)
             bias = np.zeros(3)
             floor_z = None
             if self.can_strafe:
@@ -1417,6 +1481,7 @@ class RobotSkills(Node):
         fwd = offset[0] if edge is None else edge + 0.12    # 모서리에서 12cm 안쪽에 내려놓기
         lat = offset[1] if offset[1] is not None else (-0.12 if side == "right" else 0.12)
         top_h = self._table_top_seen if (self.can_strafe and self._table_top_seen is not None) else self.table_h
+        lat = self._free_place_lat(fwd, lat, side, top_h)
         target = np.array([fwd, lat, top_h + self.box_size / 2 + 0.01])
         self.log(f"[place] {self.holding[side]} → base {np.round(target, 3)} ({side})")
         R, pre, q_pre = self._solve_approach(side, target + np.array([0, 0, 0.05]), back=0.06)
@@ -1434,7 +1499,13 @@ class RobotSkills(Node):
                                   target - R[:, 2] * 0.12 + np.array([0, 0, 0.12])], R,
                            avoid_collisions=False, min_fraction=0.3)
         except SkillError as e:   # 직선으로 다 못 빼도 이미 놓았으므로 계속 (아래 carry 는 충돌 회피 계획)
-            self.log(f"[place] 후퇴 경로 일부만 가능: {e}")
+            self.log(f"[place] 후퇴 경로 일부만 가능: {e} → 위로 들어 올림")
+            # 손가락이 상자를 감싼 채 carry 로 가면 상자가 손가락에 끼어 끌려간다 (왼팔 시험 l1: 상자가 작업대 밖으로 떨어짐).
+            # 벌린 손가락은 위로 빼면 상자에 걸리지 않으므로 먼저 수직으로 든다
+            try:
+                self.cartesian(side, [target + np.array([0, 0, 0.10])], R, avoid_collisions=False, min_fraction=0.3)
+            except SkillError as e2:
+                self.log(f"[place] 위로 들기도 일부만 가능: {e2}")
         obj = self.holding[side]
         self.holding[side] = None
         # 'ready'(손이 작업대 위)를 거치면 방금 놓은 상자를 칠 수 있으므로, 몸 쪽 carry 를 거쳐 home 으로
@@ -1444,6 +1515,29 @@ class RobotSkills(Node):
         self.move_named(f"{side}_arm", "home")
         self.log(f"[place] 완료: {obj}")
         return obj
+
+    PLACE_CLEAR = 0.10      # 놓을 자리 중심 ↔ 다른 상자 중심 최소 거리 [m] (상자 5 cm + 벌린 손가락·손목)
+
+    def _free_place_lat(self, fwd, lat, side, top_h=None):
+        """놓을 자리(base: 앞 fwd, 옆 lat)가 다른 상자와 PLACE_CLEAR 안이면 집은 팔 쪽으로 2 cm 씩 옮겨 빈자리를 찾는다.
+        무작위 배치 시험(s1)에서 로봇이 옆으로 밀려난 채 고정 자리에 놓다가 그 자리의 다른 상자를 쳤다."""
+        dets = self.detections(max_age=2.0)
+        # 작업대 위 상자만 (손에 든 상자의 마커는 높이가 달라 뺀다)
+        others = [p for i, (p, _y) in dets.items() if top_h is None or abs(p[2] - (top_h + self.box_size)) < 0.04]
+        if not others:
+            return lat
+        out = 1.0 if side == "left" else -1.0          # 집은 팔 쪽 (몸 앞을 가로지르지 않게)
+        for k in range(0, 9):
+            for cand in ([lat + out * 0.02 * k] if k == 0 else [lat + out * 0.02 * k, lat - out * 0.02 * k]):
+                if abs(cand) > 0.20:
+                    continue
+                d = min(math.hypot(p[0] - fwd, p[1] - cand) for p in others)
+                if d >= self.PLACE_CLEAR:
+                    if k:
+                        self.log(f"[place] 놓을 자리 옆 {lat:+.2f} m 에 다른 상자 → {cand:+.2f} m 로")
+                    return cand
+        self.log("[place] 빈자리를 못 찾음 → 원래 자리")
+        return lat
 
     def home_arms(self):
         for s in ("left", "right"):

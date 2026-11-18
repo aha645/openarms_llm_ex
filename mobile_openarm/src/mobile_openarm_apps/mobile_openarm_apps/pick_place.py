@@ -51,7 +51,8 @@ def main():
         dets = sk.detections(max_age=2.0)
         sk.log(f"보이는 마커: {sorted(dets)}")
         side = sk.pick(obj)
-        sk.place(side=side, offset=(0.48, -0.04))   # 같은 작업대, 로봇 정면(초록 상자 옆)에 내려놓기
+        # 같은 작업대, 로봇 정면에 내려놓기 — 집은 팔 쪽으로 4 cm (반대쪽은 몸 앞을 가로질러 뻗어 손을 뺄 공간이 없음)
+        sk.place(side=side, offset=(0.48, -0.04 if side == "right" else 0.04))
         sk.log("pick_place 완료")
     except SkillError as e:
         sk.get_logger().error(str(e))

@@ -191,13 +191,34 @@ class CameraServer(Node):
     def _cam_in_world(self, c):
         return self.d.cam_xmat[c.id].reshape(3, 3) @ OPT, self.d.cam_xpos[c.id].copy()
 
+    def _flat_rotation(self, c, det, Rw, pw, pm_w, max_tilt=math.radians(35)):
+        """마커 방향(세계 기준 회전). 마커가 거의 수평(PnP 법선이 위쪽 35° 안)이면 수평면 가정으로 다시 구한다:
+        네 모서리 시선을 마커 중심 높이의 수평면과 교차시켜 모서리 0→1 방향으로 yaw.
+        작은 마커를 비스듬히 볼 때 PnP 자세는 기울기를 헷갈려(평면 마커 모호성) yaw 가 틀렸다:
+        머리 카메라 0.64 m 에서 −8° 상자를 −18° 로 재, 손을 10° 더 돌려 들어가 집기 실패 (집기 견고성 시험 s1d)."""
+        Rm_w = Rw @ det["rotation"]
+        if Rm_w[2, 2] < math.cos(max_tilt):
+            return Rm_w
+        Kinv = np.linalg.inv(c.K)
+        pts = []
+        for u, v in det["corners"]:
+            ray = Rw @ (Kinv @ np.array([u, v, 1.0]))
+            if abs(ray[2]) < 1e-6:
+                return Rm_w
+            pts.append(pw + ray * ((pm_w[2] - pw[2]) / ray[2]))
+        pts = np.array(pts)
+        ex = (pts[1] - pts[0]) + (pts[2] - pts[3])          # 마커 x축 (윗변·아랫변 평균)
+        yaw = math.atan2(ex[1], ex[0])
+        cy, sy = math.cos(yaw), math.sin(yaw)
+        return np.array([[cy, -sy, 0.0], [sy, cy, 0.0], [0.0, 0.0, 1.0]])
+
     def publish_dets(self, c, t, dets, tilt):
         Rw, pw = self._cam_in_world(c)
         Rb, pb = self.d.xmat[self.base_id].reshape(3, 3), self.d.xpos[self.base_id]
         out = []
         for det in dets:
             pm_w = Rw @ det["position"] + pw
-            Rm_w = Rw @ det["rotation"]
+            Rm_w = self._flat_rotation(c, det, Rw, pw, pm_w)
             p_fp, R_fp = footprint(Rb.T @ (pm_w - pb), Rb.T @ Rm_w, tilt)
             item = {"id": det["id"], "frame": "base_footprint", "position": [round(float(v), 4) for v in p_fp],
                     "R": R_fp, "yaw": round(math.atan2(R_fp[1, 0], R_fp[0, 0]), 4),

@@ -52,8 +52,10 @@ ORIG_BODY_MASS = 3.74           # 원본 openarm_body_link0 질량 [kg] (기둥 
 BRACKET_MASS = 0.9              # 그중 어깨 브래킷·배선 몫으로 남기는 질량 [kg] (가정)
 LIDAR_POS = (0.17, 0.0, -0.13)  # base_link 기준. 상자 더미(높이 0.6 m)를 볼 수 있게 지면 0.57 m
 CAMERA_POS = (0.10, 0.0, 0.86)  # openarm_body_link0 기준 (어깨 1.08 m 일 때 지면 1.243 m). z 는 build() 에서 CAMERA_HEIGHT 로 다시 계산
-CAMERA_PITCH_DEG = 50.0
-CAMERA_FOVY = 70.0
+# 62°·55°: 50°·70° 일 때 집기 위치의 상자(수평 아래 61°)가 화면 아래 끝에 걸리고 위쪽 절반은 벽이었다.
+# 숙이고 좁히면 작업대가 화면 중앙에 오고 4 cm 마커가 약 45 → 65 px (집기 견고성 시험, 검증 기록 13절)
+CAMERA_PITCH_DEG = 62.0
+CAMERA_FOVY = 55.0
 LEG_JOINTS = ["abad_L_joint", "hip_L_joint", "knee_L_joint", "abad_R_joint", "hip_R_joint", "knee_R_joint"]
 KP, KD, TAU_MAX = 42.0, 3.5, 80.0
 # 발 형태별 설정. pf = Point-foot (발목 없음, 공 모양 발), sf = Sole-foot (발목 관절 + 평발)

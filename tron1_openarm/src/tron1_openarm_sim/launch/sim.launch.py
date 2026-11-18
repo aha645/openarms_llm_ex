@@ -55,6 +55,7 @@ def _setup(context):
             # 머리 카메라가 바퀴형보다 8 cm 높아(1.24 m) 4 cm 마커가 640x480 에서 너무 작게 보임 → 960x720
             "camera_width": 960, "camera_height": 720,
             "start_x": lc("start_x"), "start_y": lc("start_y"), "start_yaw": lc("start_yaw"),
+            "box_poses": lc("box_poses").perform(context),
             "publish_odom_tf": not ekf,      # EKF 를 쓰면 TF 는 EKF 가 낸다 (둘이 같이 내면 TF 가 튐)
         }],
     )
@@ -97,6 +98,8 @@ def generate_launch_description():
                               description="true = 머리·양 손목 카메라를 별도 프로세스(tron1_cameras)가 렌더링·검출·JPEG 압축 발행"),
         DeclareLaunchArgument("ekf", default_value="false",
                               description="true = robot_localization EKF 가 odom TF 를 냄 (다리 오도메트리 + IMU)"),
+        DeclareLaunchArgument("box_poses", default_value="",
+                              description='상자 위치 바꾸기 (반복 집기 시험) "box_0=x,y,yaw도;box_1=..." 월드 좌표. 비우면 MJCF 그대로'),
         DeclareLaunchArgument("policy", default_value="",
                               description="보행 정책 가중치(npz). 비우면 발 형태별 기본값. LimX 사전학습: policies/limx_pf_tron1a_pretrained.npz"),
     ]

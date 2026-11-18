@@ -1429,7 +1429,7 @@
   <joint name="openarm_body_link0_to_head_camera_link" type="fixed">
     <parent link="openarm_body_link0" />
     <child link="head_camera_link" />
-    <origin xyz="0.1 0 1.11" rpy="-9.21794e-17 0.872664 9.21794e-17" />
+    <origin xyz="0.1 0 1.11" rpy="0 1.082104 0" />
   </joint>
   <link name="head_camera_optical_frame" />
   <joint name="head_camera_link_to_head_camera_optical_frame" type="fixed">
