@@ -94,22 +94,22 @@ controller_server:
       batch_size: 1000
       ax_max: 0.8
       ax_min: -1.0
-      ay_max: 3.0
-      ay_min: -3.0
+      ay_max: 0.5
+      ay_min: -0.5
       az_max: 1.0
       vx_std: 0.15
-      vy_std: 0.2
+      vy_std: 0.08
       wz_std: 0.2
       vx_max: 0.35
       vx_min: -0.2
-      vy_max: 0.5
+      vy_max: 0.12        # 옆걸음 (biped_core VY_LIMIT 0.15 안). Omni 일 때만 쓰임
       wz_max: 0.5
       iteration_count: 1
       prune_distance: 1.7
       transform_tolerance: 0.1
       temperature: 0.3
       gamma: 0.015
-      motion_model: DiffDrive
+      motion_model: Omni  # 이족은 옆걸음 가능 (/cmd_vel linear.y). 좁은 곳·도킹 직전 옆으로 비켜 맞춤
       visualize: true
       regenerate_noises: true
       TrajectoryVisualizer:
@@ -358,19 +358,19 @@ velocity_smoother:
     feedback: OPEN_LOOP
     max_velocity:
     - 0.35
-    - 0.0
+    - 0.12
     - 0.8
     min_velocity:
     - -0.2
-    - 0.0
+    - -0.12
     - -0.8
     max_accel:
     - 0.8
-    - 0.0
+    - 0.5
     - 1.5
     max_decel:
     - -1.0
-    - 0.0
+    - -0.5
     - -1.5
     odom_topic: odom
     odom_duration: 0.1

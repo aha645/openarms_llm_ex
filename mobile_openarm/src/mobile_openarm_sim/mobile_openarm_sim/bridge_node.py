@@ -243,6 +243,7 @@ class MujocoBridge(Node):
         (od.pose.pose.orientation.x, od.pose.pose.orientation.y,
          od.pose.pose.orientation.z, od.pose.pose.orientation.w) = q
         od.twist.twist.linear.x = float(self.sim.odom_vel[0])
+        od.twist.twist.linear.y = float(getattr(self.sim, "odom_vy", 0.0))   # 이족 옆걸음 (바퀴형은 0) — Nav2 Omni·EKF 가 씀
         od.twist.twist.angular.z = float(self.sim.odom_vel[1])
         cov = [0.0] * 36
         cov[0] = cov[7] = 0.01
@@ -267,6 +268,10 @@ class MujocoBridge(Node):
         m.orientation.w, m.orientation.x, m.orientation.y, m.orientation.z = map(float, q)
         m.angular_velocity.x, m.angular_velocity.y, m.angular_velocity.z = map(float, g)
         m.linear_acceleration.x, m.linear_acceleration.y, m.linear_acceleration.z = map(float, a)
+        # 공분산 (robot_localization 은 0 이면 측정을 거의 무한히 믿는다)
+        m.orientation_covariance = [0.001, 0.0, 0.0, 0.0, 0.001, 0.0, 0.0, 0.0, 0.003]
+        m.angular_velocity_covariance = [0.0004, 0.0, 0.0, 0.0, 0.0004, 0.0, 0.0, 0.0, 0.0004]
+        m.linear_acceleration_covariance = [0.01, 0.0, 0.0, 0.0, 0.01, 0.0, 0.0, 0.0, 0.01]
         self.pub_imu.publish(m)
 
     def publish_gt(self, t):

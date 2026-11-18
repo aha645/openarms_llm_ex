@@ -1,17 +1,22 @@
 #!/bin/bash
 # 사용: bash pick_test.sh <pf|sf> <기록 이름>   (10_setup_tron1.sh 로 tron1_openarm 빌드 후. 로그: $LOG_DIR, 기본 /tmp/tron1_logs)
+#       VIEW=1 bash pick_test.sh sf _r1          → MuJoCo 뷰어(로봇 움직임) + RViz(MoveIt 계획 장면) 창을 띄워 눈으로 확인
 # 시뮬 + MoveIt 을 띄우고, 정답 기록기(grasp_recorder.py)를 켠 채 pick_place 를 한 번 실행한 뒤 결과를 요약한다
 foot=$1; tag=$2; S=${LOG_DIR:-/tmp/tron1_logs}; mkdir -p $S; D=$(cd "$(dirname "$0")" && pwd)
 cd "$D/../.." && source install/setup.bash   # tron1_openarm 워크스페이스 (mobile_openarm underlay 포함)
-(ros2 launch tron1_openarm_sim sim.launch.py foot:=$foot start_x:=2.5 start_y:=2.45 start_yaw:=1.5708 viewer:=false rviz:=false > $S/${foot}_sim.log 2>&1 &)
-(ros2 launch tron1_openarm_moveit_config move_group.launch.py foot:=$foot rviz:=false > $S/${foot}_mg.log 2>&1 &)
+V=false; [ "${VIEW:-0}" = 1 ] && V=true
+echo "로그: $S/${foot}_sim.log (시뮬·브리지), $S/${foot}_mg.log (MoveIt), $S/${foot}pk${tag}.log (집기 앱)"
+(ros2 launch tron1_openarm_sim sim.launch.py foot:=$foot start_x:=2.5 start_y:=2.45 start_yaw:=1.5708 viewer:=$V rviz:=false > $S/${foot}_sim.log 2>&1 &)
+(ros2 launch tron1_openarm_moveit_config move_group.launch.py foot:=$foot rviz:=$V > $S/${foot}_mg.log 2>&1 &)
 sleep 45
 (python3 $D/grasp_recorder.py $S/rec_${foot}${tag}.jsonl > /dev/null 2>&1 &)
 SR=tron1_openarm.srdf; [ $foot = sf ] && SR=tron1_openarm_sf.srdf
 export OPENARM_BIPED=1 OPENARM_SRDF=$(ros2 pkg prefix tron1_openarm_moveit_config)/share/tron1_openarm_moveit_config/config/$SR
 timeout 1500 ros2 run mobile_openarm_apps pick_place --ros-args -p object:=box_0 > $S/${foot}pk${tag}.log 2>&1
 echo "=== $foot"; grep -vE "RTPS|^\s*$" $S/${foot}pk${tag}.log | grep -E "\] \[|ERROR|완료" | sed 's/.*\]: //'
-ps -eo pid,args | grep -E "tron1_bridge|move_group|robot_state_publisher|ros2 launch|grasp_recorder" | grep -v grep | awk '{print $1}' | xargs -r kill -9; sleep 3
+# RViz 는 먼저 정상 종료(SIGINT) — 다른 노드를 kill -9 로 먼저 지우면 남은 rviz2 가 종료하며 SIGSEGV 로 죽어 크래시 창이 뜬다
+pkill -INT -x rviz2 2>/dev/null; sleep 2
+ps -eo pid,args | grep -E "tron1_bridge|move_group|robot_state_publisher|ros2 launch|grasp_recorder|rviz2" | grep -v grep | awk '{print $1}' | xargs -r kill -9; sleep 3
 python3 - <<PY
 import json, numpy as np
 L=[json.loads(l) for l in open('$S/rec_${foot}${tag}.jsonl')]

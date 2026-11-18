@@ -29,7 +29,7 @@ from tron1_openarm_sim.arm_poses import POSES as ARM_POSES  # noqa: E402  SRDF �
 REWARD_SCALES = dict(
     keep_balance=1.0, tracking_lin_vel=3.0, tracking_ang_vel=1.5, base_height=-20.0, lin_vel_z=-0.5,
     ang_vel_xy=-0.05, torques=-8e-5, action_rate=-0.01, action_smooth=-0.01, orientation=-60.0,
-    dof_pos_limits=-2.0, feet_distance=-100.0, contact_force=-2.0, contact_vel=-2.0, termination=-20.0, stand_drift=0.0)
+    dof_pos_limits=-2.0, feet_distance=-100.0, contact_force=-2.0, contact_vel=-2.0, termination=-20.0, stand_drift=0.0, stand_yaw=0.0)
 # SF 서기 모드 제자리 흐름 벌점 (SF 만 켬, 아래 Tron1OpenArmEnv·Tron1MjxEnv). 이 항이 없을 때 서기 모드 정책이 발을 디딘 채
 # 0.15~0.5 °/s 로 몸통을 돌렸다 — 회전 추종 보상(허용 폭 0.25)·발 속도 벌점(0.5 m/s)으로는 이렇게 느린 흐름이 벌점이 안 됨.
 # 서 있는 동안 몸통 회전·수평 속도를 허용 폭 STAND_DRIFT_SIGMA 로 좁게 본다.
@@ -37,6 +37,20 @@ REWARD_SCALES = dict(
 # → 배포는 biped_core 의 서기 중 방향 바로잡기(STAND_YAW_TOL)로 해결 (보행 학습 11절). 실험할 때 TRON1_STAND_DRIFT=4 로 켠다
 STAND_DRIFT_SCALE = float(os.environ.get("TRON1_STAND_DRIFT", 0.0))
 STAND_DRIFT_SIGMA = (0.02, 0.02)   # (회전 rad/s, 수평 속도 m/s)
+# SF 서기 방향 유지 (stand_drift 를 대신함, 보행 학습 12절). 서기 정책은 발바닥을 디딘 채 몸통을 0.22 °/s(학습 환경)~0.45 °/s(배포) 로 돌린다.
+# 다리에 수직축 관절이 없어 몸통이 돌면 두 발바닥이 바닥에서 비틀린다. 실패 원인 두 가지를 고침:
+#  ① 학습 때 명령이 5 s 마다 바뀌어 서 있는 시간이 짧았다 (5 s 에 1.1° — 보상에 거의 안 드러남)
+#     → 제자리 서기 명령의 STAND_LONG_P 비율은 10~20 s 유지
+#  ② 몸통 속도 벌점은 서기 진입 감속·밀기에서 이미 포화돼 느린 비틀림에 기울기가 없었다
+#     → 서기 시작 1 s 뒤부터 '기준 방향에서 돌아간 각도' 에 선형 벌점 (0.05 rad = 3° 에서 1, 상한 2)
+#  ③ (v2) 기준 방향을 서기 시작 방향에 고정하면, 서 있는 동안 밀기·팔 반동으로 돈 몫(발을 못 떼 되돌릴 수 없음)이
+#     계속 벌점으로 남아 학습 후반(교란이 커짐)에 벌점이 상한 근처(1.75/2)로 포화됐다 → 기준이 현재 방향을 시간상수
+#     STAND_YAW_TAU 로 천천히 따라가게 함. 정책 자신의 느린 회전 r 은 r·τ 만큼 꾸준히 남아(0.22 °/s → 1.1°) 벌점이 되고,
+#     밀려서 돈 몫은 τ 정도 뒤에 사라진다
+STAND_YAW_SCALE = float(os.environ.get("TRON1_STAND_YAW", 3.0))
+STAND_YAW_REF, STAND_YAW_SETTLE = 0.05, 1.0
+STAND_YAW_TAU = float(os.environ.get("TRON1_STAND_YAW_TAU", 5.0))   # 0 이면 v1 (기준 고정)
+STAND_LONG_P, STAND_LONG_STEPS = 0.5, (500, 1000)
 
 
 def ncdf(x, s=0.05):
@@ -50,6 +64,14 @@ def desired_contacts(gait_index, gait):
     st = fi < dur
     fi = np.where(st, fi * (0.5 / dur), 0.5 + (fi - dur) * (0.5 / (1 - dur)))
     return ncdf(fi) * (1 - ncdf(fi - 0.5)) + ncdf(fi - 1) * (1 - ncdf(fi - 1.5))
+
+
+def yaw_of_wxyz(q):
+    return np.arctan2(2 * (q[..., 0] * q[..., 3] + q[..., 1] * q[..., 2]), 1 - 2 * (q[..., 2] ** 2 + q[..., 3] ** 2))
+
+
+def wrap(a):
+    return (a + np.pi) % (2 * np.pi) - np.pi
 
 
 def quat_rot_inv(q, v):
@@ -95,6 +117,7 @@ class Tron1OpenArmEnv:
                 self.rs["tracking_ang_vel"] = 6.0
                 self.ang_sigma = 0.25
             self.rs["stand_drift"] = -STAND_DRIFT_SCALE
+            self.rs["stand_yaw"] = -STAND_YAW_SCALE
         base = load(xml)
         self.dt = base.opt.timestep
         self.nsub = int(round(POLICY_DT / self.dt))
@@ -170,6 +193,9 @@ class Tron1OpenArmEnv:
         self.cmd = np.zeros((N, 3), np.float32)
         self.want_still = np.zeros(N, bool)     # SF: 제자리 서기 명령 (명령 0 일 때 대부분)
         self.standing = np.zeros(N, bool)       # SF: 보행 시계를 멈추고 서 있는 중
+        self.stand_t = np.zeros(N)              # SF: 서기 시작 뒤 경과 시간 [s]
+        self.yaw0 = np.zeros(N)                 # SF: 서기 방향 기준 (서기 시작 STAND_YAW_SETTLE 뒤의 방향)
+        self.cmd_until = np.full(N, 250, np.int64)   # 다음 명령 재설정 스텝
         self.hist = np.zeros((N, self.HIST * self.obs_dim), np.float32)
         self.t = np.zeros(N, np.int64)
         self.delay = np.zeros(N, np.int64)
@@ -253,6 +279,12 @@ class Tron1OpenArmEnv:
             zero = np.all(c == 0, 1)
             self.want_still[idx] = zero & (self.rng.random(n) < 0.8)
             self.standing[idx] = False
+            self.stand_t[idx] = 0.0
+            long = self.want_still[idx] & (self.rng.random(n) < STAND_LONG_P)
+            dur = np.where(long, self.rng.integers(STAND_LONG_STEPS[0], STAND_LONG_STEPS[1] + 1, n), 250)
+        else:
+            dur = np.full(n, 250)
+        self.cmd_until[idx] = self.t[idx] + dur
 
     def reset(self, idx):
         if len(idx) == 0:
@@ -337,6 +369,10 @@ class Tron1OpenArmEnv:
             self.gait_index[win] = np.where((g[win] >= 0.5) & (g[win] < 0.55), 0.5, 0.0)
             self.standing |= win
             self.standing &= self.want_still
+            yaw = yaw_of_wxyz(self.state[:, self.q0 + 3:self.q0 + 7])
+            self.stand_t = np.where(self.standing, self.stand_t + POLICY_DT, 0.0)
+            follow = POLICY_DT / STAND_YAW_TAU if STAND_YAW_TAU > 0 else 0.0
+            self.yaw0 = np.where(self.stand_t < STAND_YAW_SETTLE, yaw, self.yaw0 + follow * wrap(yaw - self.yaw0))
             mov = ~self.standing
             self.gait_index[mov] = (self.gait_index[mov] + POLICY_DT * self.GAIT[0]) % 1.0
         else:
@@ -396,7 +432,7 @@ class Tron1OpenArmEnv:
         self.ep_ret += rew
         done = fell | timeout
         # 명령 재설정 (5초마다)
-        rs = (self.t % 250 == 0) & ~done
+        rs = (self.t >= self.cmd_until) & ~done
         self._resample_cmd(np.nonzero(rs)[0])
         info = {"fell": fell, "timeout": timeout, "terms": terms, "ep_ret": self.ep_ret.copy(), "ep_t": self.t.copy()}
         self.reset(np.nonzero(done)[0])
@@ -441,6 +477,8 @@ class Tron1OpenArmEnv:
             contact_vel=np.mean(des * (1 - np.exp(-fv ** 2 / 0.25)), 1),
             stand_drift=self.standing * (1 - np.exp(-(gyro[:, 2] / STAND_DRIFT_SIGMA[0]) ** 2
                                                     - np.sum(lin[:, :2] ** 2, 1) / STAND_DRIFT_SIGMA[1] ** 2)),
+            stand_yaw=(self.standing & (self.stand_t >= STAND_YAW_SETTLE))
+            * np.minimum(np.abs(wrap(yaw_of_wxyz(quat) - self.yaw0)) / STAND_YAW_REF, 2.0),
         )
         r = sum(self.rs[k] * v for k, v in t.items()) * POLICY_DT
         return r, t

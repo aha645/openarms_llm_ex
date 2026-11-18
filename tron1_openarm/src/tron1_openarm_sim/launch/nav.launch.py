@@ -22,7 +22,7 @@ def generate_launch_description():
         launch_arguments={"foot": lc("foot"), "policy": lc("policy"), "viewer": lc("viewer"), "world": lc("world"), "camera": lc("camera"), "move_person": lc("move_person"),
                           "rviz_config": os.path.join(share, "rviz", "nav.rviz"), "rviz": lc("rviz"),
                           "camera_hz": lc("camera_hz"), "lidar_rays": lc("lidar_rays"),
-                          "rate_factor": lc("rate_factor")}.items())
+                          "rate_factor": lc("rate_factor"), "ekf": lc("ekf")}.items())
     nav = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(os.path.join(nav2, "launch", "bringup_launch.py")),
         launch_arguments={"map": lc("map"), "params_file": lc("params_file"), "use_sim_time": "True",
@@ -38,6 +38,7 @@ def generate_launch_description():
         DeclareLaunchArgument("camera_hz", default_value="10.0", description="GPU 없는 환경은 5.0"),
         DeclareLaunchArgument("lidar_rays", default_value="360"),
         DeclareLaunchArgument("rate_factor", default_value="1.0", description="1.0=실시간, 느린 PC 는 0.5"),
+        DeclareLaunchArgument("ekf", default_value="false", description="true = EKF(다리 오도메트리 + IMU)가 odom TF 를 냄"),
         DeclareLaunchArgument("slam", default_value="False"),
         DeclareLaunchArgument("map", default_value=os.path.join(share, "maps", "world_map.yaml")),
         DeclareLaunchArgument("params_file", default_value=os.path.join(share, "config", "nav2_params_tron1.yaml")),
