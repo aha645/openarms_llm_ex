@@ -1471,7 +1471,16 @@ class RobotSkills(Node):
                 time.sleep(0.1)
                 opening = self.gripper_opening(side)
             ok = opening is not None and opening > 0.006
-            self.cartesian(side, [center + np.array([0, 0, 0.10])], R, avoid_collisions=False, min_fraction=0.5)
+            try:
+                self.cartesian(side, [center + np.array([0, 0, 0.10])], R, avoid_collisions=False, min_fraction=0.5)
+            except SkillError as e:
+                # 브리지는 궤적 끝에서 관절 오차가 0.15 rad 넘으면 실패(−4)로 알린다. 상자를 쥔 팔이 무게로 처져도 그렇게 된다
+                # (무작위 배치 r2: 상자 9.4 cm 들림, 그런데 실패 보고로 집기 전체 중단). 손이 실제로 올라갔으면 계속한다
+                tf = self._tf_matrix(TCP[side])
+                rose = None if tf is None else float(tf[0][2] - goal[2])
+                if not ok or rose is None or rose < 0.05:
+                    raise
+                self.log(f"[pick] 들어 올림 끝 오차로 실패 보고({e}) — 손이 {rose * 100:.0f} cm 올라갔으므로 계속")
             if ok:
                 break
             got = "값 없음" if opening is None else f"{opening:.3f} m"
@@ -1515,11 +1524,17 @@ class RobotSkills(Node):
         target = np.array([fwd, lat, top_h + self.box_size / 2 + 0.01])
         self.log(f"[place] {self.holding[side]} → base {np.round(target, 3)} ({side})")
         R, pre, q_pre = self._solve_approach(side, target + np.array([0, 0, 0.05]), back=0.06)
+        # 놓을 자리를 정한 순간의 작업대 위 마커들 (쥔 상자 마커는 손과 같이 움직이므로 뺌)
+        held_id = self.objects.get(self.holding[side], {}).get("marker_id")
+        place_ref = self._other_markers(exclude=held_id) if self.can_strafe else None
         if self.can_strafe:
             self.set_table(station, pad=self.TRANSIT_PAD)
         self.move_joints(f"{side}_arm", q_pre, vel=self.HOLD_VEL if self.can_strafe else 0.3)
         if self.can_strafe:
             self.set_table(station)
+            # 상자를 쥔 팔을 천천히 옮기는 동안 몸통이 흐를 수 있다 (r6: 바로잡기 걸음으로 옆 0.5 m, 작업대 밖에서 놓음)
+            # → 놓기 전에 마커 기준 제자리로 돌아온다
+            self.station_keep(place_ref, label=" 놓기 전")
         self.cartesian(side, [target], R, avoid_collisions=False)
         self.open_gripper(side)
         time.sleep(0.5)

@@ -62,6 +62,13 @@ CORR_MAX = np.array([0.2, 0.45, 0.4])                    # 외곽 루프가 정�
 # (다리 기구학 오도메트리가 이것을 보게 된 뒤 위치로 판정하면 걸어서 되돌리고 → 다시 서며 또 옮겨 가기를 끝없이 반복했다, 검증 기록 11절)
 STAND_YAW_TOL, STAND_YAW_DONE = math.radians(5.0), math.radians(0.7)
 STAND_FIX_MAX = 4.0                                        # 한 번 바로잡는 최대 시간 [s] (넘으면 포기하고 그 자리에 선다)
+# 팔을 움직이는 중이거나 집게를 닫고(물체를 쥐고) 있으면 방향 바로잡기 걸음을 15° 까지 미룬다.
+# 상자를 쥔 팔을 접는 동안 몸통이 6° 돌자 바로잡기 걸음이 이어져 몸통이 옆으로 0.5 m 흘렀고, 그사이 손에서 상자가 빠져
+# 작업대 밖에 떨어졌다 (무작위 배치 r6). 작은 방향 오차는 집기 앱이 마커를 보고 직접 돌려 바로잡는다 (dock, station_keep).
+# 균형이 무너질 때 디디는 것(unstable)은 그대로 둔다
+STAND_YAW_TOL_ARM = math.radians(15.0)
+ARM_QUIET_S = 2.0                                          # 팔 궤적이 끝난 뒤 이 시간까지는 '팔 움직이는 중'
+GRIP_CLOSED = 0.02                                         # 집게 명령이 이보다 작으면 닫힘 (열림 0.044)
 # 팔 중력 보상: 위치 제어(kp 190~230)만으로는 팔이 중력에 처져 손끝이 2~5 cm 덜 간다 (몸통을 고정해도 남음).
 # 실로봇 OpenArm 제어기처럼 '지금 관절각에서 팔 무게를 버티는 데 필요한 관절 토크'를 피드포워드로 더한다.
 # 0 으로 끄면 예전 동작 (비교 시험용)
@@ -462,7 +469,7 @@ class BipedOpenArmSim(W.MobileOpenArmSim):
                 if not (idle and self.hold_position and self.stand_heading_hold):
                     self._stand_fix = None
                 elif self._stand_fix is None:
-                    if self.policy.standing and off_yaw > STAND_YAW_TOL:
+                    if self.policy.standing and off_yaw > (STAND_YAW_TOL_ARM if self._manipulating() else STAND_YAW_TOL):
                         self._stand_fix = d.time
                 elif off_yaw < STAND_YAW_DONE or d.time - self._stand_fix > STAND_FIX_MAX:
                     if d.time - self._stand_fix > STAND_FIX_MAX:
@@ -488,6 +495,17 @@ class BipedOpenArmSim(W.MobileOpenArmSim):
             if d.xpos[self.base_id][2] < 0.42 and not self.fallen:
                 self.fallen = True
         self._substep += 1
+
+    def _manipulating(self):
+        """팔 궤적을 실행 중(또는 끝난 지 ARM_QUIET_S 이내)이거나 집게를 닫고 있으면 True."""
+        t = self.d.time
+        for s in ("left", "right"):
+            tr = self.traj[s]
+            if tr is not None and (not tr.done or t - tr.t0 - float(tr.t[-1]) < ARM_QUIET_S):
+                return True
+            if self.d.ctrl[self.grip_act[s]] < GRIP_CLOSED:
+                return True
+        return False
 
     # ------------------------------------------------------------------ 다리 오도메트리
     def _odom_reset(self):

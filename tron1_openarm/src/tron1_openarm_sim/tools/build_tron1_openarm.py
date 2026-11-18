@@ -216,6 +216,11 @@ def build(tron1_dir, openarm_xml, out_dir, xacro_file, mount_x=None, shoulder=No
     # 바꾼 뒤: 실제 0.06 m / 오도메트리 0.05 m — 발이 미끄러지지 않으니 오도메트리와 실제가 일치 (실제 고무 발에 더 가까움)
     opt.set("cone", "elliptic")
     opt.set("impratio", "10")
+    if foot == "sf":
+        # noslip 10 회: 그래도 디딘 발바닥이 힘을 받는 동안 분당 2~3 cm 씩 미끄러졌다(MuJoCo 연성 접촉의 creep). 상자를 쥐고 3 분
+        # 서 있으면 발 7 cm·몸통 방향 5° 가 흘러 방향 바로잡기 걸음이 시작되고 작업대에서 벗어났다 (무작위 배치 r6, tools/stand_long.py).
+        # noslip 뒤: 3 분 발 0.0~0.4 cm, 걸음 0, 걷기·회전 성능 그대로, 물리 실시간 배율 7.6 → 4.0. 학습 모델(MJX)에는 넣지 않는다
+        opt.set("noslip_iterations", "10")
     world = root.find("worldbody")
     torso = world.find("body[@name='openarm_body_link0']")
     world.remove(torso)
@@ -398,6 +403,7 @@ def build(tron1_dir, openarm_xml, out_dir, xacro_file, mount_x=None, shoulder=No
     tw = train.find("worldbody")
     sub(tw, "geom", name="floor", type="plane", size="0 0 0.05", rgba="0.6 0.6 0.6 1",
         friction="0.8 0.005 0.0001")
+    train.find("option").attrib.pop("noslip_iterations", None)   # MJX 는 noslip 을 지원하지 않음
     train.find("option").set("timestep", "0.004")   # 학습은 4 ms (정책 50 Hz = 5 스텝) — 속도 2배, 배포는 2 ms 로 검증
     with open(os.path.join(out_dir, "tron1_openarm_train.xml"), "w", encoding="utf-8") as fp:
         fp.write(header + ET.tostring(train, encoding="unicode"))
