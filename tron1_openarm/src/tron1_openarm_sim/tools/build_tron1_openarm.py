@@ -41,8 +41,8 @@ SHOULDER_ABOVE_BASE = 0.10      # 어깨 = 서 있는 base_link 높이 + 0.10 m 
                                 # 예전 설계는 어깨 1.08 m(기둥 0.43 m). 높은 어깨는 팔을 움직일 때 무게중심을 크게 흔들어
                                 # 이족이 계속 발로 받아내야 했다 → doc/tron1/validation-log.md 4절(흔들림 분석). 예전 모델: --shoulder 1.08
 SHOULDER_HEIGHT = None          # None = base 높이 + SHOULDER_ABOVE_BASE
-CAMERA_HEIGHT = 1.243           # 머리 카메라 지면 높이 [m] — 어깨를 낮춰도 카메라는 기둥(마스트) 위 같은 높이에 둔다
-                                # (팔이 몸 앞에 있어도 위에서 작업대를 내려다보도록, 예전 설계와 같은 시야)
+CAMERA_HEIGHT = 1.07            # 머리 카메라 지면 높이 [m] — 기둥 위 마스트 끝. 예전 1.243 m 에서 마스트를 절반으로 (사용자 제안):
+                                # 상자 마커 +20 % 크게, 접근 중 팔에 안 가림, 몸통이 기울 때 덜 흔들림 (tools/head_camera.py 근거)
 ARM_ORIGIN_Z = 0.697            # OpenArm: body_link0 원점 → 어깨 높이 (openarm_bimanual.xml 의 site arm_origin)
 MOUNT_Z = 0.030                 # urdf/tron1_openarm.urdf.xacro 의 mount_z
 MOUNT_X = 0.08                  # 상반신 앞뒤 위치 [m]. 0 이면 내린 손이 TRON1 엉덩이 모터(abad)에 닿음 → 0.08 에서 2.1 cm 틈 (doc/tron1/design.md "모델 만들기" 4-3)
@@ -54,7 +54,7 @@ LIDAR_POS = (0.17, 0.0, -0.13)  # base_link 기준. 상자 더미(높이 0.6 m)�
 CAMERA_POS = (0.10, 0.0, 0.86)  # openarm_body_link0 기준 (어깨 1.08 m 일 때 지면 1.243 m). z 는 build() 에서 CAMERA_HEIGHT 로 다시 계산
 # 62°·55°: 50°·70° 일 때 집기 위치의 상자(수평 아래 61°)가 화면 아래 끝에 걸리고 위쪽 절반은 벽이었다.
 # 숙이고 좁히면 작업대가 화면 중앙에 오고 4 cm 마커가 약 45 → 65 px (집기 견고성 시험, 검증 기록 13절)
-CAMERA_PITCH_DEG = 62.0
+CAMERA_PITCH_DEG = 50.9         # 1.07 m 에서 작업대를 보는 점(base 앞 0.44 m, 높이 0.75 m)이 예전(1.243 m, 62°)과 같게
 CAMERA_FOVY = 55.0
 LEG_JOINTS = ["abad_L_joint", "hip_L_joint", "knee_L_joint", "abad_R_joint", "hip_R_joint", "knee_R_joint"]
 KP, KD, TAU_MAX = 42.0, 3.5, 80.0

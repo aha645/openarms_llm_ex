@@ -409,7 +409,7 @@
       </material>
     </visual>
     <visual>
-      <origin xyz="0.08 0 1.11" rpy="0 0 0" />
+      <origin xyz="0.08 0 0.937" rpy="0 0 0" />
       <geometry>
         <box size="0.04 0.1 0.04" />
       </geometry>
@@ -418,9 +418,9 @@
       </material>
     </visual>
     <visual>
-      <origin xyz="0.05 0 0.936" rpy="0 0 0" />
+      <origin xyz="0.05 0 0.8495" rpy="0 0 0" />
       <geometry>
-        <cylinder radius="0.012" length="0.348" />
+        <cylinder radius="0.012" length="0.1750" />
       </geometry>
       <material name="head_mast_vis_mat">
         <color rgba="0.3 0.3 0.3 1" />
@@ -1488,7 +1488,7 @@
   <joint name="openarm_body_link0_to_head_camera_link" type="fixed">
     <parent link="openarm_body_link0" />
     <child link="head_camera_link" />
-    <origin xyz="0.1 0 1.11" rpy="0 1.082104 0" />
+    <origin xyz="0.1 0 0.937" rpy="0 0.888480 0" />
   </joint>
   <link name="head_camera_optical_frame" />
   <joint name="head_camera_link_to_head_camera_optical_frame" type="fixed">
