@@ -2,6 +2,7 @@
     ros2 launch tron1_openarm_sim sim.launch.py                    # Sole-foot (기본, 교육 기준. 발목 있음, 제자리에 가만히 섬)
     ros2 launch tron1_openarm_sim sim.launch.py foot:=pf           # Point-foot (PF 정책·기록 비교용)
     ros2 launch tron1_openarm_sim sim.launch.py world:=world_light.xml viewer:=false
+    ros2 launch tron1_openarm_sim sim.launch.py camera_process:=false  # 예전 방식: 브리지의 물리 스레드가 머리 카메라만 렌더링
     ros2 launch tron1_openarm_sim sim.launch.py ekf:=true          # odom→base_footprint 를 EKF(다리 오도메트리 + IMU, config/ekf_tron1.yaml)가 냄
   policy:= 로 정책을 바꿀 때는 그 정책의 발 형태와 foot 를 맞춘다 (다르면 브리지가 오류로 멈춤)
 바퀴형 mobile_openarm_sim/sim.launch.py 와 인자·토픽이 같다. 다른 점: 브리지 실행파일(tron1_bridge), URDF, 보행 정책 파일(policy).
@@ -38,11 +39,16 @@ def _setup(context):
         robot_description = f.read()
     policy = lc("policy").perform(context) or os.path.join(share, "policies", pol)
     ekf = lc("ekf").perform(context).lower() in ("true", "1")
+    cam_proc = lc("camera_process").perform(context).lower() in ("true", "1")
+    camera_on = lc("camera").perform(context).lower() in ("true", "1")
+    mjcf = os.path.join(share, "mjcf", sub, lc("world").perform(context))
     bridge = Node(
         package="tron1_openarm_sim", executable="tron1_bridge", name="mujoco_bridge", output="screen",
         parameters=[{
-            "mjcf": os.path.join(share, "mjcf", sub, lc("world").perform(context)),
-            "viewer": lc("viewer"), "camera": lc("camera"), "publish_image": lc("publish_image"),
+            "mjcf": mjcf,
+            # camera_process: 카메라 3 대(머리·양 손목)는 별도 프로세스(tron1_cameras)가 렌더링 → 브리지는 상태만 공유 메모리로
+            "viewer": lc("viewer"), "camera": camera_on and not cam_proc, "publish_image": lc("publish_image"),
+            "state_shm": "tron1_sim_state" if (cam_proc and camera_on) else "",
             "move_person": lc("move_person"), "grasp_assist": lc("grasp_assist"),
             "rate_factor": lc("rate_factor"), "lidar_rays": lc("lidar_rays"),
             "camera_hz": lc("camera_hz"), "image_hz": lc("image_hz"),
@@ -53,6 +59,10 @@ def _setup(context):
         }],
     )
     nodes = []
+    if cam_proc and camera_on:
+        nodes.append(Node(package="tron1_openarm_sim", executable="tron1_cameras", name="tron1_cameras", output="screen",
+                          parameters=[{"mjcf": mjcf, "state_shm": "tron1_sim_state", "head_hz": lc("camera_hz"),
+                                       "wrist_hz": lc("camera_hz"), "image_hz": lc("image_hz"), "use_sim_time": True}]))
     if ekf:
         nodes.append(Node(package="robot_localization", executable="ekf_node", name="ekf_filter_node", output="screen",
                           parameters=[os.path.join(share, "config", "ekf_tron1.yaml")],
@@ -83,6 +93,8 @@ def generate_launch_description():
         DeclareLaunchArgument("start_yaw", default_value="0.0"),
         DeclareLaunchArgument("rviz", default_value="true"),
         DeclareLaunchArgument("rviz_config", default_value=os.path.join(share, "rviz", "sim.rviz")),
+        DeclareLaunchArgument("camera_process", default_value="true",
+                              description="true = 머리·양 손목 카메라를 별도 프로세스(tron1_cameras)가 렌더링·검출·JPEG 압축 발행"),
         DeclareLaunchArgument("ekf", default_value="false",
                               description="true = robot_localization EKF 가 odom TF 를 냄 (다리 오도메트리 + IMU)"),
         DeclareLaunchArgument("policy", default_value="",

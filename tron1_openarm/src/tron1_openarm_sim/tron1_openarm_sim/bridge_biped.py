@@ -22,6 +22,7 @@ from std_msgs.msg import String
 from mobile_openarm_sim import bridge_node as B
 
 from .biped_core import NOMINAL_BASE_HEIGHT, BipedOpenArmSim
+from .sim_state_shm import StateWriter
 
 B.MobileOpenArmSim = BipedOpenArmSim
 B.BASE_LINK_Z = NOMINAL_BASE_HEIGHT        # 시뮬 생성 뒤 발 형태(pf 0.68 / sf 0.73)에 맞춰 다시 설정
@@ -31,6 +32,13 @@ class BipedBridge(B.MujocoBridge):
     def __init__(self):
         super().__init__()
         B.BASE_LINK_Z = self.sim.nominal_height
+        # 카메라 별도 프로세스 (camera_server.py): 브리지는 렌더링에 필요한 상태만 공유 메모리에 쓴다.
+        # 이때 sim.launch.py 는 브리지의 camera 를 끈다 (머리 카메라·ArUco 를 카메라 서버가 대신 낸다)
+        self.declare_parameter("state_shm", "")
+        name = self.get_parameter("state_shm").value
+        self._state_writer = StateWriter(self.sim.m, name) if name else None
+        if self._state_writer:
+            self.get_logger().info(f"시뮬 상태 공유 메모리 '{name}' → 카메라 서버")
         self.pub_status = self.create_publisher(String, "/biped/status", 10)
         self.create_timer(0.2, self.publish_status)
         self.get_logger().info(f"TRON1 보행 정책 사용 (발 형태 {self.sim.foot}, 정책 50 Hz, 물리 {self.sim.m.opt.timestep * 1000:.0f} ms)")
@@ -39,6 +47,12 @@ class BipedBridge(B.MujocoBridge):
         # 바퀴형: 높이(BASE_LINK_Z)만 더함 → 이족: 몸통이 숙여진(최대 7°) 만큼 회전까지 (TF 의 가상 관절과 같은 값)
         with self.sim.lock:
             return self.sim.base_link_to_footprint(p, R)
+
+    def on_tick(self, sim):
+        super().on_tick(sim)
+        w = getattr(self, "_state_writer", None)
+        if w is not None:
+            w.write(sim.d, sim.base_tilt)
 
     def on_cmd_vel(self, msg):
         # 바퀴형은 linear.x·angular.z 만 쓴다. 이족은 linear.y(옆걸음)도 받는다
@@ -100,6 +114,8 @@ def main():
         pass
     finally:
         node.stop_event.set()
+        if node._state_writer:
+            node._state_writer.close()
         ex.shutdown(wait_for_threads=True)
         node.destroy_node()
         rclpy.try_shutdown()
