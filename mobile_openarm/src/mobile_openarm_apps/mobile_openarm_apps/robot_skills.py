@@ -117,6 +117,13 @@ class RobotSkills(Node):
         self._detections = {}           # id → (t_wall, position[3], yaw)
         self._attached = {"left": None, "right": None}
         self.create_subscription(String, "/aruco/detections", self._on_det, 10, callback_group=cb)
+        # 손목 카메라 (TRON1 카메라 서버 tron1_cameras): 손끝(TCP) 기준 마커 위치. 카메라→손끝이 강체라 팔 처짐·몸통 흔들림과
+        # 상관없이 '손 기준 상자 위치' 가 정확하다. 머리 카메라는 손이 다가가면 손이 상자를 가린다 (TRON1 검증 기록 11절)
+        self._wrist = {"left": {}, "right": {}}     # side → id → (t_wall, stamp, 손끝 기준 위치[3])
+        self.wrist_cameras = False                  # 손목 카메라 메시지를 한 번이라도 받았으면 True
+        for side in ("left", "right"):
+            self.create_subscription(String, f"/wrist_{side}_camera/aruco/detections",
+                                     lambda msg, s=side: self._on_wrist(s, msg), 10, callback_group=cb)
         self.create_subscription(String, "/sim/attached", self._on_att, 10, callback_group=cb)
         self._joints = {}
         self.create_subscription(JointState, "/joint_states", self._on_js, 10, callback_group=cb)
@@ -187,6 +194,36 @@ class RobotSkills(Node):
         with self._det_lock:
             for d in data.get("detections", []):
                 self._detections[d["id"]] = (now, np.array(d["position"]), d.get("yaw", 0.0))
+
+    def _on_wrist(self, side, msg):
+        data = json.loads(msg.data)
+        now = time.time()
+        with self._det_lock:
+            self.wrist_cameras = True
+            for d in data.get("detections", []):
+                if "position_tcp" in d:
+                    self._wrist[side][d["id"]] = (now, data.get("stamp"), np.array(d["position_tcp"]))
+
+    def _measure_box_wrist(self, side, box_id, samples=4, timeout=2.0):
+        """손목 카메라로 상자 중심(base_footprint)을 잰다: 손끝(정기구학) + R_tcp · (카메라로 잰 손끝 기준 마커 위치).
+        안 보이면 None. 반환: (손끝, 상자 중심) — 손끝↔상자 상대 위치는 카메라→손끝 강체 관계로 정확하다."""
+        if not self.wrist_cameras:
+            return None
+        tcps, boxes, seen, t0 = [], [], set(), time.time()
+        while len(boxes) < samples and time.time() - t0 < timeout:
+            with self._det_lock:
+                item = self._wrist[side].get(box_id)
+            if item is not None and time.time() - item[0] < self.FRESH_S and item[1] not in seen:
+                seen.add(item[1])
+                tf = self._tf_matrix(TCP[side])
+                if tf is not None:
+                    top = tf[0] + tf[1] @ item[2]
+                    tcps.append(tf[0])
+                    boxes.append(top - np.array([0, 0, self.box_size / 2]))
+            time.sleep(0.05)
+        if not boxes:
+            return None
+        return np.median(np.array(tcps), axis=0), np.median(np.array(boxes), axis=0)
 
     def _on_att(self, msg):
         self._attached = json.loads(msg.data)
@@ -434,9 +471,12 @@ class RobotSkills(Node):
         """같은 카메라 프레임에서 '손목 마커로 잰 손끝' 과 '상자 중심' 을 함께 잰다 (base_footprint).
         둘 다 같은 카메라로 같은 순간에 재므로 카메라 위치 오차·몸통 출렁임이 상대 오차에서 거의 지워진다.
         반환: (손끝, box_center 또는 None, tcp_fk, 손끝 출처) — 손목 마커도 정기구학도 없으면 SkillError"""
+        time.sleep(0.6)
+        w = self._measure_box_wrist(side, box_id)
+        if w is not None:
+            return w[0], w[1], w[0], "손목 카메라"
         if WRIST is None:
             raise SkillError("손목 마커 정의(tron1_openarm_sim.wrist_markers) 없음")
-        time.sleep(0.6)
         tcps, boxes, seen, t0 = [], [], set(), time.time()
         while len(tcps) < samples and time.time() - t0 < timeout:
             with self._det_lock:
@@ -991,6 +1031,7 @@ class RobotSkills(Node):
     DOCK_GAP = 0.40         # 도킹 후 base_footprint 원점 ~ 작업대 앞 모서리 거리 [m] (범퍼 앞 여유 약 12cm)
     APPROACH_PITCH = 45.0
     GRASP_DEPTH = 0.01      # 상자 중심보다 접근방향으로 더 들어가는 거리 [m]
+    WRIST_MID_BACK = 0.05   # 손목 카메라가 있을 때 직선 접근 중간 보정 위치: 상자 중심 앞 [m] (손가락 끝이 상자에 닿기 전)
     IDEAL_REACH = 0.52      # base_footprint 기준 상자까지 이상적 전방 거리 [m]
     # approach_rotation(roll=0) 에서 손가락이 닫히는 축(TCP y)은 '위-아래' 방향 → roll ±70~90 이 손가락을 수평으로 만들어
     # 상자 옆면을 잡는다. MuJoCo 오프라인 실험: ±70 이 가장 안정(상자 밀림 1~2cm), 0 은 모서리 집기라 밀림 3~4cm, ±20 은 놓침.
@@ -1036,7 +1077,11 @@ class RobotSkills(Node):
         # 이족: 어깨를 몸통 위로 낮춘 설계(어깨 0.78~0.83 m, 상자 0.69 m)에서는 거의 수평 접근이 자연스럽고,
         # 45° 로 내려오면 아래쪽 손가락이 상판에 걸린다 → 낮은 pitch 부터 시도
         pitches = ([20.0, 30.0, self.APPROACH_PITCH, 55.0] if self.can_strafe else [self.APPROACH_PITCH])
-        cands = [(p, b, r) for b in (back, 0.07, 0.05) for p in pitches for r in self.ROLL_CANDIDATES]
+        rolls = self.ROLL_CANDIDATES
+        if self.wrist_cameras:
+            # 손목 카메라는 손의 −x 쪽에 있어 roll 이 음수(−70~−90°)일 때 위에서 상자를 내려다본다 → 음수 roll 먼저
+            rolls = [r for r in rolls if r < 0] + [r for r in rolls if r == 0] + [r for r in rolls if r > 0]
+        cands = [(p, b, r) for b in (back, 0.07, 0.05) for p in pitches for r in rolls]
         # 직선 접근 검사는 실제 접근 때와 같은 장면(목표 상자만 뺀)에서 해야 한다.
         # 목표 상자를 장애물로 둔 채 검사하면 손이 상자에 닿는 마지막 구간이 '충돌'로 판정돼 항상 실패한다.
         if exclude_id is not None:
@@ -1218,7 +1263,7 @@ class RobotSkills(Node):
                 R, pre, q_pre = self._solve_approach(side, center, exclude_id=mid)
             if self.can_strafe:
                 self.set_table(pad=self.TRANSIT_PAD)           # carry → 접근점 이동도 여유를 두고
-            servo = self.can_strafe and WRIST is not None
+            servo = self.can_strafe and (WRIST is not None or self.wrist_cameras)
             station_ref = None
             if servo:
                 # 접근 자세를 푸는 동안(수십 초) 몸통이 흘러 있다 → 팔이 상자를 가리기 전에 상자를 한 번 더 잰다
@@ -1275,6 +1320,22 @@ class RobotSkills(Node):
                 # 실제로는 닿지 않는데도 '작업대 충돌' 로 직선이 끊겼다 (실험: 75%·67%). 실제 손 높이는 카메라로 재서
                 # floor_z 위로 지키고 있으므로, 충돌 검사로 안 되면 검사 없이 같은 직선을 간다.
                 goal[2] = max(goal[2], floor_z)
+                if self.wrist_cameras:
+                    # 손목 카메라: 직선 접근 중간(상자 중심 WRIST_MID_BACK 앞)에서 한 번 더 보정한다. 10 cm 직선 동안 팔 처짐으로
+                    # 손이 옆으로 3 cm 벗어나 손가락이 상자 옆면을 쳐 4 cm 밀었다 (TRON1 손목 카메라 시험 2).
+                    # 손목 카메라는 접근 내내 상자를 보므로 손가락이 상자에 닿기 전에 옆 오차를 지울 수 있다
+                    off_mid = -R[:, 2] * self.WRIST_MID_BACK
+                    wp = center + off_mid + bias
+                    wp[2] = max(wp[2], floor_z)
+                    try:
+                        self.cartesian(side, [wp], R, vel=0.1, min_fraction=0.0, avoid_collisions=False)
+                        wp_goal, center = self.visual_servo(side, mid, R, wp.copy(), center, off_mid,
+                                                            floor_z=floor_z, label=" 중간")
+                        bias = wp_goal - (center + off_mid)
+                        goal = center + R[:, 2] * self.GRASP_DEPTH + bias
+                        goal[2] = max(goal[2], floor_z)
+                    except SkillError as e:
+                        self.log(f"[pick] 중간 보정 생략: {e}")
                 self.station_keep(station_ref, label=" 직선 접근 전")
                 try:
                     self.cartesian(side, [goal], R, min_fraction=need)

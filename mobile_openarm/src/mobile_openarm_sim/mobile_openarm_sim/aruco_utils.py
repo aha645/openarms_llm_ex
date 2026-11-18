@@ -8,8 +8,11 @@ import numpy as np
 
 
 class ArucoDetector:
-    def __init__(self, dict_name="DICT_4X4_50", marker_size=0.04, K=None, dist=None):
+    def __init__(self, dict_name="DICT_4X4_50", marker_size=0.04, K=None, dist=None, scales=(1.0,)):
+        """scales: 검출할 영상 배율들. 가까이서 크게 보이는 마커(손목 카메라, 셀 하나가 25 px 넘음)는 원본에서 자주 놓친다 →
+        줄인 영상에서도 찾아 원본 좌표로 되돌린다 (TRON1 손목 카메라 파지 구간: 원본 11/43 → 1, 1/2, 1/3 배 27/43)."""
         self.marker_size = marker_size
+        self.scales = tuple(scales)
         self.K = np.asarray(K, dtype=np.float64) if K is not None else None
         self.dist = np.zeros(5) if dist is None else np.asarray(dist, dtype=np.float64)
         dict_id = getattr(cv2.aruco, dict_name)
@@ -31,17 +34,24 @@ class ArucoDetector:
         # 마커 좌표계: 중심 원점, z 가 마커 면에서 밖으로 (OpenCV 관례, 코너 순서 TL,TR,BR,BL)
         self.obj_pts = np.array([[-h, h, 0], [h, h, 0], [h, -h, 0], [-h, -h, 0]], dtype=np.float64)
 
-    def detect(self, rgb):
-        gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
+    def _detect_raw(self, gray):
         if self._det is not None:
             corners, ids, _ = self._det.detectMarkers(gray)
         else:
             corners, ids, _ = cv2.aruco.detectMarkers(gray, self.dictionary, parameters=self.params)
+        return [] if ids is None else list(zip(corners, ids.ravel()))
+
+    def detect(self, rgb):
+        gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
+        found = {}
+        for s in self.scales:
+            im = gray if s == 1.0 else cv2.resize(gray, None, fx=s, fy=s, interpolation=cv2.INTER_AREA)
+            for c, i in self._detect_raw(im):
+                if int(i) not in found:
+                    found[int(i)] = (np.asarray(c, np.float64).reshape(4, 2) + 0.5) / s - 0.5
         out = []
-        if ids is None:
-            return out
-        for c, i in zip(corners, ids.ravel()):
-            item = {"id": int(i), "corners": c.reshape(4, 2)}
+        for i, c in found.items():
+            item = {"id": int(i), "corners": c.astype(np.float32)}
             if self.K is not None:
                 ok, rvec, tvec = cv2.solvePnP(self.obj_pts, c.reshape(4, 2).astype(np.float64),
                                               self.K, self.dist, flags=cv2.SOLVEPNP_IPPE_SQUARE)
