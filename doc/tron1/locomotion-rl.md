@@ -664,6 +664,38 @@ TRON1_HAND_F=25 TRON1_REACH_P=0.35 TRON1_STAND_FEET=5 TRON1_STAND_LOAD=3 TRON1_S
   ../.venv-biped/bin/python train_mjx.py --foot sf --impl warp --envs 4096 --minutes 35 --seed 2 --out ../runs/feet2/seed2
 ```
 
+### 13-5. 서 있을 때 기울기 줄이기 (v3, 시도 후 배포 안 함)
+
+v2 는 서 있을 때 몸통이 7~8° 앞으로 숙는다. 기울기 벌점과 긴 에피소드를 넣어 다시 학습했다 (`tron1_mjx_env.py`, 모두 기본 꺼짐):
+
+| 환경 변수 | 뜻 |
+|---|---|
+| `TRON1_STAND_TILT` | 서기 안정 구간에서 기울기 3° 넘는 만큼 벌점 (5° 더 기울면 1, 최대 2) |
+| `TRON1_EP_S` | 에피소드 길이 [s] (기본 20) |
+| `TRON1_STAND_LONG_MAX_S` | 긴 서기 구간 최대 길이 [s] |
+
+v2 설정 + `TILT 4, EP_S 60, LONG_MAX_S 50`, 시드 2 개 × 35 분. 오프라인 평가 (seed1 final):
+
+| 항목 | v2 | v3 seed1 final | v3 seed1 best |
+|---|---|---|---|
+| 서기 / 팔 뻗음 / 손 누름 기울기 | 8.2 / 7.6 / 8.1° | **3.0 / 2.7 / 2.9°** | 4.6 / 4.1 / 4.2° |
+| 손 누름 25 N 걸음 (12 회) | 2 | 2 | 1 |
+| 3 분 서기 걸음 | 0 | 0 | 0 |
+| 걷기 / 회전 | 0.208 / 0.507 | 0.242 / 0.535 | 0.243 / 0.553 |
+
+seed2 는 3 분 서기에서 11 걸음·39 cm 밀려 탈락. 오프라인 지표는 모두 좋았지만 **집기 시리즈(r1~r8)에서 떨어졌다**:
+final 6/8, best 7/8 (v2 8/8). 실패는 모두 같은 모양 — 그리퍼가 닫히며 손가락 한쪽이 먼저 상자에 닿는 순간
+손이 몸통 기준 옆으로 5~9 cm, 몸통이 0.4 s 에 3~7 cm 흘러 서기가 풀리고, 상자를 쥔 채 바로잡기 걸음 → 작업대 이탈.
+같은 순간 v2 는 몸통 최대 2.4 cm·손 2.9 cm. 덜 숙인 자세는 손에 짧게 걸리는 옆 힘에 덜 버틴다
+(손 누름 시험은 천천히 커지는 힘이라 이 차이를 못 잡았다). → **v2 유지**. 다음에 하려면 파지처럼 짧고 날카로운
+손 옆 힘(0.2~0.5 s)을 학습·시험에 넣어야 한다.
+
+```bash
+TRON1_HAND_F=25 TRON1_REACH_P=0.35 TRON1_STAND_FEET=5 TRON1_STAND_LOAD=3 TRON1_STAND_TWIST=5 \
+TRON1_STAND_TILT=4 TRON1_EP_S=60 TRON1_STAND_LONG_MAX_S=50 \
+  ../.venv-biped/bin/python train_mjx.py --foot sf --impl warp --envs 4096 --minutes 35 --seed 1 --out ../runs/upright/seed1
+```
+
 ## 확인 질문
 
 
