@@ -36,7 +36,7 @@ FOOT_RADIUS = 0.032            # LimX const.xacro foot_radius (pf 의 공 모양
 ARM_PUB = (ARM_JOINTS["left"] + [GRIPPER_JOINT["left"], MIMIC_JOINT["left"]]
            + ARM_JOINTS["right"] + [GRIPPER_JOINT["right"], MIMIC_JOINT["right"]])
 PUBLISHED_JOINTS = ARM_PUB + LEG_JOINTS                # pf 기준 (인스턴스는 self.published_joints 사용)
-# 이족용 home: 팔을 바깥으로 0.2 rad 벌림 (곧게 내리면 손이 TRON1 몸통 옆면에 닿음). SRDF 의 home 과 같은 값 (arm_poses.py)
+# 이족용 home: 위팔을 앞으로 들고 벌린 자세 (곧게 내리면 손이 몸통 옆면, 팔꿈치가 몸통 옆 손잡이에 닿음). SRDF 의 home 과 같은 값 (arm_poses.py)
 from .arm_poses import HOME_ARM  # noqa: E402
 CMD_LIMIT = (0.5, 1.0)          # 정책이 학습한 범위 안으로 (vx m/s, wz rad/s)
 SLIP_GAIN = float(__import__("os").environ.get("TRON1_SLIP_GAIN", 0.18))   # 제자리(명령 0)일 때

@@ -406,6 +406,10 @@ def build(tron1_dir, openarm_xml, out_dir, xacro_file, mount_x=None, shoulder=No
     from wrist_cameras import apply_wrist_cameras
     for fn in ("tron1_openarm.xml", "tron1_openarm_light.xml"):
         print(f"[cam] {fn}: 손목 카메라 {apply_wrist_cameras(os.path.join(out_dir, fn))}")
+    # 어깨 브래킷·어댑터 판·손목 카메라 브래킷·몸통 손잡이 충돌 (tools/mech_fix.py — 위 브래킷 치수도 거기서 다시 정한다)
+    from mech_fix import apply_mech_fix
+    for fn in ("tron1_openarm.xml", "tron1_openarm_light.xml"):
+        print(f"[mech] {fn}: {', '.join(apply_mech_fix(os.path.join(out_dir, fn)))}")
     if foot == "sf":
         # SF 발목 메시 → 평평한 발바닥 상자 (메시 충돌은 접촉점이 1 개뿐인 경우가 많아 제자리에서 비현실적으로 잘 돈다.
         # GPU 학습 모델과 같은 발을 써야 학습 결과가 그대로 옮겨진다 — tron1_openarm_sim/sole.py)

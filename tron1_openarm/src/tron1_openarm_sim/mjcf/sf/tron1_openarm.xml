@@ -132,6 +132,8 @@
     <body name="base_link" pos="0 0 0.76">
       <freejoint name="base_free" />
       <geom name="base_collision" size="0.135 0.13 0.095" pos="0.03 0 -0.072" type="box" rgba="0 0 1 0" group="3" contype="1" conaffinity="1" />
+        <geom name="base_handle_L_collision" type="box" size="0.067 0.013 0.02" pos="0 0.16 -0.1" rgba="0 0 1 0" group="3" contype="1" conaffinity="1" mass="0" />
+        <geom name="base_handle_R_collision" type="box" size="0.067 0.013 0.02" pos="0 -0.16 -0.1" rgba="0 0 1 0" group="3" contype="1" conaffinity="1" mass="0" />
       <inertial pos="0.04576 0.00014 -0.16398" quat="0.972485 -0.00621822 -0.232848 0.0039652" mass="9.585" diaginertia="0.154432 0.110639 0.0846249" />
       <geom type="mesh" contype="0" conaffinity="0" group="2" density="0" rgba="0.79 0.82 0.93 1" mesh="base_Link" />
       <body name="limx_imu">
@@ -193,6 +195,7 @@
         </body>
       </body>
       <body name="openarm_mount_link" pos="0.08 0 0.03">
+        <geom name="openarm_adapter_plate_vis" type="box" size="0.1115 0.093 0.01" pos="-0.0615 0 -0.003" material="metal_silver" contype="0" conaffinity="0" group="2" mass="0" />
         <inertial pos="0 0 0" quat="0.5 0.5 -0.5 0.5" mass="0.6" diaginertia="0.00488 0.0028898 0.0020098" />
         <body name="openarm_body_link0" pos="0 0 -0.627" quat="1.0 0.0 0.0 0.0">
           <site name="arm_origin" pos="0 0 0.697" size="0.02" rgba="1 0.8 0 1" group="4" />
@@ -253,6 +256,7 @@
                           <body name="openarm_left_hand" pos="0 0 0.1001">
                             <camera name="wrist_left_camera" pos="-0.085 0 -0.01" fovy="80" xyaxes="0 -1 0 -0.868 0 0.496" />
                             <geom name="wrist_left_camera_vis" type="box" size="0.012 0.02 0.01" pos="-0.085 0 -0.01" rgba="0.1 0.1 0.1 1" contype="0" conaffinity="0" group="2" mass="0" />
+                              <geom name="wrist_left_camera_bracket_vis" type="box" size="0.0225 0.015 0.006" pos="-0.0505 0 -0.005" rgba="0.25 0.25 0.25 1" contype="0" conaffinity="0" group="2" mass="0" />
                             <inertial pos="0 0 0.005122940871819574" mass="0.1723111736408497" fullinertia="0.000250930641371331 5.560627616753029e-05 0.0002906093338421478 1.18380219510342e-05 0 0" />
                             <geom name="openarm_left_hand_collision" pos="0 0 -0.6586" quat="1.0 0.0 0.0 0.0" type="mesh" mesh="hand_collision" class="collision" />
                             <geom name="openarm_left_hand_visual_0" pos="0 0 -0.6586" quat="1.0 0.0 0.0 0.0" material="metal_silver" type="mesh" mesh="hand_0.obj" class="visual" />
@@ -341,6 +345,7 @@
                           <body name="openarm_right_hand" pos="0 0 0.1001">
                             <camera name="wrist_right_camera" pos="-0.085 0 -0.01" fovy="80" xyaxes="0 -1 0 -0.868 0 0.496" />
                             <geom name="wrist_right_camera_vis" type="box" size="0.012 0.02 0.01" pos="-0.085 0 -0.01" rgba="0.1 0.1 0.1 1" contype="0" conaffinity="0" group="2" mass="0" />
+                              <geom name="wrist_right_camera_bracket_vis" type="box" size="0.0225 0.015 0.006" pos="-0.0505 0 -0.005" rgba="0.25 0.25 0.25 1" contype="0" conaffinity="0" group="2" mass="0" />
                             <inertial pos="0 0 0.005122940871819574" mass="0.1723111736408497" fullinertia="0.000250930641371331 5.560627616753029e-05 0.0002906093338421478 1.18380219510342e-05 0 0" />
                             <geom name="openarm_right_hand_collision" pos="0 0 -0.6586" quat="1.0 0.0 0.0 0.0" type="mesh" mesh="hand_collision" class="collision" />
                             <geom name="openarm_right_hand_visual_0" pos="0 0 -0.6586" quat="1.0 0.0 0.0 0.0" material="metal_silver" type="mesh" mesh="hand_0.obj" class="visual" />
@@ -375,7 +380,7 @@
           </body>
           <geom name="openarm_column_collision" type="box" size="0.03 0.03 0.064" pos="0 0 0.698" group="3" rgba="0 0 0 0" contype="1" conaffinity="1" />
           <geom name="openarm_column_vis" type="box" size="0.03 0.03 0.064" pos="0 0 0.698" material="matte_black" contype="0" conaffinity="0" group="2" mass="0" />
-          <geom name="openarm_shoulder_bracket_vis" type="box" size="0.05 0.11 0.035" pos="0 0 0.727" material="metal_silver" contype="0" conaffinity="0" group="2" mass="0" />
+          <geom name="openarm_shoulder_bracket_vis" type="box" size="0.05 0.03 0.065" pos="0 0 0.697" material="metal_silver" contype="0" conaffinity="0" group="2" mass="0" />
           <camera name="head_camera" pos="0.1 0 1.11" fovy="55" xyaxes="0 -1 0 0.882948 0 0.469472" />
           <geom name="head_camera_vis" type="box" size="0.02 0.05 0.02" pos="0.08 0 1.11" rgba="0.1 0.1 0.1 1" contype="0" conaffinity="0" group="2" mass="0" />
           <geom name="head_mast_vis" type="cylinder" size="0.012 0.174" pos="0.05 0 0.936" rgba="0.3 0.3 0.3 1" contype="0" conaffinity="0" group="2" mass="0" />
@@ -431,6 +436,10 @@
     <key name="home" qpos="0 0 0 1.570796 0 0 0 0.044 0.044             0 0 0 1.570796 0 0 0 0.044 0.044" ctrl="0 0 0 1.570796 0 0 0 0.044             0 0 0 1.570796 0 0 0 0.044" />
   </keyframe>
   <contact>
+    <exclude body1="base_link" body2="hip_L_Link" />
+    <exclude body1="base_link" body2="knee_L_Link" />
+    <exclude body1="base_link" body2="hip_R_Link" />
+    <exclude body1="base_link" body2="knee_R_Link" />
     <exclude body1="openarm_body_link0" body2="openarm_left_link0" />
     <exclude body1="openarm_left_link0" body2="openarm_left_link1" />
     <exclude body1="openarm_left_link0" body2="openarm_left_link2" />

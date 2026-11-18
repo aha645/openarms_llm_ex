@@ -138,11 +138,28 @@ class CameraServer(Node):
                 renderers[key] = mujoco.Renderer(self.m, c.h, c.w)
         tilt = (0.0, 0.0, 0.0)
         t = -1.0
+        last_new = time.monotonic()
         while not self.stop.is_set() and rclpy.ok():
             got = reader.read(self.d)
             if got is None:
+                # 2 s 동안 새 상태가 없으면 공유 메모리를 다시 연다. 이전 실행이 강제 종료로 남긴 블록을 카메라 서버가 먼저 열고,
+                # 0.8 s 뒤 브리지가 그것을 지우고 새로 만들면 카메라 서버는 죽은 블록만 읽어 영상이 멈췄다 (집기 시험: 마커 0 개)
+                if time.monotonic() - last_new > 2.0:
+                    try:
+                        new = StateReader(self.m, self.shm_name)
+                        reader.close()
+                        reader = new
+                        for c in self.cams:
+                            c.last_t = c.last_img_t = -1e9
+                    except FileNotFoundError:
+                        pass
+                    last_new = time.monotonic()
                 time.sleep(0.003)
                 continue
+            last_new = time.monotonic()
+            if t >= 0 and got[0] < t - 1.0:              # 시뮬 재시작(시간이 거꾸로) → 카메라 주기 다시 시작
+                for c in self.cams:
+                    c.last_t = c.last_img_t = -1e9
             t, tilt = got
             due = [c for c in self.cams if t - c.last_t >= c.period - 1e-6]
             if not due:

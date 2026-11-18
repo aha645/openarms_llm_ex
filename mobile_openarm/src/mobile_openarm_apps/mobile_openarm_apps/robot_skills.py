@@ -788,7 +788,12 @@ class RobotSkills(Node):
     # (SF 미션 시험 9: carry 이동 시간 초과·기울기 22°). 위팔을 뒤로 젖히고 팔꿈치를 먼저 굽히면 앞으로 덜 나간다 (격자 탐색:
     # j1 −0.6 → 0.343 m, −0.4 → 0.371 m). −0.6 은 무게중심이 뒤로 가 SF 가 발을 디디며 20 cm 뒤로 밀렸고(오프라인 측정),
     # −0.5 는 1 cm 만 움직였다 → −0.5
-    TUCK_RIGHT = [[-0.5, 0.2, 0.5, 0.0, 0.0, 0.0, 0.0], [-0.5, 0.2, 0.5, 2.4, 0.0, 0.0, 0.0]]
+    # 젖힐 때 팔꿈치가 TRON1 몸통 옆 손잡이(base 아래 0.10 m, 옆 0.17 m) 높이를 지나므로 어깨를 0.55 rad 벌린 채 젖히고 펴며,
+    # 벌림은 젖힘을 다 되돌린 뒤(j1 0.1)에만 바꾼다. 예전 경로(벌림 0.2)는 팔꿈치·아래팔이 손잡이를 관통했다(틈 0 cm).
+    # home→carry 순서: 더 벌림 → 젖히기 → 팔꿈치 굽힘 → 앞으로 → carry. 전 구간 몸통·손잡이·다리와 3.0 cm 이상,
+    # 작업대 높이에서 몸 앞 0.39 m 이내 (격자 탐색, tron1_openarm_sim/tools/mech_fix.py 손잡이 치수)
+    TUCK_RIGHT = [[0.1, 0.55, 0.0, 0.0, 0.0, 0.0, 0.0], [-0.5, 0.55, 0.5, 0.3, 0.0, 0.0, 0.0],
+                  [-0.5, 0.55, 0.5, 2.4, 0.0, 0.0, 0.0], [0.3, 0.55, -0.1, 2.4, 0.0, 0.0, 0.0]]
 
     def _tuck_path(self, group, name):
         """경유 자세 목록 (관절 dict). 필요 없으면 []."""
@@ -801,7 +806,7 @@ class RobotSkills(Node):
             return []
         elbow_bent = cur[3] > 1.2
         sgn = 1 if side == "right" else -1
-        near_home = abs(cur[0]) < 0.25 and cur[3] < 0.8 and abs(cur[1] - 0.2 * sgn) < 0.3
+        near_home = abs(cur[0] - 0.1 * sgn) < 0.25 and cur[3] < 0.8 and abs(cur[1] - 0.4 * sgn) < 0.3   # home (arm_poses.py)
         if name in ("carry", "ready") and near_home:
             # 팔을 내린 home 근처에서만 경유. 잡기 자세(팔을 앞으로 뻗음)에서 carry 로 접을 때도 경유했더니 팔이 먼저 아래로 내려가
             # 쥔 상자가 LiDAR 높이(0.58 m)로 내려와 Nav2 가 그것을 바로 앞 장애물로 보고 뒷걸음질쳤다 (SF 미션 시험 12)
@@ -1083,7 +1088,8 @@ class RobotSkills(Node):
         stage = pre - R[:, 2] * self.STAGE_BACK + np.array([0.0, 0.0, self.STAGE_UP])
         q_st = self.compute_ik(side, stage, R, seed=q_pre)
         if q_st is not None and self._cart_fraction(side, q_st, R, pre) >= 0.95:
-            self.move_joints(group, q_st)
+            if not self._orient_then_slide(side, R, stage, q_st):
+                self.move_joints(group, q_st)
             try:
                 self.cartesian(side, [pre], R, vel=0.1, min_fraction=0.9)
                 self.log(f"[pick] 대기점(접근점 {self.STAGE_BACK * 100:.0f} cm 뒤)에서 손 방향을 맞추고 직선으로 접근점까지")
@@ -1093,6 +1099,30 @@ class RobotSkills(Node):
         else:
             self.log("[pick] 대기점 IK/직선 불가 → 접근점으로 바로")
         self.move_joints(group, q_pre)
+
+    ORIENT_AT = (0.0, 0.35, 0.7)    # 손 방향을 맞출 곳: 지금 손끝 → 대기점 선분의 이 비율 지점 (앞에서부터 시도)
+
+    def _orient_then_slide(self, side, R, stage, q_st):
+        """손 방향(R)을 지금 손 위치 근처에서 먼저 맞추고, 대기점까지는 방향을 고정한 직선으로 간다. 성공하면 True.
+        carry → 대기점을 관절 이동으로 가면 손목이 이동 내내 돌아 손목 카메라 화면이 손목 궤적을 따라 휘둘렸다
+        (집기 시험 관찰). 먼저 제자리에서 돌리면 그 뒤 이동 동안 카메라가 상자 쪽을 같은 방향에서 계속 본다."""
+        tf = self._tf_matrix(TCP[side])
+        if tf is None:
+            return False
+        for a in self.ORIENT_AT:
+            p = tf[0] + a * (stage - tf[0])
+            q_or = self.compute_ik(side, p, R, seed=q_st)
+            if q_or is None or self._cart_fraction(side, q_or, R, stage) < 0.95:
+                continue
+            self.move_joints(f"{side}_arm", q_or)
+            try:
+                self.cartesian(side, [stage], R, vel=0.1, min_fraction=0.9)
+            except SkillError as e:
+                self.log(f"[pick] 방향 고정 직선(→대기점) 실패({e}) → 관절 이동")
+                return False
+            self.log(f"[pick] 손 방향을 먼저 맞추고(지금 위치에서 대기점 쪽 {a * 100:.0f} %) 대기점까지 방향 고정 직선")
+            return True
+        return False
 
     def _solve_approach(self, side, target, back=0.10, exclude_id=None, yaw=0.0):
         """접근 자세 후보(roll × 물러선 거리)들 중 '접근점 IK + 목표 IK + 접근점→목표 직선 경로' 가 모두 되는 것 → (R, pre, q_pre).
