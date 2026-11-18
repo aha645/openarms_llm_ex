@@ -1,12 +1,14 @@
 """검증용 정답 기록기 (시뮬 전용): /biped/status 의 손끝 정답 위치·팔 접촉·기울기, /sim/objects 의 상자 정답 위치,
 MoveIt 이 생각하는 손끝(TF base_footprint→openarm_right_hand_tcp), 카메라가 잰 상자(/aruco/detections) 를 0.2 s 마다 JSON 한 줄씩 기록.
-    python3 grasp_recorder.py 기록.jsonl
+    python3 grasp_recorder.py 기록.jsonl [물체 이름, 기본 box_0]
+"box0" 는 집는 물체(두 번째 인자)의 정답 위치, "tcp"/"tcp_l" 은 오른손/왼손 손끝 정답 위치.
 """
 import rclpy, json, time, sys
 from rclpy.node import Node
 from std_msgs.msg import String
 from tf2_ros import Buffer, TransformListener
 rclpy.init(); n = Node("rec2"); out = open(sys.argv[1], "w"); st = {}
+OBJ = sys.argv[2] if len(sys.argv) > 2 else "box_0"
 buf = Buffer(); TransformListener(buf, n)
 def ob(m): st["obj"] = json.loads(m.data)["objects"]
 def det(m):
@@ -27,7 +29,7 @@ def bs(m):
                     round(math.atan2(2 * (q.w * q.z + q.x * q.y), 1 - 2 * (q.y * q.y + q.z * q.z)), 4)]
     except Exception:
         map_pose = None
-    if o: out.write(json.dumps({"t": time.time(), "tcp": b["tcp_world"]["right"], "box0": o["box_0"], "tcp_b": tcp_b, "det0": st.get("det0"),
+    if o: out.write(json.dumps({"t": time.time(), "tcp": b["tcp_world"]["right"], "tcp_l": b["tcp_world"].get("left"), "box0": o[OBJ], "tcp_b": tcp_b, "det0": st.get("det0"),
                                 "tilt": b["tilt_deg"], "h": b["base_height"], "ac": b.get("arm_contacts"), "st": b.get("standing"),
                                 "gt": b.get("gt_pose"), "odom": b.get("odom"), "cmd": b.get("cmd"), "map": map_pose}) + "\n"); out.flush()
 n.create_subscription(String, "/sim/objects", ob, 10); n.create_subscription(String, "/biped/status", bs, 10)

@@ -138,11 +138,28 @@ class CameraServer(Node):
                 renderers[key] = mujoco.Renderer(self.m, c.h, c.w)
         tilt = (0.0, 0.0, 0.0)
         t = -1.0
+        last_new = time.monotonic()
         while not self.stop.is_set() and rclpy.ok():
             got = reader.read(self.d)
             if got is None:
+                # 2 s 동안 새 상태가 없으면 공유 메모리를 다시 연다. 이전 실행이 강제 종료로 남긴 블록을 카메라 서버가 먼저 열고,
+                # 0.8 s 뒤 브리지가 그것을 지우고 새로 만들면 카메라 서버는 죽은 블록만 읽어 영상이 멈췄다 (집기 시험: 마커 0 개)
+                if time.monotonic() - last_new > 2.0:
+                    try:
+                        new = StateReader(self.m, self.shm_name)
+                        reader.close()
+                        reader = new
+                        for c in self.cams:
+                            c.last_t = c.last_img_t = -1e9
+                    except FileNotFoundError:
+                        pass
+                    last_new = time.monotonic()
                 time.sleep(0.003)
                 continue
+            last_new = time.monotonic()
+            if t >= 0 and got[0] < t - 1.0:              # 시뮬 재시작(시간이 거꾸로) → 카메라 주기 다시 시작
+                for c in self.cams:
+                    c.last_t = c.last_img_t = -1e9
             t, tilt = got
             due = [c for c in self.cams if t - c.last_t >= c.period - 1e-6]
             if not due:
@@ -191,13 +208,34 @@ class CameraServer(Node):
     def _cam_in_world(self, c):
         return self.d.cam_xmat[c.id].reshape(3, 3) @ OPT, self.d.cam_xpos[c.id].copy()
 
+    def _flat_rotation(self, c, det, Rw, pw, pm_w, max_tilt=math.radians(35)):
+        """마커 방향(세계 기준 회전). 마커가 거의 수평(PnP 법선이 위쪽 35° 안)이면 수평면 가정으로 다시 구한다:
+        네 모서리 시선을 마커 중심 높이의 수평면과 교차시켜 모서리 0→1 방향으로 yaw.
+        작은 마커를 비스듬히 볼 때 PnP 자세는 기울기를 헷갈려(평면 마커 모호성) yaw 가 틀렸다:
+        머리 카메라 0.64 m 에서 −8° 상자를 −18° 로 재, 손을 10° 더 돌려 들어가 집기 실패 (집기 견고성 시험 s1d)."""
+        Rm_w = Rw @ det["rotation"]
+        if Rm_w[2, 2] < math.cos(max_tilt):
+            return Rm_w
+        Kinv = np.linalg.inv(c.K)
+        pts = []
+        for u, v in det["corners"]:
+            ray = Rw @ (Kinv @ np.array([u, v, 1.0]))
+            if abs(ray[2]) < 1e-6:
+                return Rm_w
+            pts.append(pw + ray * ((pm_w[2] - pw[2]) / ray[2]))
+        pts = np.array(pts)
+        ex = (pts[1] - pts[0]) + (pts[2] - pts[3])          # 마커 x축 (윗변·아랫변 평균)
+        yaw = math.atan2(ex[1], ex[0])
+        cy, sy = math.cos(yaw), math.sin(yaw)
+        return np.array([[cy, -sy, 0.0], [sy, cy, 0.0], [0.0, 0.0, 1.0]])
+
     def publish_dets(self, c, t, dets, tilt):
         Rw, pw = self._cam_in_world(c)
         Rb, pb = self.d.xmat[self.base_id].reshape(3, 3), self.d.xpos[self.base_id]
         out = []
         for det in dets:
             pm_w = Rw @ det["position"] + pw
-            Rm_w = Rw @ det["rotation"]
+            Rm_w = self._flat_rotation(c, det, Rw, pw, pm_w)
             p_fp, R_fp = footprint(Rb.T @ (pm_w - pb), Rb.T @ Rm_w, tilt)
             item = {"id": det["id"], "frame": "base_footprint", "position": [round(float(v), 4) for v in p_fp],
                     "R": R_fp, "yaw": round(math.atan2(R_fp[1, 0], R_fp[0, 0]), 4),

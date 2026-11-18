@@ -13,6 +13,7 @@
   * /biped/status (std_msgs/String JSON): 몸통 높이·기울기·넘어짐 여부·정책이 받는 명령
 """
 import json
+import math
 import sys
 
 import rclpy
@@ -28,6 +29,16 @@ B.MobileOpenArmSim = BipedOpenArmSim
 B.BASE_LINK_Z = NOMINAL_BASE_HEIGHT        # 시뮬 생성 뒤 발 형태(pf 0.68 / sf 0.73)에 맞춰 다시 설정
 
 
+def parse_box_poses(text):
+    """"box_0=x,y,yaw;box_1=..." → {name: (x, y, yaw_deg)}. yaw 는 생략 가능 (0)."""
+    out = {}
+    for item in filter(None, (t.strip() for t in text.split(";"))):
+        name, vals = item.split("=")
+        v = [float(t) for t in vals.split(",")]
+        out[name.strip()] = (v[0], v[1], v[2] if len(v) > 2 else 0.0)
+    return out
+
+
 class BipedBridge(B.MujocoBridge):
     def __init__(self):
         super().__init__()
@@ -39,9 +50,23 @@ class BipedBridge(B.MujocoBridge):
         self._state_writer = StateWriter(self.sim.m, name) if name else None
         if self._state_writer:
             self.get_logger().info(f"시뮬 상태 공유 메모리 '{name}' → 카메라 서버")
+        # 상자 위치 바꾸기 (반복 집기 시험): "box_0=2.60,2.98,15;box_1=2.43,3.00,-10" = 월드 x, y [m], yaw [도]
+        self.declare_parameter("box_poses", "")
+        self._box_poses = parse_box_poses(self.get_parameter("box_poses").value)
+        self._apply_box_poses()
         self.pub_status = self.create_publisher(String, "/biped/status", 10)
         self.create_timer(0.2, self.publish_status)
         self.get_logger().info(f"TRON1 보행 정책 사용 (발 형태 {self.sim.foot}, 정책 50 Hz, 물리 {self.sim.m.opt.timestep * 1000:.0f} ms)")
+
+    def _apply_box_poses(self):
+        for name, (x, y, yaw) in self._box_poses.items():
+            self.sim.set_box_pose(name, x, y, math.radians(yaw))
+            self.get_logger().info(f"상자 {name} → ({x:.3f}, {y:.3f}), {yaw:+.0f}°")
+
+    def on_reset(self, req, res):
+        res = super().on_reset(req, res)
+        self._apply_box_poses()
+        return res
 
     def _base_link_to_footprint(self, p, R):
         # 바퀴형: 높이(BASE_LINK_Z)만 더함 → 이족: 몸통이 숙여진(최대 7°) 만큼 회전까지 (TF 의 가상 관절과 같은 값)

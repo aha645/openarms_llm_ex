@@ -136,6 +136,8 @@ def main():
                        ep_ret=jnp.where(done, info["ep_ret"], 0.0), ep_t=jnp.where(done, info["ep_t"], 0),
                        lin_track=info["terms"]["tracking_lin_vel"], ang_track=info["terms"]["tracking_ang_vel"],
                        stand_drift=info["terms"]["stand_drift"], stand_yaw=info["terms"]["stand_yaw"],
+                       stand_feet=info["terms"]["stand_feet"], stand_load=info["terms"]["stand_load"],
+                       stand_twist=info["terms"]["stand_twist"],
                        standing=st.standing.astype(jnp.float32))
             return (st, key), out
         (states, key), tr = jax.lax.scan(body, (states, key), None, length=T)
@@ -155,7 +157,10 @@ def main():
         stats = dict(bad=tr["bad"].sum(), falls=tr["fell"].sum(), n_done=(tr["done"] > 0).sum(), ret_sum=tr["ep_ret"].sum(),
                      len_sum=tr["ep_t"].sum(), lin_track=tr["lin_track"].mean(), ang_track=tr["ang_track"].mean(),
                      stand_drift=tr["stand_drift"].sum() / jnp.maximum(tr["standing"].sum(), 1.0),
-                     stand_yaw=tr["stand_yaw"].sum() / jnp.maximum(tr["standing"].sum(), 1.0), standing=tr["standing"].mean())
+                     stand_yaw=tr["stand_yaw"].sum() / jnp.maximum(tr["standing"].sum(), 1.0),
+                     stand_feet=tr["stand_feet"].sum() / jnp.maximum(tr["standing"].sum(), 1.0),
+                     stand_load=tr["stand_load"].sum() / jnp.maximum(tr["standing"].sum(), 1.0),
+                     stand_twist=tr["stand_twist"].sum() / jnp.maximum(tr["standing"].sum(), 1.0), standing=tr["standing"].mean())
         return states, tr, stats, key
 
     @partial(jax.jit, static_argnums=(7,))
@@ -220,6 +225,7 @@ def main():
     t_start = time.time()
     log, fall_hist, rets, lens = [], [], [], []
     best, last_pl, lr = -1e9, 0, a.lr
+    ck_done = [0]
     it = 0
     while it < a.max_iters and (time.time() - t_start) < a.minutes * 60:
         it += 1
@@ -257,11 +263,17 @@ def main():
                    enc_loss=round(float(el), 4), lin_track=round(float(st["lin_track"]), 3),
                    ang_track=round(float(st["ang_track"]), 3), diverged=int(st["bad"]),
                    stand_drift=round(float(st["stand_drift"]), 4), stand_yaw=round(float(st["stand_yaw"]), 4),
+                   stand_feet=round(float(st["stand_feet"]), 4), stand_load=round(float(st["stand_load"]), 4),
+                   stand_twist=round(float(st["stand_twist"]), 4),
                    standing=round(float(st["standing"]), 3))
         log.append(rec)
         if it % 5 == 0 or it == 1:
             print(json.dumps(rec, ensure_ascii=False), flush=True)
         score = rec["lin_track"] + 0.5 * rec["ang_track"] - 50 * fr + 0.5 * difficulty - 10 * (1 - payload)
+        if actor_on and (time.time() - t_start) // 600 > ck_done[0]:      # 10 분마다 중간 정책 (서기 버티기 시험으로 고르려고)
+            ck_done[0] = int((time.time() - t_start) // 600)
+            np.savez(os.path.join(a.out, f"ck{ck_done[0] * 10:03d}min.npz"), **P.to_npz_dict(params["encoder"], "encoder"),
+                     **P.to_npz_dict(params["policy"], "policy"))
         if it % 25 == 0:
             with open(os.path.join(a.out, "last.pkl"), "wb") as fp:
                 pickle.dump({"params": jax.device_get(params), "critic": jax.device_get(critic), "log_std": jax.device_get(log_std),

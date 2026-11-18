@@ -25,6 +25,10 @@ class ArucoDetector:
             self.params = cv2.aruco.DetectorParameters_create()
             self._det = None
         self.params.cornerRefinementMethod = cv2.aruco.CORNER_REFINE_SUBPIX
+        # 서브픽셀 보정 창 2 px (기본 5): 45 px 마커의 흰 테두리는 3~4 px 라 창이 크면 모서리가 테두리 바깥(상자 윗면 윤곽)으로
+        # 끌려갔다 → 방향(yaw) 오차 5° 초과가 검출의 36 %, 최대 33° (TRON1 머리 카메라, 무작위 배치 40 회 오프라인).
+        # 2 px: 최대 1.8°, 깊이 보정 위치 오차 중앙 1.7 → 0.9 mm. 손목 카메라 검출률은 같음 (저장 프레임 354 장)
+        self.params.cornerRefinementWinSize = 2
         # 작은(20~30px) 마커·비스듬한 시야각에서도 검출되도록 완화
         self.params.minMarkerPerimeterRate = 0.01
         self.params.polygonalApproxAccuracyRate = 0.05

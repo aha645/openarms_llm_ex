@@ -41,8 +41,10 @@ def main():
     sk.declare_parameter("start_x", 2.5)        # sim.launch.py 의 start_x/y/yaw 와 같게
     sk.declare_parameter("start_y", 2.45)
     sk.declare_parameter("start_yaw", 1.5708)
+    sk.declare_parameter("fold_carry", False)   # 같은 작업대에 놓으므로 carry 로 접지 않음 (RobotSkills.fold_carry)
     obj = sk.get_parameter("object").value
     sk.current_station = sk.get_parameter("station").value
+    sk.fold_carry = bool(sk.get_parameter("fold_carry").value)
     g = lambda n: sk.get_parameter(n).value  # noqa: E731
     _br = ensure_map_frame(sk, g("start_x"), g("start_y"), g("start_yaw"))  # noqa: F841 (TF 유지용 참조)
     failed = False
@@ -51,7 +53,8 @@ def main():
         dets = sk.detections(max_age=2.0)
         sk.log(f"보이는 마커: {sorted(dets)}")
         side = sk.pick(obj)
-        sk.place(side=side, offset=(0.48, -0.04))   # 같은 작업대, 로봇 정면(초록 상자 옆)에 내려놓기
+        # 같은 작업대, 로봇 정면에 내려놓기 — 집은 팔 쪽으로 4 cm (반대쪽은 몸 앞을 가로질러 뻗어 손을 뺄 공간이 없음)
+        sk.place(side=side, offset=(0.48, -0.04 if side == "right" else 0.04))
         sk.log("pick_place 완료")
     except SkillError as e:
         sk.get_logger().error(str(e))

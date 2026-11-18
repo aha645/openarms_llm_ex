@@ -168,6 +168,7 @@ class MujocoBridge(Node):
                 import mujoco.viewer
                 viewer = mujoco.viewer.launch_passive(self.sim.m, self.sim.d,
                                                       show_left_ui=False, show_right_ui=False)
+                self._track_robot(viewer)
             except Exception as e:  # noqa: BLE001
                 self.get_logger().warn(f"viewer 를 열 수 없음 → headless 로 계속: {e}")
                 viewer = None
@@ -193,6 +194,29 @@ class MujocoBridge(Node):
                         viewer.close()
                 finally:
                     rclpy.try_shutdown(context=self.context)
+
+    def _track_robot(self, viewer):
+        """관찰 카메라가 로봇 몸통(base_link)을 따라가며 화면 중앙에 두게 한다 (추적 카메라).
+        마우스로 돌리기·확대는 그대로 되고, 로봇이 걸어가도 화면 밖으로 나가지 않는다.
+        뷰어에서 Esc 를 누르면 자유 카메라로 바뀐다 (MuJoCo 기본 동작)."""
+        import mujoco
+        m = self.sim.m
+        bid = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_BODY, "base_link")
+        if bid < 0:
+            return
+        with viewer.lock():
+            viewer.cam.type = mujoco.mjtCamera.mjCAMERA_TRACKING
+            viewer.cam.trackbodyid = bid
+            viewer.cam.distance = 2.5          # 로봇과 앞 작업대가 함께 보이는 거리
+            viewer.cam.elevation = -25.0
+            # 시작 방향(start_yaw)의 뒤쪽 30° 비스듬히 위에서 → 로봇과 그 앞(작업대)이 함께 보임.
+            # 추적 카메라는 위치만 따라가고 방향은 월드 기준이라, 로봇이 돌면 마우스로 돌려 보면 된다
+            viewer.cam.azimuth = math.degrees(self.get_parameter("start_yaw").value) - 30.0
+            # 그림자·반사 끔(모델의 조명·재질 값 — 그리기에만 쓰이고 물리와 무관, 카메라 서버는 자기 모델을 따로 씀):
+            # 뷰어가 한 장면을 그리는 동안(sync 가 기다림) 물리가 멈춘다. TRON1 전체 메시 모델에서
+            # sync 가 10 s 중 7.8 s 를 차지해 시뮬레이션이 실시간의 0.6 배로 돌았다 (팔 이동 1 회 40 s 넘게)
+            m.light_castshadow[:] = 0
+            m.mat_reflectance[:] = 0
 
     def on_tick(self, sim):
         if self.stop_event.is_set() or not self.context.ok():

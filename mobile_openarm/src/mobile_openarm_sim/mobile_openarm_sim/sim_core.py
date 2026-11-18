@@ -14,6 +14,7 @@ ROS 없이도 tools/selftest.py 로 주행·LiDAR·카메라·ArUco·파지를 �
 """
 import math
 import threading
+import os
 import time
 
 import mujoco
@@ -498,6 +499,9 @@ class MobileOpenArmSim:
         wall0 = time.monotonic()
         sim0 = self.d.time
         last_view = 0.0
+        # 뷰어 갱신 주기. sync 는 뷰어가 한 장면을 다 그릴 때까지 기다리므로 그동안 물리가 멈춘다.
+        # TRON1 전체 메시 모델·큰 창(2560x1440)에서 한 장면 약 26 ms → 30 Hz 면 1 초 중 0.78 s 를 기다려 실시간의 0.5 배로 돌았다
+        view_period = 1.0 / float(os.environ.get("SIM_VIEW_HZ", 30.0))
         while not stop_event.is_set():
             self.step(steps_per_tick)
             if stop_event.is_set():
@@ -506,7 +510,7 @@ class MobileOpenArmSim:
                 on_tick(self)
             if viewer is not None:
                 now = time.monotonic()
-                if now - last_view > 1 / 30:
+                if now - last_view > view_period:
                     if not viewer.is_running():
                         stop_event.set()
                         break
