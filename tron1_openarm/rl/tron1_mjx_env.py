@@ -35,6 +35,38 @@ CMD_SCALE = jnp.array([2.0, 2.0, 0.25], jnp.float32)
 BASE_HEIGHT_TARGET = {"pf": 0.68, "sf": SF_BASE_HEIGHT_CMD}
 CMD_RANGES = dict(vx=(-0.35, 0.6), vy=(-0.2, 0.2), wz=(-0.9, 0.9))
 
+# ── SF 서기 버티기 (보행 학습 13절) ─────────────────────────────────────────────────────────────────────
+# 실제 집기에서 손이 상자·작업대에 막혀 팔이 계속 밀면 손에 수십 N 이 걸리고, 서기 정책이 버티지 못해 한 발에 하중이 쏠리면
+# 브리지가 서기를 풀어 디딤 걸음을 시작했다 (tools/stand_stress.py: 손 30 N·2 s 에서 12 회 중 7 회, 발 최대 66 cm 이동).
+# 학습 때 팔 동작은 이름 자세 사이를 오가는 것뿐이었고 손에 힘이 걸린 적이 없다. 그래서 서 있는 동안
+#   ① 팔 목표에 실제 집기 접근·파지·들기 자세(REACH_R, 상자 옆 5~15 cm, roll −90/−70°)를 섞고 (REACH_P)
+#   ② 한 손(또는 두 손)에 0~HAND_F_MAX N 의 힘을 0.3~3 s 동안 무작위 방향으로 건다
+#   ③ 보상: 발 구름 벌점 stand_feet (발 수평 속도, 0.05 m/s 폭) + 하중 쏠림 벌점 stand_load (한 발 하중 25 % 미만)
+# 벌점은 '버틸 수 있으면 버티고, 정말 못 버티면 넘어지지 말고 디디게' 크기로: 한 걸음(약 0.4 s) 비용 ≈ 1.5 ≪ 넘어짐 20.
+# 발 위치(서기 시작 자리)를 기준으로 벌점을 주지 않은 이유: 한 번 밀린 뒤 서 있는 내내 벌점이 남아 넘어지는 쪽이 싸진다.
+# 모두 환경 변수로 켠다 (0 = 꺼짐, 이전 학습과 같음).
+HAND_F_MAX = float(os.environ.get("TRON1_HAND_F", 0.0))           # [N]
+REACH_P = float(os.environ.get("TRON1_REACH_P", 0.0))             # 팔 목표를 집기 자세로 뽑을 확률
+STAND_FEET_SCALE = float(os.environ.get("TRON1_STAND_FEET", 0.0))
+STAND_LOAD_SCALE = float(os.environ.get("TRON1_STAND_LOAD", 0.0))
+STAND_TWIST_SCALE = float(os.environ.get("TRON1_STAND_TWIST", 0.0))
+STAND_FEET_SIGMA = 0.05        # 발 수평 속도 허용 폭 [m/s]
+STAND_TWIST_SIGMA = 0.05       # 발바닥 수직축 회전 속도 허용 폭 [rad/s]
+# stand_twist (v2): stand_feet 는 발의 직선 이동만 봐서, v1 학습(seed1)은 손 외력에 몸통이 돌 때 발바닥을 비틀어 받아냈다
+# → 서 있는 동안 몸통이 천천히 돌아(5° 넘음) 브리지의 방향 바로잡기 걸음이 팔을 접는 동안 8 회 (stand_stress 25 N)
+STAND_LOAD_MIN = 0.25          # 한 발 하중 비율 하한
+# 오른팔 집기 자세 (tools/stand_stress.py 의 IK 로 구함: 상자 앞 0.53 m·옆 0.05/0.10/0.15 m, pitch 20°, roll −90°/−70°,
+# 접근점·파지·10 cm 들기). 왼팔은 거울상
+REACH_R = [[-0.538, 2.972, 0.732, 2.148, 0.282, 0.702, -0.799], [-1.201, 2.998, 0.667, 1.578, -0.18, 0.651, -0.746],
+           [-0.812, 3.02, 0.631, 1.628, -0.107, 0.625, -0.45], [-0.554, 2.656, 0.658, 2.251, -0.032, 0.785, -0.702],
+           [-1.191, 2.784, 0.644, 1.658, -0.385, 0.623, -0.678], [-0.737, 2.911, 0.476, 1.707, -0.188, 0.488, -0.423],
+           [-0.464, 2.374, 0.496, 2.287, -0.441, 0.785, -0.44], [-1.111, 2.676, 0.482, 1.685, -0.472, 0.475, -0.639],
+           [-0.711, 2.718, 0.409, 1.735, -0.393, 0.434, -0.348], [-1.225, 2.972, 0.705, 1.577, 0.064, 0.43, -0.893],
+           [-0.907, 2.911, 0.785, 1.629, 0.118, 0.588, -0.657], [-0.75, 2.487, 0.881, 2.252, 0.211, 0.767, -0.974],
+           [-1.167, 2.819, 0.603, 1.656, -0.056, 0.356, -0.824], [-0.805, 2.799, 0.607, 1.709, 0.037, 0.445, -0.57],
+           [-0.469, 2.362, 0.509, 2.284, -0.07, 0.622, -0.673], [-1.178, 2.58, 0.615, 1.685, -0.293, 0.357, -0.715],
+           [-0.781, 2.598, 0.557, 1.736, -0.173, 0.425, -0.456]]
+
 
 class EnvState(NamedTuple):
     d: mjx.Data
@@ -57,6 +89,8 @@ class EnvState(NamedTuple):
     arm_t0: jax.Array
     arm_T: jax.Array
     ep_ret: jax.Array
+    hand_f: jax.Array        # 손에 거는 힘 (왼손, 오른손) × xyz [N] (세계 기준)
+    f_until: jax.Array       # 지금 힘(또는 쉬는 구간)이 끝나는 스텝
     key: jax.Array
 
 
@@ -104,6 +138,8 @@ class Tron1MjxEnv:
         self.leg_act = jnp.array([m.actuator(j + "_ctrl").id for j in J])
         arm_act = [m.actuator(f"{s}_joint{i}_ctrl").id for s in ("left", "right") for i in range(1, 8)]
         self.arm_act = jnp.array(arm_act)
+        self.foot_bid = jnp.array([m.body(n).id for n in ("ankle_L_Link", "ankle_R_Link")])
+        self.hand_bid = jnp.array([m.body(f"openarm_{s}_hand").id for s in ("left", "right")])
         self.arm_qadr = jnp.array([m.jnt_qposadr[m.joint(f"openarm_{s}_joint{i}").id]
                                    for s in ("left", "right") for i in range(1, 8)])
         self.finger_act = jnp.array([m.actuator(f"{s}_finger1_ctrl").id for s in ("left", "right")])
@@ -121,6 +157,17 @@ class Tron1MjxEnv:
         # 이름 자세 표 (자세 수, 14)
         names = list(ARM_POSES)
         self.poses = jnp.array([ARM_POSES[n][0] + ARM_POSES[n][1] for n in names], jnp.float32)
+        from tron1_openarm_sim.arm_poses import mirror
+        self.reach_r = jnp.array(REACH_R, jnp.float32)
+        self.reach_l = jnp.array([mirror(q) for q in REACH_R], jnp.float32)
+        self.rest_r = jnp.array([ARM_POSES[n][1] for n in ("home", "carry")], jnp.float32)
+        self.rest_l = jnp.array([ARM_POSES[n][0] for n in ("home", "carry")], jnp.float32)
+        if foot == "sf":
+            self.rs["stand_feet"] = -STAND_FEET_SCALE
+            self.rs["stand_load"] = -STAND_LOAD_SCALE
+            self.rs["stand_twist"] = -STAND_TWIST_SCALE
+        else:
+            self.rs["stand_feet"] = self.rs["stand_load"] = self.rs["stand_twist"] = 0.0
         # 랜덤화 대상 인덱스
         self.base_bid = m.body("base_link").id
         self.contact_geoms = jnp.array([g for g in range(m.ngeom) if m.geom_contype[g] or m.geom_conaffinity[g]])
@@ -189,6 +236,16 @@ class Tron1MjxEnv:
                                lam[1] * self.poses[a[1], 7:] + (1 - lam[1]) * self.poses[b[1], 7:]])
         mix = mix + 0.25 * jax.random.normal(k[5], (14,))
         q = jnp.where(r > arm_level, jnp.zeros(14), jnp.where(r < 0.7 * arm_level, named, mix))
+        if REACH_P > 0:
+            # 한 팔은 집기 자세(+작은 잡음), 다른 팔은 home/carry — 실제 집기처럼
+            k2 = jax.random.split(k[6], 4)
+            ir = jax.random.randint(k2[0], (), 0, self.reach_r.shape[0])
+            io = jax.random.randint(k2[1], (), 0, 2)
+            right = jax.random.uniform(k2[2]) < 0.5
+            nz = 0.05 * jax.random.normal(k2[3], (7,))
+            reach = jnp.where(right, jnp.concatenate([self.rest_l[io], self.reach_r[ir] + nz]),
+                              jnp.concatenate([self.reach_l[ir] + nz, self.rest_r[io]]))
+            q = jnp.where(jax.random.uniform(k[7]) < REACH_P, reach, q)
         return jnp.clip(q, self.arm_lo, self.arm_hi)
 
     def _sample_cmd(self, key):
@@ -262,7 +319,8 @@ class Tron1MjxEnv:
                      cmd_until=dur, hist=jnp.zeros(self.HIST * self.obs_dim, jnp.float32),
                      obs=jnp.zeros(self.obs_dim, jnp.float32),
                      t=jnp.array(0, jnp.int32), delay=delay, arm_from=arm, arm_to=arm, arm_t0=jnp.array(0.0),
-                     arm_T=jnp.array(1.0), ep_ret=jnp.array(0.0), key=k[5])
+                     arm_T=jnp.array(1.0), ep_ret=jnp.array(0.0), hand_f=jnp.zeros((2, 3), jnp.float32),
+                     f_until=jnp.array(0, jnp.int32), key=k[5])
         obs = self._obs_raw(s)
         return s._replace(obs=obs, hist=jnp.tile(obs, self.HIST))
 
@@ -274,7 +332,7 @@ class Tron1MjxEnv:
 
     # ------------------------------------------------------------------ step
     def step(self, mx, s: EnvState, action, difficulty):
-        key, k_arm, k_new, k_push, k_pv, k_cmd, k_reset, k_noise = jax.random.split(s.key, 8)
+        key, k_arm, k_new, k_push, k_pv, k_cmd, k_reset, k_noise, k_f = jax.random.split(s.key, 9)
         d = s.d
         a = jnp.clip(action, -100, 100).astype(jnp.float32)
         q = d.qpos[self.qadr]
@@ -302,9 +360,15 @@ class Tron1MjxEnv:
             dv = jax.random.uniform(k_pv, (2,), minval=-0.5, maxval=0.5) * difficulty * pz
             d = d.replace(qvel=d.qvel.at[0:2].add(dv))
 
+        xfrc = d.xfrc_applied
+        if HAND_F_MAX > 0 and self.foot == "sf":
+            s = self._hand_force(s, k_f, difficulty)
+            on = (s.standing & (s.stand_t > 0.5)).astype(jnp.float32)
+            xfrc = jnp.zeros_like(d.xfrc_applied).at[self.hand_bid, :3].set(s.hand_f * on)
+
         def sub(d, i):      # 행동 지연: 처음 delay 스텝은 이전 목표
             leg = jnp.where(i < s.delay, s.last_target, target)
-            d = d.replace(ctrl=ctrl.at[self.leg_act].set(leg))
+            d = d.replace(ctrl=ctrl.at[self.leg_act].set(leg), xfrc_applied=xfrc)
             return mjx.step(mx, d), None
         d, _ = jax.lax.scan(sub, d, jnp.arange(self.nsub))
         s = s._replace(d=d, last_target=target)
@@ -349,6 +413,30 @@ class Tron1MjxEnv:
         rest = jax.tree_util.tree_map(lambda x, y: jnp.where(done, x, y), r._replace(d=None), s._replace(d=None))
         return rest._replace(d=d)
 
+    def _hand_force(self, s, key, difficulty):
+        """손 외력: 힘을 거는 구간(0.3~3 s)과 쉬는 구간(0.5~3 s)을 번갈아. 크기 0~HAND_F_MAX × 난이도(0.3~1),
+        방향은 몸통 기준 앞쪽·아래쪽이 더 많게 (상자를 밀고, 작업대를 누르는 경우)."""
+        k = jax.random.split(key, 6)
+        due = s.t >= s.f_until
+        was_on = jnp.any(s.hand_f != 0)
+        level = jnp.clip(2.0 * difficulty, 0.3, 1.0)
+        mag = jax.random.uniform(k[0], minval=0.0, maxval=HAND_F_MAX) * level
+        v = jnp.array([jax.random.uniform(k[1], minval=-0.5, maxval=1.0), jax.random.uniform(k[2], minval=-1.0, maxval=1.0),
+                       jax.random.uniform(k[3], minval=-1.0, maxval=0.3)])
+        v = v / jnp.maximum(jnp.linalg.norm(v), 1e-3)
+        yaw = _yaw(s.d.qpos[3:7])
+        c, sn = jnp.cos(yaw), jnp.sin(yaw)
+        f = jnp.array([c * v[0] - sn * v[1], sn * v[0] + c * v[1], v[2]]) * mag
+        which = jax.random.randint(k[4], (), 0, 5)                   # 0,1: 왼손 / 2,3: 오른손 / 4: 두 손 (각 절반)
+        fl = jnp.where(which <= 1, f, jnp.where(which == 4, 0.5 * f, 0.0))
+        fr = jnp.where((which == 2) | (which == 3), f, jnp.where(which == 4, 0.5 * f, 0.0))
+        new_f = jnp.stack([fl, fr])
+        dur = jnp.where(was_on, jax.random.uniform(k[5], minval=0.5, maxval=3.0),
+                        jax.random.uniform(k[5], minval=0.3, maxval=3.0))
+        hand_f = jnp.where(due, jnp.where(was_on, jnp.zeros_like(new_f), new_f), s.hand_f)
+        f_until = jnp.where(due, s.t + (dur / POLICY_DT).astype(jnp.int32), s.f_until)
+        return s._replace(hand_f=hand_f.astype(jnp.float32), f_until=f_until)
+
     def _arm_now(self, s, tsec):
         u = jnp.clip((tsec - s.arm_t0) / s.arm_T, 0, 1)
         u = u * u * (3 - 2 * u)
@@ -380,6 +468,8 @@ class Tron1MjxEnv:
         F = jnp.array([self._sens(d, "foot_L_touch")[0], self._sens(d, "foot_R_touch")[0]])
         fv = jnp.array([jnp.linalg.norm(self._sens(d, "foot_L_vel")), jnp.linalg.norm(self._sens(d, "foot_R_vel"))])
         fp = self._sens(d, "foot_L_pos")[:2] - self._sens(d, "foot_R_pos")[:2]
+        fvxy = jnp.array([jnp.linalg.norm(self._sens(d, "foot_L_vel")[:2]), jnp.linalg.norm(self._sens(d, "foot_R_vel")[:2])])
+        settled = (s.standing & (s.stand_t >= STAND_YAW_SETTLE)).astype(jnp.float32)
         des = desired_contacts(s.gait_index, self.GAIT)
         if self.foot == "sf":
             des = jnp.where(s.standing, 1.0, des)
@@ -402,6 +492,9 @@ class Tron1MjxEnv:
                                                   - jnp.sum(lin[:2] ** 2) / STAND_DRIFT_SIGMA[1] ** 2)),
             stand_yaw=(s.standing & (s.stand_t >= STAND_YAW_SETTLE))
             * jnp.minimum(jnp.abs(_wrap(_yaw(quat) - s.yaw0)) / STAND_YAW_REF, 2.0),
+            stand_feet=settled * jnp.mean(1 - jnp.exp(-(fvxy / STAND_FEET_SIGMA) ** 2)),
+            stand_twist=settled * jnp.mean(1 - jnp.exp(-(d.cvel[self.foot_bid, 2] / STAND_TWIST_SIGMA) ** 2)),
+            stand_load=settled * jnp.clip((STAND_LOAD_MIN - jnp.min(F) / jnp.maximum(jnp.sum(F), 1.0)) / STAND_LOAD_MIN, 0.0, 1.0),
         )
         r = sum(self.rs[k] * v for k, v in t.items()) * POLICY_DT
         return r, t
