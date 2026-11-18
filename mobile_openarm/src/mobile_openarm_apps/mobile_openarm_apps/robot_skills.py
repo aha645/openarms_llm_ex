@@ -130,6 +130,10 @@ class RobotSkills(Node):
         self.status_pub = self.create_publisher(String, "/task/log", 10)
         self.cmd_pub = self.create_publisher(Twist, "/cmd_vel", 10)
         self.holding = {"left": None, "right": None}
+        # True: 집기 전후 팔을 carry(몸 쪽으로 접은 자세)로 옮긴다 — 상자를 든 채 걸어서 다른 곳으로 갈 때 필요.
+        # 같은 작업대에서 집어 바로 놓을 때(pick_place)는 False: home → 접근 → 파지 → 살짝 들기 → 놓기 → home.
+        # carry 를 거치면 팔 이동 4 번(약 3.5 분, 무작위 배치 r8 기록)이 더 들었다
+        self.fold_carry = True
         self.cancel_event = threading.Event()
         self._executor = None
 
@@ -821,11 +825,18 @@ class RobotSkills(Node):
             out.append({n: float(v) for n, v in zip(names, qq)})
         return out
 
-    def move_named(self, group, name, vel=0.3):
+    def move_named(self, group, name, vel=0.3, tuck=True):
+        """tuck=False: 경유 자세 없이 MoveIt 계획 한 번으로 (작업대·상자는 충돌 객체로 피함). 실패하면 경유 자세로 다시."""
         key = (group, name)
         if key not in self.named_states:
             raise SkillError(f"SRDF 에 {group}/{name} 자세가 없음")
-        self.log(f"[arm] {group} → '{name}'")
+        self.log(f"[arm] {group} → '{name}'" + ("" if tuck else " (바로)"))
+        if not tuck:
+            try:
+                self.move_joints(group, self.named_states[key], vel)
+                return
+            except SkillError as e:
+                self.log(f"[arm] 바로 이동 실패({e}) → 경유 자세로")
         for wp in self._tuck_path(group, name):
             try:
                 self.move_joints(group, wp, vel)
@@ -1326,8 +1337,9 @@ class RobotSkills(Node):
             # 여유 없이 계획하면 손가락이 상판을 스쳐(시뮬 접촉 기록) 몸통이 밀리고 넘어질 뻔했다 (기울기 18°)
             if self.can_strafe:
                 self.set_table(pad=self.TRANSIT_PAD)
-            self.move_named(f"{side}_arm", "carry")
-            if self.can_strafe and dock_ref:
+            if self.fold_carry:
+                self.move_named(f"{side}_arm", "carry")
+            if self.can_strafe and dock_ref and self.fold_carry:
                 self.wait_still(timeout=8.0)
                 self.station_keep(dock_ref, label=" carry 뒤")
                 try:
@@ -1352,7 +1364,8 @@ class RobotSkills(Node):
                 self._table_top_seen = float(center[2] - self.box_size / 2)
                 self._box_seen_fwd = float(center[0])
                 self.set_table()
-                self.move_named(f"{side}_arm", "carry")
+                if self.fold_carry:
+                    self.move_named(f"{side}_arm", "carry")
                 self.set_boxes()
                 R, pre, q_pre = self._solve_approach(side, center, exclude_id=mid, yaw=box_yaw)
             if self.can_strafe:
@@ -1502,8 +1515,9 @@ class RobotSkills(Node):
             # 이족: 상자를 쥔 뒤 뻗은 팔을 carry 로 빠르게(0.3) 접자 반동으로 PF 몸통이 1 초 만에 21°→70° 넘어졌다 (시험 11,
             # 파지는 성공·상자 5 cm 들어 올림). 06장 실험에서 팔을 3배 느리게 하면 흔들림 −38% → 0.1 로 천천히 접는다
             self.wait_still(timeout=8.0)
-            self.move_named(f"{side}_arm", "carry", vel=self.HOLD_VEL)
-            self.wait_still(timeout=8.0)
+            if self.fold_carry:
+                self.move_named(f"{side}_arm", "carry", vel=self.HOLD_VEL)
+                self.wait_still(timeout=8.0)
         else:
             self.move_named(f"{side}_arm", "carry")
         self.log(f"[pick] 완료: {obj}")
@@ -1556,8 +1570,12 @@ class RobotSkills(Node):
         # 'ready'(손이 작업대 위)를 거치면 방금 놓은 상자를 칠 수 있으므로, 몸 쪽 carry 를 거쳐 home 으로
         if self.can_strafe:
             self.set_table(station, pad=self.TRANSIT_PAD)
-        self.move_named(f"{side}_arm", "carry")
-        self.move_named(f"{side}_arm", "home")
+        if self.fold_carry:
+            self.move_named(f"{side}_arm", "carry")
+            self.move_named(f"{side}_arm", "home")
+        else:
+            self.set_boxes()                    # 방금 놓은 상자도 장애물로 두고 home 까지 한 번에
+            self.move_named(f"{side}_arm", "home", tuck=False)
         self.log(f"[place] 완료: {obj}")
         return obj
 

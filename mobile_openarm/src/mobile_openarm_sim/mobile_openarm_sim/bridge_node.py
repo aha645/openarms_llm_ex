@@ -212,6 +212,11 @@ class MujocoBridge(Node):
             # 시작 방향(start_yaw)의 뒤쪽 30° 비스듬히 위에서 → 로봇과 그 앞(작업대)이 함께 보임.
             # 추적 카메라는 위치만 따라가고 방향은 월드 기준이라, 로봇이 돌면 마우스로 돌려 보면 된다
             viewer.cam.azimuth = math.degrees(self.get_parameter("start_yaw").value) - 30.0
+            # 그림자·반사 끔(모델의 조명·재질 값 — 그리기에만 쓰이고 물리와 무관, 카메라 서버는 자기 모델을 따로 씀):
+            # 뷰어가 한 장면을 그리는 동안(sync 가 기다림) 물리가 멈춘다. TRON1 전체 메시 모델에서
+            # sync 가 10 s 중 7.8 s 를 차지해 시뮬레이션이 실시간의 0.6 배로 돌았다 (팔 이동 1 회 40 s 넘게)
+            m.light_castshadow[:] = 0
+            m.mat_reflectance[:] = 0
 
     def on_tick(self, sim):
         if self.stop_event.is_set() or not self.context.ok():

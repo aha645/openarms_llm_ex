@@ -41,8 +41,10 @@ def main():
     sk.declare_parameter("start_x", 2.5)        # sim.launch.py 의 start_x/y/yaw 와 같게
     sk.declare_parameter("start_y", 2.45)
     sk.declare_parameter("start_yaw", 1.5708)
+    sk.declare_parameter("fold_carry", False)   # 같은 작업대에 놓으므로 carry 로 접지 않음 (RobotSkills.fold_carry)
     obj = sk.get_parameter("object").value
     sk.current_station = sk.get_parameter("station").value
+    sk.fold_carry = bool(sk.get_parameter("fold_carry").value)
     g = lambda n: sk.get_parameter(n).value  # noqa: E731
     _br = ensure_map_frame(sk, g("start_x"), g("start_y"), g("start_yaw"))  # noqa: F841 (TF 유지용 참조)
     failed = False

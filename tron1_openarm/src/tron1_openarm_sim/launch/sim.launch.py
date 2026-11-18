@@ -103,4 +103,7 @@ def generate_launch_description():
         DeclareLaunchArgument("policy", default_value="",
                               description="보행 정책 가중치(npz). 비우면 발 형태별 기본값. LimX 사전학습: policies/limx_pf_tron1a_pretrained.npz"),
     ]
-    return LaunchDescription(args + [OpaqueFunction(function=_setup)])
+    # MuJoCo 뷰어 갱신 20 Hz (기본 30): 뷰어가 한 장면(전체 메시, 큰 창)을 그리는 약 26 ms 동안 물리가 멈춰 30 Hz 에서는
+    # 실시간의 0.5 배로 돌았다 (팔 이동·집기 전체가 2 배 느림). 20 Hz 에서 1.0 배. 따로 정하면 그 값 (SIM_VIEW_HZ)
+    view_hz = [SetEnvironmentVariable("SIM_VIEW_HZ", os.environ.get("SIM_VIEW_HZ", "20"))]
+    return LaunchDescription(args + view_hz + [OpaqueFunction(function=_setup)])
