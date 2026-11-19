@@ -664,7 +664,7 @@ TRON1_HAND_F=25 TRON1_REACH_P=0.35 TRON1_STAND_FEET=5 TRON1_STAND_LOAD=3 TRON1_S
   ../.venv-biped/bin/python train_mjx.py --foot sf --impl warp --envs 4096 --minutes 35 --seed 2 --out ../runs/feet2/seed2
 ```
 
-### 13-5. 서 있을 때 기울기 줄이기 (v3, 시도 후 배포 안 함)
+### 13-5. 서 있을 때 기울기 줄이기 (v3: 처음엔 배포 안 함 → 파지 보조 수정 뒤 채택)
 
 v2 는 서 있을 때 몸통이 7~8° 앞으로 숙는다. 기울기 벌점과 긴 에피소드를 넣어 다시 학습했다 (`tron1_mjx_env.py`, 모두 기본 꺼짐):
 
