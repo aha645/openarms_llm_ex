@@ -34,7 +34,7 @@ from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from rclpy.parameter import Parameter
 from shape_msgs.msg import SolidPrimitive
-from sensor_msgs.msg import JointState
+from sensor_msgs.msg import JointState, LaserScan
 from std_msgs.msg import String
 from tf2_ros import Buffer, TransformListener
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
@@ -130,6 +130,9 @@ class RobotSkills(Node):
         # 어느 작업대인지는 지도 좌표로 정하고(마커를 읽으러 다가갈 필요 없음), 거리·방향·상판 높이만 이것으로 맞춘다
         self._edge = None                # (받은 시각, dict)
         self.create_subscription(String, "/table/edge", self._on_edge, 10, callback_group=cb)
+        # LiDAR: 작업대 앞 다리 두 개로 작업대 중심의 옆 위치를 잰다 (table_center_lidar) — AMCL 옆 오차(최대 0.2 m)를 쓰지 않으려고
+        self._scan = None
+        self.create_subscription(LaserScan, "/scan", lambda m: setattr(self, "_scan", m), 1, callback_group=cb)
         self._joints = {}
         self.create_subscription(JointState, "/joint_states", self._on_js, 10, callback_group=cb)
         self.status_pub = self.create_publisher(String, "/task/log", 10)
@@ -272,6 +275,50 @@ class RobotSkills(Node):
                 return e[1]
             time.sleep(0.05)
         return None
+
+    def table_center_lidar(self, station=None, e=None):
+        """작업대 중심이 로봇 기준 모서리 방향(왼쪽 +)으로 얼마나 떨어져 있나 [m] — LiDAR 로 본 앞 다리 두 개의 중간점. 못 찾으면 None.
+        앞 모서리 거리·방향(e: /table/edge)으로 모서리 바로 안쪽 띠(0~9 cm)의 점만 모아, 모서리 방향으로 묶음을 나누고
+        작업대 폭에서 나오는 다리 간격(폭 − 8 cm)과 맞는 두 묶음을 찾는다.
+        왜: 깊이 카메라 시야(옆 ±0.3 m)로는 작업대 양 끝이 안 보여 옆 위치는 지도(AMCL)에 의존했는데, AMCL 이 0.22 m 틀리자
+        도착 후 옆걸음이 반대로 어긋나고 MoveIt 작업대도 옆으로 밀려, 팔이 실제 작업대를 눌러 넘어졌다 (미션 D)."""
+        station = station or self.current_station
+        table = self.tables.get(self.station_table.get(station))
+        e = e or self._edge_recent(2.0)
+        msg = self._scan
+        if table is None or e is None or msg is None:
+            return None
+        tf = self._tf_pair(BASE, msg.header.frame_id)
+        if tf is None:
+            return None
+        r = np.asarray(msg.ranges, float)
+        a = msg.angle_min + msg.angle_increment * np.arange(len(r))
+        ok = np.isfinite(r) & (r > msg.range_min) & (r < min(msg.range_max, 3.0))
+        P = (tf[1] @ np.vstack([r[ok] * np.cos(a[ok]), r[ok] * np.sin(a[ok]), np.zeros(ok.sum())])).T + tf[0]
+        th = float(e["yaw"])
+        n_in, e_dir = np.array([math.cos(th), math.sin(th)]), np.array([-math.sin(th), math.cos(th)])
+        u = P[:, :2] @ n_in - float(e["dist"])                       # 모서리에서 안쪽 거리
+        v = np.sort(P[(u > -0.01) & (u < 0.09), :2] @ e_dir)          # 모서리 방향 위치
+        if len(v) < 4:
+            return None
+        groups = np.split(v, np.where(np.diff(v) > 0.04)[0] + 1)
+        legs = [float(g.mean()) for g in groups if len(g) >= 2 and np.ptp(g) < 0.10]
+        sep = float(table["size"][0]) - 0.08
+        best = None
+        for i in range(len(legs)):
+            for j in range(i + 1, len(legs)):
+                d = abs(abs(legs[j] - legs[i]) - sep)
+                if d < 0.05 and (best is None or d < best[0]):
+                    best = (d, 0.5 * (legs[i] + legs[j]))
+        return None if best is None else best[1]
+
+    def _station_lateral_offset(self, station):
+        """스테이션이 작업대 중심에서 모서리 방향(로봇 왼쪽 +)으로 떨어진 거리 (지도 좌표, 보통 0)."""
+        t = self.tables.get(self.station_table.get(station))
+        if t is None:
+            return 0.0
+        sx, sy, syaw = self.locations[station][0], self.locations[station][1], math.radians(self.locations[station][2])
+        return -(sx - t["center"][0]) * math.sin(syaw) + (sy - t["center"][1]) * math.cos(syaw)
 
     def _edge_recent(self, max_age=1.5):
         e = self._edge
@@ -719,18 +766,28 @@ class RobotSkills(Node):
         if self.can_strafe:
             # 옆 위치: Nav2 '도착' 은 목표에서 0.25 m(xy 허용) + AMCL 오차만큼 옆으로 벗어날 수 있다. 미션 22 에서 스테이션보다
             # 35 cm 옆에 서서 집을 상자(로봇 오른쪽 0.47 m)가 머리 카메라 시야(옆 ±0.3 m) 밖 → '마커 못 찾음' 으로 실패.
-            # 지도 위 스테이션과의 옆 방향 차이를 '한 번' 재서 그만큼 옆걸음한다 (옆걸음은 odom 폐루프, 한 번에 0.25 m 까지라 나눠서).
-            # 옆걸음마다 AMCL 을 다시 읽어 맞추면 AMCL 이 옆 이동을 잘못 추정해(미션 23) 좌우로 왔다 갔다 하며 0.7 m 어긋났다
-            p = self.robot_pose()
-            sx, sy, syaw = self.locations[station][0], self.locations[station][1], math.radians(self.locations[station][2])
-            lat = 0.0 if p is None else -(p[0] - sx) * math.sin(syaw) + (p[1] - sy) * math.cos(syaw)   # +: 스테이션보다 왼쪽
-            if abs(lat) >= 0.06:
-                self.log(f"[dock] 스테이션보다 옆으로 {lat:+.2f} m → 옆걸음 {-lat:+.2f} m")
-                rest = -float(np.clip(lat, -0.5, 0.5))
+            # LiDAR 로 작업대 앞 다리를 찾아 작업대 중심에 대해 맞춘다 (table_center_lidar). 못 찾을 때만 지도(AMCL) 값 —
+            # AMCL 은 옆으로 0.2 m 틀릴 수 있어(미션 D: 0.22 m 반대로 옆걸음 → 넘어짐) 0.15 m 넘게 벗어난 것으로 보일 때만, 절반만 간다.
+            # 옆걸음은 odom 폐루프, 한 번에 0.25 m 까지라 나눠서
+            c = self.table_center_lidar(station, self.table_edge_seen())
+            if c is not None:
+                move = c + self._station_lateral_offset(station)            # +: 왼쪽으로
+                src = f"LiDAR 작업대 다리: 중심 {c:+.2f} m"
+            else:
+                p = self.robot_pose()
+                sx, sy, syaw = self.locations[station][0], self.locations[station][1], math.radians(self.locations[station][2])
+                lat = 0.0 if p is None else -(p[0] - sx) * math.sin(syaw) + (p[1] - sy) * math.cos(syaw)
+                move = -0.5 * lat if abs(lat) > 0.15 else 0.0
+                src = f"지도(AMCL): 스테이션보다 옆으로 {lat:+.2f} m"
+            if abs(move) >= 0.06:
+                self.log(f"[dock] {src} → 옆걸음 {move:+.2f} m")
+                rest = float(np.clip(move, -0.5, 0.5))
                 while abs(rest) >= 0.01:
                     step = float(np.clip(rest, -0.25, 0.25))
                     self.strafe_base(step)
                     rest -= step
+            else:
+                self.log(f"[dock] {src} → 옆 위치 그대로")
             self.set_table(station, pad=self.TRANSIT_PAD)   # 이후 팔 이동 경로가 작업대를 피하도록 먼저 충돌 객체를 넣는다
         # 2) 작업대 앞 모서리까지 DOCK_GAP 이 되도록 직진
         d = self.table_edge_distance(station)
@@ -1026,7 +1083,8 @@ class RobotSkills(Node):
             th = float(e["yaw"])
             n_in, e_dir = np.array([math.cos(th), math.sin(th)]), np.array([-math.sin(th), math.cos(th)])
             p_edge = np.array([float(e["dist"]), 0.0])
-            s_lat = float((np.asarray(local) - p_edge) @ e_dir)
+            c = self.table_center_lidar(station, e)                  # 옆 위치는 LiDAR 다리 (AMCL 옆 오차를 쓰지 않음, 미션 D)
+            s_lat = c if c is not None else float((np.asarray(local) - p_edge) @ e_dir)
             local = p_edge + n_in * (t["size"][1] / 2) + e_dir * s_lat
             tbl_yaw = th - math.radians(self.locations[station][2])
             if self._table_top_seen is None:

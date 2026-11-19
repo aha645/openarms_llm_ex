@@ -28,7 +28,9 @@ LOCATIONS = ["home", "pick_station", "place_station", "door",
              "patrol_1", "patrol_2", "patrol_3", "patrol_4"]
 TABLE_STATIONS = ["pick_station", "place_station"]
 OBJECTS = {"box_0": "빨간 상자(red)", "box_1": "초록 상자(green)", "box_2": "파란 상자(blue)"}
-MAX_STEPS = 12
+# 계획 최대 단계 수 (안전 범위: LLM 이 끝없이 긴 계획을 만들지 못하게). 기본 12 — 바퀴형 2일차 실습은 "상자 전부 옮겨"(13 단계)가
+# 여기서 막히는 것을 보고 늘려 보는 과제를 쓴다. TRON1 full_system.launch.py 는 OPENARM_MAX_STEPS=20 (상자 3 개 13 단계 + 순찰)
+MAX_STEPS = int(os.environ.get("OPENARM_MAX_STEPS", 12))
 SIDE_WORDS = ("왼쪽", "오른쪽", "가운데")
 
 
