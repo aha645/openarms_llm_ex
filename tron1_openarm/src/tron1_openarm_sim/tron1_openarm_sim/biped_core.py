@@ -100,7 +100,7 @@ class BipedOpenArmSim(W.MobileOpenArmSim):
                  aruco_dict="DICT_4X4_50", marker_size=0.04, use_depth=True, policy_path=None):
         # ---- 부모 __init__ 중 하반신과 무관한 부분을 그대로 재현 (부모는 바퀴 관절을 찾으므로 직접 호출 불가)
         import threading
-        self.m = mujoco.MjModel.from_xml_path(xml_path)
+        self.m = W.load_model(xml_path)                   # 파지 보조 weld 구속 포함 (sim_core.load_model)
         self.d = mujoco.MjData(self.m)
         self.lock = threading.RLock()
         m = self.m
@@ -201,6 +201,7 @@ class BipedOpenArmSim(W.MobileOpenArmSim):
         self.attached = {"left": None, "right": None}
         self.box_bodies = [i for i in range(m.nbody) if m.body(i).name.startswith("box_")]
         self.tcp = {s: m.body(f"openarm_{s}_hand_tcp").id for s in ARM_JOINTS}
+        self._init_grasp_welds()
         self.move_person = move_person
         self.person_speed = person_speed
         self.person_mocap = m.body_mocapid[m.body("person").id] if self._has_body("person") else -1
