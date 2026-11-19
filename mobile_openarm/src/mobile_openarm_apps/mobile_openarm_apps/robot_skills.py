@@ -1331,8 +1331,6 @@ class RobotSkills(Node):
             self._box_seen_fwd = float(center[0])
             self.set_table()
             self.log(f"[pick] 옆걸음 후 상자 위치 base {np.round(center, 3)}")
-        # 이족: 도킹을 마친 자세를 기준으로 기억 — 팔을 들 때 몸통이 밀리면(SF 미션 11: 뒤로 9 cm) 이 자세로 되돌린다
-        dock_ref = self._other_markers(exclude=None) if self.can_strafe else None
         # 상자 방향 (base 기준, 90° 주기로 접어 ±45°): 접근 방향을 이만큼 돌려 손가락이 옆면에 수직으로 닿게 (_solve_approach)
         box_yaw = 0.0
         if self.can_strafe:
@@ -1347,16 +1345,12 @@ class RobotSkills(Node):
             # 여유 없이 계획하면 손가락이 상판을 스쳐(시뮬 접촉 기록) 몸통이 밀리고 넘어질 뻔했다 (기울기 18°)
             if self.can_strafe:
                 self.set_table(pad=self.TRANSIT_PAD)
-            if self.fold_carry:
+            # 접근을 carry 에서 출발할지: 바퀴형만. 이족은 home 에서 바로 접근한다 (무작위 배치 r1~r8 8/8 로 검증된 경로).
+            # 이족이 carry 에서 출발하면 접근 직선 경로가 막히고(0 %), home 으로 되돌리는 계획이 손을 작업대 위로 휘둘러
+            # 손가락이 상판에 걸려 몸통이 22° 기울었다 (전체 미션 18). 상자를 쥔 뒤 carry 로 접는 것(fold_carry)은 그대로
+            via_carry = self.fold_carry and not self.can_strafe
+            if via_carry:
                 self.move_named(f"{side}_arm", "carry")
-            if self.can_strafe and dock_ref and self.fold_carry:
-                self.wait_still(timeout=8.0)
-                self.station_keep(dock_ref, label=" carry 뒤")
-                try:
-                    center = self.find_marker(mid, samples=3) - np.array([0, 0, self.box_size / 2])
-                    self._box_seen_fwd = float(center[0])
-                except SkillError:
-                    pass
             self.set_boxes()                                   # 계획 중에는 모든 상자가 장애물
             if self.can_strafe:
                 self.set_table()                               # 접근 자세 계산은 실제 상판 높이로
@@ -1374,7 +1368,7 @@ class RobotSkills(Node):
                 self._table_top_seen = float(center[2] - self.box_size / 2)
                 self._box_seen_fwd = float(center[0])
                 self.set_table()
-                if self.fold_carry:
+                if via_carry:
                     self.move_named(f"{side}_arm", "carry")
                 self.set_boxes()
                 R, pre, q_pre = self._solve_approach(side, center, exclude_id=mid, yaw=box_yaw)
@@ -1580,7 +1574,7 @@ class RobotSkills(Node):
         # 'ready'(손이 작업대 위)를 거치면 방금 놓은 상자를 칠 수 있으므로, 몸 쪽 carry 를 거쳐 home 으로
         if self.can_strafe:
             self.set_table(station, pad=self.TRANSIT_PAD)
-        if self.fold_carry:
+        if self.fold_carry and not self.can_strafe:   # 이족은 놓은 뒤 바로 home (carry 를 거치는 계획이 작업대 위로 손을 휘두름, 미션 18)
             self.move_named(f"{side}_arm", "carry")
             self.move_named(f"{side}_arm", "home")
         else:

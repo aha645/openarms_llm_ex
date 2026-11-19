@@ -7,7 +7,12 @@
   * 속도 한계  vx 0.40→0.35, 후진 -0.25→-0.20, wz 1.2→0.8 : 보행 정책이 안정적으로 따라가는 범위 (rl/eval_policy.py 결과)
   * 가속 한계  ax 2.0→0.8, az 2.5→1.5 : 보행은 발을 디딜 때만 힘을 낼 수 있어 급가속을 못 따라감
   * 도착 허용  xy 0.12→0.15 m, yaw 0.15→0.20 rad : 제자리 걸음 중에도 몸통이 좌우로 ±2~3 cm 흔들림
-  * footprint 0.55x0.52→0.46x0.80 m : TRON1 몸통·다리 + 바깥으로 벌려 내린 팔(home 손끝 좌우 ±0.41 m, arm_poses.py) — 여유 0.02 m 는 footprint_padding
+  * footprint 0.55x0.52→0.46x0.90 m : TRON1 몸통·다리 + 바깥으로 벌려 내린 팔. home 손끝은 좌우 ±0.41 m 지만 손·손가락 형상은
+    ±0.447 m 까지 나온다 (MuJoCo 충돌 형상 AABB). ±0.40 m 였을 때 전체 미션 17 에서 작업대 옆을 지나다 왼손이 작업대 다리에 걸림
+    — 여유 0.02 m 는 footprint_padding
+  * MPPI CostCritic consider_footprint false→true : false 면 로봇을 내접원(반지름 0.22 m, 뒤쪽 길이)으로만 보아
+    옆으로 벌린 팔을 무시하고 장애물 0.25 m 옆을 지나갔다 (미션 17)
+  * inflation 0.45 → 0.55 m, cost_scaling 5 → 4 : 경로가 작업대·벽에서 조금 더 떨어지도록
   * AMCL 오도메트리 잡음 alpha 0.2→0.4 : 다리 오도메트리는 바퀴보다 미끄러짐·출렁임이 큼
   * 진행 확인  0.3 m / 20 s → 0.25 m / 30 s : 느린 보행 + 회전에 시간이 더 걸림
 """
@@ -15,7 +20,7 @@ import argparse
 
 import yaml
 
-FOOTPRINT = "[[0.24, 0.40], [0.24, -0.40], [-0.22, -0.40], [-0.22, 0.40]]"   # 팔을 벌린 home 자세(손끝 y ±0.41 m, + padding 0.02) 포함
+FOOTPRINT = "[[0.24, 0.45], [0.24, -0.45], [-0.22, -0.45], [-0.22, 0.45]]"   # 팔을 벌린 home 자세(손 형상 y ±0.447 m, + padding 0.02) 포함
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--src", required=True)
@@ -49,16 +54,20 @@ c["general_goal_checker"]["xy_goal_tolerance"] = 0.25
 c["general_goal_checker"]["yaw_goal_tolerance"] = 0.35
 f = c["FollowPath"]
 # wz_max 0.8 → 0.5: SF 는 회전 응답이 늦어 큰 회전 명령에서 방향이 ±60° 출렁이며 경로를 크게 돌아갔다 (SF 미션 시험 10)
+f["CostCritic"]["consider_footprint"] = True
+# 이족은 옆걸음 가능 (/cmd_vel linear.y, biped_core VY_LIMIT 0.15 안) → 좁은 곳·도킹 직전 옆으로 비켜 맞춤
+f.update(motion_model="Omni", vy_max=0.12, vy_std=0.08, ay_max=0.5, ay_min=-0.5)
 f.update(vx_max=0.35, vx_min=-0.20, wz_max=0.5, ax_max=0.8, ax_min=-1.0, az_max=1.0, vx_std=0.15, wz_std=0.2)
 for cm in ("local_costmap", "global_costmap"):
     cp = p[cm][cm]["ros__parameters"]
     cp["footprint"] = FOOTPRINT
-    cp["inflation_layer"]["inflation_radius"] = 0.45
+    cp["inflation_layer"]["inflation_radius"] = 0.55
+    cp["inflation_layer"]["cost_scaling_factor"] = 4.0
 vs = p["velocity_smoother"]["ros__parameters"]
-vs["max_velocity"] = [0.35, 0.0, 0.8]
-vs["min_velocity"] = [-0.20, 0.0, -0.8]
-vs["max_accel"] = [0.8, 0.0, 1.5]
-vs["max_decel"] = [-1.0, 0.0, -1.5]
+vs["max_velocity"] = [0.35, 0.12, 0.8]
+vs["min_velocity"] = [-0.20, -0.12, -0.8]
+vs["max_accel"] = [0.8, 0.5, 1.5]
+vs["max_decel"] = [-1.0, -0.5, -1.5]
 bs = p["behavior_server"]["ros__parameters"]
 bs["max_rotational_vel"] = 0.8
 with open(a.out, "w") as fp:
