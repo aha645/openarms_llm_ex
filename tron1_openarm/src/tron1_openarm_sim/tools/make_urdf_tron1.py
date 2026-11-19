@@ -5,6 +5,8 @@
   * 메시 경로 package://tron1_openarm_sim/mjcf/
   * base_footprint → base_link 높이: 바퀴 반지름 0.08 → 서 있는 높이 0.68 (NOMINAL_BASE_HEIGHT)
   * 그 고정 관절을 가상 관절 3개(높이·pitch·roll)로 바꿈 (tools/base_tilt_urdf.py — 이족 몸통 기울기를 TF·MoveIt 에 반영)
+  * URDF 전용 기구 정리 (tools/mech_fix.py fix_urdf): TRON1 하체 STL 메시 visual 등 — MJCF 변환에는 시각 메시가 안 들어가
+    RViz 에서 하체가 투명했다. 예전에는 생성 뒤 손으로 mech_fix 를 돌려 저장소의 URDF 와 다시 생성한 URDF 가 달랐다
 왜 xacro 결과(URDF)를 바로 쓰지 않나: ROS 쪽 URDF 에는 OpenArm 팔·그리퍼·카메라·LiDAR 프레임까지 들어가야 하고,
 시뮬레이터(MJCF)와 기구학이 1:1 로 같아야 하므로, 최종 MJCF 를 정본으로 두고 다시 뽑는다 (바퀴형과 같은 원칙).
 
@@ -27,6 +29,7 @@ import mjcf_to_urdf as M  # noqa: E402
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from base_tilt_urdf import add_base_tilt_joints  # noqa: E402
+from mech_fix import fix_urdf  # noqa: E402
 
 M.PKG = a.mesh_prefix
 M.WHEEL_RADIUS = a.base_height
@@ -36,6 +39,9 @@ s = s.replace('<robot name="mobile_openarm">', '<robot name="tron1_openarm">')
 s = s.replace("자동 생성: tools/mjcf_to_urdf.py (원본 MJCF: mjcf/mobile_openarm.xml)",
               "자동 생성: tron1_openarm_sim/tools/make_urdf_tron1.py (원본 MJCF: mjcf/tron1_openarm.xml, 하반신 xacro: LimX TRON1)")
 s = add_base_tilt_joints(s)
+s, notes = fix_urdf(s, mesh_dir=a.mesh_prefix + "meshes/tron1/")
+if notes:
+    print("기구 정리:", ", ".join(notes))
 open(a.out, "w", encoding="utf-8").write(s)
 n_link = len(re.findall("<link ", s))
 n_joint = len(re.findall('<joint name="[^"]+" type="(revolute|continuous|prismatic)"', s))

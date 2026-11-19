@@ -48,20 +48,6 @@
         <color rgba="0.79 0.82 0.93 1" />
       </material>
     </visual>
-    <!-- base_handle_L: TRON1 몸통 옆 손잡이 (tools/mech_fix.py) -->
-    <collision>
-      <origin xyz="0 0.16 -0.1" rpy="0 0 0" />
-      <geometry>
-        <box size="0.134 0.026 0.04" />
-      </geometry>
-    </collision>
-    <!-- base_handle_R: TRON1 몸통 옆 손잡이 (tools/mech_fix.py) -->
-    <collision>
-      <origin xyz="0 -0.16 -0.1" rpy="0 0 0" />
-      <geometry>
-        <box size="0.134 0.026 0.04" />
-      </geometry>
-    </collision>
     <inertial>
       <origin xyz="0.04576 0.00014 -0.16398" rpy="-0.0156365 -0.46994 0.0118981" />
       <mass value="9.585" />
@@ -80,6 +66,36 @@
       <origin xyz="0.03 0 -0.072" rpy="0 0 0" />
       <geometry>
         <box size="0.27 0.26 0.19" />
+      </geometry>
+    </collision>
+    <visual>
+      <origin xyz="0 0.16 -0.1" rpy="0 0 0" />
+      <geometry>
+        <box size="0.134 0.026 0.04" />
+      </geometry>
+      <material name="base_handle_L_collision_mat">
+        <color rgba="0 0 1 0" />
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0.16 -0.1" rpy="0 0 0" />
+      <geometry>
+        <box size="0.134 0.026 0.04" />
+      </geometry>
+    </collision>
+    <visual>
+      <origin xyz="0 -0.16 -0.1" rpy="0 0 0" />
+      <geometry>
+        <box size="0.134 0.026 0.04" />
+      </geometry>
+      <material name="base_handle_R_collision_mat">
+        <color rgba="0 0 1 0" />
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 -0.16 -0.1" rpy="0 0 0" />
+      <geometry>
+        <box size="0.134 0.026 0.04" />
       </geometry>
     </collision>
     <visual>
@@ -255,18 +271,18 @@
       <inertia ixx="0.0019759" iyy="0.00181179" izz="0.000523633" ixy="0" ixz="0" iyz="0" />
     </inertial>
     <visual>
-      <origin xyz="0 0 0" rpy="0 0 0" />
+      <origin xyz="0.0067 -0.0001 -0.0549" rpy="0 0 0" />
       <geometry>
-        <mesh filename="package://tron1_openarm_sim/mjcf/sf/meshes/tron1/ankle_L_Link.STL" scale="1 1 1" />
+        <box size="0.1818 0.046 0.01" />
       </geometry>
       <material name="ankle_L_collision_mat">
         <color rgba="0 0 1 0" />
       </material>
     </visual>
     <collision>
-      <origin xyz="0 0 0" rpy="0 0 0" />
+      <origin xyz="0.0067 -0.0001 -0.0549" rpy="0 0 0" />
       <geometry>
-        <mesh filename="package://tron1_openarm_sim/mjcf/sf/meshes/tron1/ankle_L_Link.STL" scale="1 1 1" />
+        <box size="0.1818 0.046 0.01" />
       </geometry>
     </collision>
   </link>
@@ -407,18 +423,18 @@
       <inertia ixx="0.0019759" iyy="0.00181179" izz="0.000523633" ixy="0" ixz="0" iyz="0" />
     </inertial>
     <visual>
-      <origin xyz="0 0 0" rpy="0 0 0" />
+      <origin xyz="0.0067 -0.0001 -0.0549" rpy="0 0 0" />
       <geometry>
-        <mesh filename="package://tron1_openarm_sim/mjcf/sf/meshes/tron1/ankle_R_Link.STL" scale="1 1 1" />
+        <box size="0.1818 0.046 0.01" />
       </geometry>
       <material name="ankle_R_collision_mat">
         <color rgba="0 0 1 0" />
       </material>
     </visual>
     <collision>
-      <origin xyz="0 0 0" rpy="0 0 0" />
+      <origin xyz="0.0067 -0.0001 -0.0549" rpy="0 0 0" />
       <geometry>
-        <mesh filename="package://tron1_openarm_sim/mjcf/sf/meshes/tron1/ankle_R_Link.STL" scale="1 1 1" />
+        <box size="0.1818 0.046 0.01" />
       </geometry>
     </collision>
   </link>
@@ -430,6 +446,11 @@
     <limit lower="-1.15192" upper="1.5708" effort="20" velocity="10" />
   </joint>
   <link name="openarm_mount_link">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 -1.5708 0" />
+      <mass value="0.6" />
+      <inertia ixx="0.00488" iyy="0.0028898" izz="0.0020098" ixy="0" ixz="0" iyz="0" />
+    </inertial>
     <visual>
       <origin xyz="-0.0615 0 -0.003" rpy="0 0 0" />
       <geometry>
@@ -439,11 +460,6 @@
         <color rgba="0.796078 0.796078 0.796078 1" />
       </material>
     </visual>
-    <inertial>
-      <origin xyz="0 0 0" rpy="0 -1.5708 0" />
-      <mass value="0.6" />
-      <inertia ixx="0.00488" iyy="0.0028898" izz="0.0020098" ixy="0" ixz="0" iyz="0" />
-    </inertial>
   </link>
   <joint name="base_link_to_openarm_mount_link" type="fixed">
     <parent link="base_link" />
@@ -501,7 +517,7 @@
     <visual>
       <origin xyz="0.05 0 0.8495" rpy="0 0 0" />
       <geometry>
-        <cylinder radius="0.012" length="0.1750" />
+        <cylinder radius="0.012" length="0.175" />
       </geometry>
       <material name="head_mast_vis_mat">
         <color rgba="0.3 0.3 0.3 1" />
@@ -897,6 +913,11 @@
     <limit lower="-1.5708" upper="1.5708" effort="7" velocity="10" />
   </joint>
   <link name="openarm_left_hand">
+    <inertial>
+      <origin xyz="0 0 0.00512294" rpy="3.14159 -1.5708 3.14159" />
+      <mass value="0.172311" />
+      <inertia ixx="0.000290609" iyy="0.000251645" izz="5.48914e-05" ixy="0" ixz="0" iyz="0" />
+    </inertial>
     <visual>
       <origin xyz="-0.085 0 -0.01" rpy="0 0 0" />
       <geometry>
@@ -915,11 +936,6 @@
         <color rgba="0.25 0.25 0.25 1" />
       </material>
     </visual>
-    <inertial>
-      <origin xyz="0 0 0.00512294" rpy="3.14159 -1.5708 3.14159" />
-      <mass value="0.172311" />
-      <inertia ixx="0.000290609" iyy="0.000251645" izz="5.48914e-05" ixy="0" ixz="0" iyz="0" />
-    </inertial>
     <collision>
       <origin xyz="0 0 -0.6586" rpy="0 0 0" />
       <geometry>
@@ -1417,6 +1433,11 @@
     <limit lower="-1.5708" upper="1.5708" effort="7" velocity="10" />
   </joint>
   <link name="openarm_right_hand">
+    <inertial>
+      <origin xyz="0 0 0.00512294" rpy="3.14159 -1.5708 3.14159" />
+      <mass value="0.172311" />
+      <inertia ixx="0.000290609" iyy="0.000251645" izz="5.48914e-05" ixy="0" ixz="0" iyz="0" />
+    </inertial>
     <visual>
       <origin xyz="-0.085 0 -0.01" rpy="0 0 0" />
       <geometry>
@@ -1435,11 +1456,6 @@
         <color rgba="0.25 0.25 0.25 1" />
       </material>
     </visual>
-    <inertial>
-      <origin xyz="0 0 0.00512294" rpy="3.14159 -1.5708 3.14159" />
-      <mass value="0.172311" />
-      <inertia ixx="0.000290609" iyy="0.000251645" izz="5.48914e-05" ixy="0" ixz="0" iyz="0" />
-    </inertial>
     <collision>
       <origin xyz="0 0 -0.6586" rpy="0 0 0" />
       <geometry>
@@ -1569,12 +1585,12 @@
   <joint name="openarm_body_link0_to_head_camera_link" type="fixed">
     <parent link="openarm_body_link0" />
     <child link="head_camera_link" />
-    <origin xyz="0.1 0 0.937" rpy="0 0.888480 0" />
+    <origin xyz="0.1 0 0.937" rpy="0 0.888372 0" />
   </joint>
   <link name="head_camera_optical_frame" />
   <joint name="head_camera_link_to_head_camera_optical_frame" type="fixed">
     <parent link="head_camera_link" />
     <child link="head_camera_optical_frame" />
-    <origin xyz="0 0 0" rpy="-1.5708 5.55112e-17 -1.5708" />
+    <origin xyz="0 0 0" rpy="-1.5708 0 -1.5708" />
   </joint>
 </robot>

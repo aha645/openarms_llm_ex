@@ -42,15 +42,15 @@ Python 의존성은 가상환경 두 개로 나눕니다. 설치 스크립트가
 docker/                               # Intel iMac용 이미지·가상 데스크톱·Compose
 doc/                                  # 설치·교육·설계 문서
 mobile_openarm/                       # 휠형 colcon 워크스페이스
-  scripts/                            # 노트북 점검·설치(00·01·03), 휠형 모델 생성·빌드(04), .venv-mobile 생성
+  scripts/                            # 노트북 점검·설치(00·01·03), 휠형 빌드(04), 모델 재생성(05, 선택), .venv-mobile 생성
   src/
     mobile_openarm_sim/               # 휠 모델, 센서·물리, ROS 브리지, SLAM/Nav2 launch
     mobile_openarm_moveit_config/     # 휠형 URDF/SRDF 기반 MoveIt 설정
     mobile_openarm_apps/              # 공통 주행/팔 스킬, LLM 계획, 작업 관리자, 웹
-  third_party/openarm_mujoco/         # (스크립트가 clone, git 제외) OpenArm 에셋
+  third_party/openarm_mujoco/         # (05 재생성 때만 clone, git 제외) OpenArm 원본 — 메시·모델은 src/ 에 포함
   .venv-mobile/  build/ install/ log/ # (생성물, git 제외)
 tron1_openarm/                        # TRON1 colcon 워크스페이스 (mobile_openarm/install 위에 overlay)
-  scripts/                            # TRON1 모델 준비·빌드(10), PPO 학습(11), .venv-biped 생성
+  scripts/                            # TRON1 빌드(10), PPO 학습(11·12), 모델 재생성(13, 선택), .venv-biped 생성
   src/tron1_openarm_sim/              # 이족 모델, 정책 추론·물리·브리지, launch
   src/tron1_openarm_moveit_config/    # 이족용 MoveIt 설정
   rl/                                 # 선택적 PPO 학습 (기본 교육 범위 밖)

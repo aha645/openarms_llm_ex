@@ -111,13 +111,15 @@ for _lr in ("L", "R"):
         TRON1_LINKS[f"{_n}_{_lr}_Link"] = (f"{_n}_{_lr}_Link", _c)
 
 
-def fix_urdf(s):
+def fix_urdf(s, mesh_dir=None):
+    """mesh_dir: TRON1 STL 메시 폴더 URI (예: package://tron1_openarm_sim/mjcf/sf/meshes/tron1/). 없으면 URDF 안의 참조로 추측."""
     notes = []
     # 5) TRON1 하체 메시 visual (RViz 표시용)
     if "tron1_mesh_vis_mat" not in s:
         # SF URDF 는 발목 메시를 이미 package://.../mjcf/sf/meshes/tron1/ 로 참조, PF 는 메시 참조가 없음 → mjcf/meshes/tron1/
-        m = re.search(r'filename="(package://[^"]*/meshes/tron1/)[a-zA-Z_]+\.STL"', s)
-        mesh_dir = m.group(1) if m else "package://tron1_openarm_sim/mjcf/meshes/tron1/"
+        if mesh_dir is None:
+            m = re.search(r'filename="(package://[^"]*/meshes/tron1/)[a-zA-Z_]+\.STL"', s)
+            mesh_dir = m.group(1) if m else "package://tron1_openarm_sim/mjcf/meshes/tron1/"
         if True:
             for link, (mesh, rgba) in TRON1_LINKS.items():
                 ml = re.search(rf'<link name="{link}">', s)

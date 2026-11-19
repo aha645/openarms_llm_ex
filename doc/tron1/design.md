@@ -56,7 +56,7 @@ flowchart TB
 
 | 새로 만든 것 | 파일 | 하는 일 | 왜 필요한가 |
 |---|---|---|---|
-| ① 하반신 로봇 설명 가져오기 | `tron1_openarm/scripts/10_setup_tron1.sh` | `limxdynamics/tron1-robot-description` 을 `tron1_openarm/third_party/` 로 clone | LimX 가 공개한 TRON1 의 링크 길이·관절 한계·질량·관성(CAD 값)을 그대로 쓰기 위해. 직접 재면 틀린다 |
+| ① 하반신 로봇 설명 가져오기 | `tron1_openarm/scripts/13_regen_tron1_models.sh` (생성 결과·메시는 저장소에 포함, `10_setup_tron1.sh` 는 받지 않음) | `limxdynamics/tron1-robot-description` 을 `tron1_openarm/third_party/` 로 clone | LimX 가 공개한 TRON1 의 링크 길이·관절 한계·질량·관성(CAD 값)을 그대로 쓰기 위해. 직접 재면 틀린다 |
 | ② 최상위 xacro | `urdf/tron1_openarm.urdf.xacro` | LimX `robot.xacro` 를 include + 상반신을 얹을 **마운트 판** 링크 추가 | LimX 파일은 수정하지 않고(업데이트 받기 쉽게) 우리 추가분만 따로 둔다. 마운트 위치(`mount_x`, `mount_z`)를 xacro 변수로 두어 바꿔 보기 쉽게 |
 | ③ 모델 생성기 | `tools/build_tron1_openarm.py` | xacro → URDF → MuJoCo 컴파일 → MJCF, LimX MuJoCo 충돌형상 이식, PD 구동기, OpenArm 접목, 센서 배치 | 시뮬레이터(MJCF)와 ROS(URDF)가 같은 기구학을 쓰도록 한 번에 자동 생성. 자세한 근거는 아래 [모델 만들기](#모델-만들기--로봇-설명-가져오기--xacro--mjcf-생성--상반신-고정) |
 | ④ 상반신 기둥 교체·위치 | 같은 파일 (`SHOULDER_HEIGHT`, `MOUNT_X`) | OpenArm 의 75 cm 기둥을 약 43 cm 로 바꿔 **어깨 1.08 m, 몸통 중심보다 8 cm 앞** | 작업대(0.70 m) 상자가 팔 도달거리 안에 들어와 DAY 2 조작 코드를 고치지 않아도 되고, 내린 손이 TRON1 엉덩이 모터와 6 cm 떨어진다. 원본 기둥(어깨 1.40 m)보다 무게중심이 낮다 |
