@@ -53,45 +53,18 @@
       <mass value="9.585" />
       <inertia ixx="0.154432" iyy="0.110639" izz="0.0846249" ixy="0" ixz="0" iyz="0" />
     </inertial>
-    <visual>
-      <origin xyz="0.03 0 -0.072" rpy="0 0 0" />
-      <geometry>
-        <box size="0.27 0.26 0.19" />
-      </geometry>
-      <material name="base_collision_mat">
-        <color rgba="0 0 1 0" />
-      </material>
-    </visual>
     <collision>
       <origin xyz="0.03 0 -0.072" rpy="0 0 0" />
       <geometry>
         <box size="0.27 0.26 0.19" />
       </geometry>
     </collision>
-    <visual>
-      <origin xyz="0 0.16 -0.1" rpy="0 0 0" />
-      <geometry>
-        <box size="0.134 0.026 0.04" />
-      </geometry>
-      <material name="base_handle_L_collision_mat">
-        <color rgba="0 0 1 0" />
-      </material>
-    </visual>
     <collision>
       <origin xyz="0 0.16 -0.1" rpy="0 0 0" />
       <geometry>
         <box size="0.134 0.026 0.04" />
       </geometry>
     </collision>
-    <visual>
-      <origin xyz="0 -0.16 -0.1" rpy="0 0 0" />
-      <geometry>
-        <box size="0.134 0.026 0.04" />
-      </geometry>
-      <material name="base_handle_R_collision_mat">
-        <color rgba="0 0 1 0" />
-      </material>
-    </visual>
     <collision>
       <origin xyz="0 -0.16 -0.1" rpy="0 0 0" />
       <geometry>
@@ -156,15 +129,6 @@
       <mass value="1.496" />
       <inertia ixx="0.00252289" iyy="0.00208104" izz="0.00139163" ixy="0" ixz="0" iyz="0" />
     </inertial>
-    <visual>
-      <origin xyz="0.03 0 0" rpy="1.57 -3.16808e-07 1.57" />
-      <geometry>
-        <cylinder radius="0.05" length="0.05" />
-      </geometry>
-      <material name="abad_L_collision_mat">
-        <color rgba="0 0 1 0" />
-      </material>
-    </visual>
     <collision>
       <origin xyz="0.03 0 0" rpy="1.57 -3.16808e-07 1.57" />
       <geometry>
@@ -194,15 +158,6 @@
       <mass value="2.3" />
       <inertia ixx="0.0233264" iyy="0.0230229" izz="0.00277548" ixy="0" ixz="0" iyz="0" />
     </inertial>
-    <visual>
-      <origin xyz="-0.1 -0.03 -0.14" rpy="0 0.529999 0" />
-      <geometry>
-        <cylinder radius="0.035" length="0.15" />
-      </geometry>
-      <material name="hip_L_collision_mat">
-        <color rgba="0 0 1 0" />
-      </material>
-    </visual>
     <collision>
       <origin xyz="-0.1 -0.03 -0.14" rpy="0 0.529999 0" />
       <geometry>
@@ -232,15 +187,6 @@
       <mass value="1.22" />
       <inertia ixx="0.0144103" iyy="0.0143581" izz="0.00061582" ixy="0" ixz="0" iyz="0" />
     </inertial>
-    <visual>
-      <origin xyz="0.078 0 -0.12" rpy="0 -0.55 0" />
-      <geometry>
-        <cylinder radius="0.02" length="0.26" />
-      </geometry>
-      <material name="knee_L_collision_mat">
-        <color rgba="0 0 1 0" />
-      </material>
-    </visual>
     <collision>
       <origin xyz="0.078 0 -0.12" rpy="0 -0.55 0" />
       <geometry>
@@ -270,15 +216,6 @@
       <mass value="0.62" />
       <inertia ixx="0.0019759" iyy="0.00181179" izz="0.000523633" ixy="0" ixz="0" iyz="0" />
     </inertial>
-    <visual>
-      <origin xyz="0.0067 -0.0001 -0.0549" rpy="0 0 0" />
-      <geometry>
-        <box size="0.1818 0.046 0.01" />
-      </geometry>
-      <material name="ankle_L_collision_mat">
-        <color rgba="0 0 1 0" />
-      </material>
-    </visual>
     <collision>
       <origin xyz="0.0067 -0.0001 -0.0549" rpy="0 0 0" />
       <geometry>
@@ -308,15 +245,6 @@
       <mass value="1.496" />
       <inertia ixx="0.00252289" iyy="0.00208104" izz="0.00139163" ixy="0" ixz="0" iyz="0" />
     </inertial>
-    <visual>
-      <origin xyz="0.03 0 0" rpy="1.57 -3.16808e-07 1.57" />
-      <geometry>
-        <cylinder radius="0.05" length="0.05" />
-      </geometry>
-      <material name="abad_R_collision_mat">
-        <color rgba="0 0 1 0" />
-      </material>
-    </visual>
     <collision>
       <origin xyz="0.03 0 0" rpy="1.57 -3.16808e-07 1.57" />
       <geometry>
@@ -346,15 +274,6 @@
       <mass value="2.3" />
       <inertia ixx="0.0233264" iyy="0.0230229" izz="0.00277548" ixy="0" ixz="0" iyz="0" />
     </inertial>
-    <visual>
-      <origin xyz="-0.1 0.03 -0.14" rpy="0 0.529999 0" />
-      <geometry>
-        <cylinder radius="0.035" length="0.15" />
-      </geometry>
-      <material name="hip_R_collision_mat">
-        <color rgba="0 0 1 0" />
-      </material>
-    </visual>
     <collision>
       <origin xyz="-0.1 0.03 -0.14" rpy="0 0.529999 0" />
       <geometry>
@@ -384,15 +303,6 @@
       <mass value="1.22" />
       <inertia ixx="0.0144103" iyy="0.0143581" izz="0.00061582" ixy="0" ixz="0" iyz="0" />
     </inertial>
-    <visual>
-      <origin xyz="0.078 0 -0.12" rpy="0 -0.55 0" />
-      <geometry>
-        <cylinder radius="0.02" length="0.26" />
-      </geometry>
-      <material name="knee_R_collision_mat">
-        <color rgba="0 0 1 0" />
-      </material>
-    </visual>
     <collision>
       <origin xyz="0.078 0 -0.12" rpy="0 -0.55 0" />
       <geometry>
@@ -422,15 +332,6 @@
       <mass value="0.62" />
       <inertia ixx="0.0019759" iyy="0.00181179" izz="0.000523633" ixy="0" ixz="0" iyz="0" />
     </inertial>
-    <visual>
-      <origin xyz="0.0067 -0.0001 -0.0549" rpy="0 0 0" />
-      <geometry>
-        <box size="0.1818 0.046 0.01" />
-      </geometry>
-      <material name="ankle_R_collision_mat">
-        <color rgba="0 0 1 0" />
-      </material>
-    </visual>
     <collision>
       <origin xyz="0.0067 -0.0001 -0.0549" rpy="0 0 0" />
       <geometry>
@@ -472,15 +373,6 @@
       <mass value="1.3847" />
       <inertia ixx="0.0118906" iyy="0.0118906" izz="0.006" ixy="0" ixz="0" iyz="0" />
     </inertial>
-    <visual>
-      <origin xyz="0 0 0.698" rpy="0 0 0" />
-      <geometry>
-        <box size="0.06 0.06 0.128" />
-      </geometry>
-      <material name="openarm_column_collision_mat">
-        <color rgba="0 0 0 0" />
-      </material>
-    </visual>
     <collision>
       <origin xyz="0 0 0.698" rpy="0 0 0" />
       <geometry>

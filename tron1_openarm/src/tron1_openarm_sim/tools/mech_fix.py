@@ -22,6 +22,9 @@ build_tron1_openarm.py 가 모델을 새로 만들 때도 자동으로 적용한
      → 같은 메시를 그대로 쓴다 (몸통 좌표계가 같아 위치 그대로: 어깨 = body_link0 기준 z 0.697). 원본 75 cm 기둥은 TRON1 에서
      짧은 기둥(상자, mount 판 위 0.634~0.762)인데 이 브래킷 안에 들어가 보이지 않는다. 저사양 모델(메시 없음)은 상자를 검게만.
      URDF 도 같은 메시 (RViz). 시각 전용(질량 0, 충돌 없음) — 충돌은 기둥 상자 그대로.
+  7) MoveIt·내비 RViz 에 어깨 브래킷·기둥·머리 카메라·마스트가 안 보임: URDF 의 openarm_body_link0 첫 visual 이 MJCF 충돌 상자
+     (openarm_column_collision, rgba 알파 0)를 옮긴 투명 상자였다. RViz 는 링크 투명도를 첫 visual 재질로 정해 링크 전체가 투명
+     → 투명(알파 0) visual 을 모두 지운다 (URDF 만, 충돌 형상은 <collision> 그대로라 MoveIt 충돌 검사는 같음).
   모두 질량 0 (시각) 또는 충돌 전용이라 전체 질량·관성은 그대로.
 """
 import os
@@ -170,6 +173,12 @@ def fix_urdf(s, mesh_dir=None):
                f'      <material name="openarm_shoulder_bracket_vis_mat">\n        <color rgba="{MATTE_BLACK}" />')
         s = s[:m.start()] + vis + s[m.end():]
         notes.append("어깨 브래킷 → 원본 검은 메시")
+    # 7) 투명(알파 0) visual 지우기 — 첫 visual 이면 RViz 가 링크 전체를 투명하게 그린다
+    new = re.sub(r'\n\s*<visual>(?:(?!</visual>).)*?<color rgba="[\d.e-]+ [\d.e-]+ [\d.e-]+ 0" />\s*</material>\s*</visual>',
+                 "", s, flags=re.S)
+    if new != s:
+        notes.append(f"투명 visual {s.count('<visual>') - new.count('<visual>')}개 지움")
+        s = new
     # 2) 어댑터 판
     if "openarm_adapter_plate_vis_mat" not in s:
         m = re.search(r'<link name="openarm_mount_link">', s)
@@ -185,8 +194,9 @@ def fix_urdf(s, mesh_dir=None):
         s = s[:m.end()] + _urdf_box_visual(f"wrist_{side}_camera_vis", WRIST_CAM_POS, WRIST_CAM_HALF, "0.1 0.1 0.1 1") \
             + _urdf_box_visual(f"wrist_{side}_camera_bracket_vis", WRIST_BRACKET_POS, WRIST_BRACKET_HALF, "0.25 0.25 0.25 1") + s[m.end():]
         notes.append(f"{side} 손목 카메라")
-    # 4) 손잡이 충돌 (MoveIt 이 팔꿈치 경로를 피하도록)
-    if "base_handle_L" not in s:
+    # 4) 손잡이 충돌 (MoveIt 이 팔꿈치 경로를 피하도록). 이미 있는지는 이름이 아니라 충돌 상자 위치로 본다 —
+    # MJCF 에서 옮긴 손잡이 충돌 상자는 이름이 투명 visual 재질(7)에만 있어, 7) 로 그것을 지우면 이름 검사로는 중복으로 넣었다
+    if "base_handle_L" not in s and not re.search(rf'<collision>\s*<origin xyz="{_f(*HANDLE_POS)}"', s):
         m = re.search(r'<link name="base_link">', s)
         ins = ""
         for side, sy in (("L", 1), ("R", -1)):

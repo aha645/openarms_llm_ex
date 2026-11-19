@@ -141,7 +141,7 @@ class RobotSkills(Node):
         self.cmd_pub = self.create_publisher(Twist, "/cmd_vel", 10)
         self.holding = {"left": None, "right": None}
         self._grasp_tilt = {"left": None, "right": None}     # 쥘 때 손 (pitch, roll, yaw) — place 에서 수평 유지
-        self._held_level = {"left": False, "right": False}   # 바퀴형: 쥔 손 방향 그대로 들고 있음 (_hold_level, carry 로 접지 않음)
+        self._held_level = {"left": False, "right": False}   # 쥔 상자를 수평으로 들고 있음 (_hold_level, carry 로 접지 않음)
         # True: 집기 전후 팔을 carry(몸 쪽으로 접은 자세)로 옮긴다 — 상자를 든 채 걸어서 다른 곳으로 갈 때 필요.
         # 같은 작업대에서 집어 바로 놓을 때(pick_place)는 False: home → 접근 → 파지 → 살짝 들기 → 놓기 → home.
         # carry 를 거치면 팔 이동 4 번(약 3.5 분, 무작위 배치 r8 기록)이 더 들었다
@@ -1675,27 +1675,27 @@ class RobotSkills(Node):
         self.holding[side] = obj
         # 쥘 때의 손 기울기 (상자는 수평이었다) → 놓을 때 같은 기울기로 내려놓으면 상자도 수평
         self._grasp_tilt[side] = getattr(self, "_last_approach", None)
+        # carry 로 접지 않는다 — 관절 공간으로 접으면 손목이 돌아 상자가 회전·기울었다 (바퀴형 시험 7). 바퀴형·이족 모두
+        # 쥔 손의 숙임·기울기를 지키며 들어 올리고 몸 쪽으로 당긴다 (_hold_level, 머리 카메라 시야 밖)
         if self.can_strafe:
+            # 이족: 상자를 쥔 뒤 뻗은 팔을 빠르게(0.3) 접자 반동으로 PF 몸통이 1 초 만에 21°→70° 넘어졌다 (시험 11,
+            # 파지는 성공·상자 5 cm 들어 올림). 06장 실험에서 팔을 3배 느리게 하면 흔들림 −38% → 0.1 로 천천히, 멈춘 뒤에
             self.set_table(pad=self.TRANSIT_PAD)
-            # 이족: 상자를 쥔 뒤 뻗은 팔을 carry 로 빠르게(0.3) 접자 반동으로 PF 몸통이 1 초 만에 21°→70° 넘어졌다 (시험 11,
-            # 파지는 성공·상자 5 cm 들어 올림). 06장 실험에서 팔을 3배 느리게 하면 흔들림 −38% → 0.1 로 천천히 접는다
             self.wait_still(timeout=8.0)
-            if self.fold_carry:
-                self.move_named(f"{side}_arm", "carry", vel=self.HOLD_VEL)
-                self.wait_still(timeout=8.0)
-        else:
-            # 바퀴형: carry 로 접지 않는다 — 관절 공간으로 접으면 손목이 돌아 상자가 회전·기울었다 (바퀴형 시험 7)
-            self._hold_level(side)
-            self._held_level[side] = True
+        self._hold_level(side)
+        self._held_level[side] = True
+        if self.can_strafe:
+            self.wait_still(timeout=8.0)
         self.log(f"[pick] 완료: {obj}")
         return side
 
-    # 바퀴형: 쥔 상자를 들고 다니는 자세 — 상자가 쥘 때처럼 수평인 채 위로 들고 몸 쪽으로 당긴다.
+    # 쥔 상자를 들고 다니는 자세 (바퀴형·이족) — 상자가 쥘 때처럼 수평인 채 위로 들고 몸 쪽으로 당긴다.
     # 예전에는 정해진 관절각 carry 로 접어 손목이 돌며 상자가 기울고 가슴에 붙었다 (사용자 지적: 물이 든 그릇이면 쏟아진다).
     # 머리 카메라를 가리지 않는 높이·자리 (시뮬 분할 렌더로 잼: 놓기 작업대 앞 0.40·0.58 m 에서 작업대 상판·다른 상자 화소 중
     # 팔·쥔 상자에 가려지는 비율). 상판 + 12.5 cm·앞 0.30 m(시험 8 자세)는 16.5 % — 놓을 쪽(쥔 팔 쪽) 상판이 안 보였다.
     # 손끝 높이 1.00 m(상판 + 30 cm)에서는 카메라 시야 위로 빠져 앞 0.28 m·옆 0.20 m 에서 0.2~0.5 %, 몸 쪽으로 다 못 당겨
-    # 앞 0.45~0.52 m 에 남아도 3~9 %. 몸·머리와 닿는 자세 없음
+    # 앞 0.45~0.52 m 에 남아도 3~9 %. 몸·머리와 닿는 자세 없음.
+    # 이족(머리 카메라 1.07 m, 51° 숙임, 손 숙임 20°)도 같은 값: 1.00 m 에서 앞 0.20~0.40 m 모두 0 %, 몸과 닿는 자세 없음
     HOLD_UP = 0.30                  # 상판 위 손끝 높이 [m] (작업대 0.70 m → 1.00 m)
     HOLD_FWD = 0.28                 # 몸 쪽으로 당길 목표: 몸 앞 손끝 거리 [m]
     HOLD_SIDE = 0.20                # 바깥쪽으로: 몸 중심에서 손끝 옆 거리 최소 [m] (가운데 머리 카메라 시야를 비킴)
@@ -1721,12 +1721,16 @@ class RobotSkills(Node):
         if tf is None:
             return
         p, R = tf
-        z = max(float(p[2]), self.table_h + self.HOLD_UP)
+        vel = self.HOLD_VEL if self.can_strafe else 0.15          # 이족: 천천히 (몸통 반동)
+        top = self._table_top_seen if (self.can_strafe and self._table_top_seen is not None) else self.table_h
+        z = max(float(p[2]), top + self.HOLD_UP)
         if z - p[2] > 0.005:
             try:
-                self.cartesian(side, [np.array([p[0], p[1], z])], R, vel=0.15, min_fraction=0.0)
+                self.cartesian(side, [np.array([p[0], p[1], z])], R, vel=vel, min_fraction=0.0)
             except SkillError as e:
                 self.log(f"[pick] 더 들어 올리기 생략: {e}")
+            if self.can_strafe:
+                self.wait_still(timeout=8.0)
         tf = self._tf_matrix(TCP[side])
         if tf is not None and tf[0][0] > self.HOLD_FWD + 0.01:
             p, R = tf
@@ -1746,12 +1750,16 @@ class RobotSkills(Node):
                     break
             if best is not None and best[0] > 0.05:
                 try:
-                    self.cartesian(side, [goal], best[2], vel=0.15, min_fraction=0.0)
+                    self.cartesian(side, [goal], best[2], vel=vel, min_fraction=0.0)
                     self.log(f"[pick] 수평 유지하며 몸 쪽으로 (손 수평 방향 {best[1]:+d}°, 직선 {best[0] * 100:.0f} %)")
                 except SkillError as e:
                     self.log(f"[pick] 몸 쪽으로 당기기 생략: {e}")
         tf = self._tf_matrix(TCP[side])
         tip = tf[0] if tf is not None else p
+        if self.can_strafe:
+            # 이족 Nav2 외곽은 이미 앞 0.45 m (config/nav2_params_tron1.yaml) → 몸 앞에 든 상자를 덮음
+            self.log(f"[pick] 쥔 상자 수평으로 들기: 손끝 base {np.round(tip, 3)}")
+            return
         front = float(tip[0]) + self.box_size * 0.75 + 0.02      # 손끝(상자 중심) + 상자 반 대각선 + 여유
         self.set_footprint(front)
         self.log(f"[pick] 쥔 상자 수평으로 들기: 손끝 base {np.round(tip, 3)}, Nav2 외곽 앞 {front:.2f} m")
@@ -1800,13 +1808,14 @@ class RobotSkills(Node):
         place_ref = self._other_markers(exclude=held_id) if self.can_strafe else None
         self.set_table(station, pad=self.TRANSIT_PAD)
         moved = False
-        if not self.can_strafe:
-            # 바퀴형: 들고 있던 손 방향 그대로 놓을 자리 위 접근점까지 직선 (손 방향은 수평 방향만 조금 돌 수 있음 → 상자 수평 유지)
+        if self._held_level[side]:
+            # 수평으로 들고 있던 손 방향 그대로 놓을 자리 위 접근점까지 직선 (손 방향은 수평 방향만 조금 돌 수 있음 → 상자 수평 유지)
             # 들고 있던 높이 그대로 놓을 자리 위로 → 접근점까지 내려감 (두 구간 직선, 손 방향은 수직축 회전만)
             tf = self._tf_matrix(TCP[side])
             hz = max(float(pre[2]), float(tf[0][2])) if tf is not None else float(pre[2])
             try:
-                self.cartesian(side, [np.array([pre[0], pre[1], hz]), pre], R, vel=0.15, min_fraction=0.95)
+                self.cartesian(side, [np.array([pre[0], pre[1], hz]), pre], R,
+                               vel=self.HOLD_VEL if self.can_strafe else 0.15, min_fraction=0.95)
                 moved = True
             except SkillError as e:
                 self.log(f"[place] 접근점까지 직선 불가({e}) → 관절 이동")
