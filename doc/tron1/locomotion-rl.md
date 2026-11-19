@@ -843,7 +843,7 @@ python3 tron1_openarm/rl/watch_training.py plot tron1_openarm/runs/gait_v9   # �
 mobile_openarm/.venv-mobile/bin/python tron1_openarm/rl/watch_training.py play tron1_openarm/runs/gait_v9   # 최신 중간 정책 보행 (q 로 끝)
 ```
 
-**③ 중간 평가와 중단 판단** — 새 벌점은 다른 능력을 무너뜨릴 수 있어(v8) 20·30 분째 중간 정책을 따로 평가했다. GPU 는 학습이 쓰므로 CPU 로.
+**③ 중간 평가와 중단 판단** (오프라인 평가 방법은 14-10) — 새 벌점은 다른 능력을 무너뜨릴 수 있어(v8) 20·30 분째 중간 정책을 따로 평가했다. GPU 는 학습이 쓰므로 CPU 로.
 ```bash
 cd tron1_openarm/rl
 CUDA_VISIBLE_DEVICES= ../../mobile_openarm/.venv-mobile/bin/python eval_policy.py \
@@ -942,6 +942,51 @@ v3 에서 짧게 이어 학습을 거듭하면 한쪽을 고치면 다른 쪽이
 **v3 의 원래 학습 설정에서 시작해, 찾은 항목을 모두 넣고(옆 추종 `TRACK_VY`·발 들기 `CLEAR_ADAPT`·직진 방향·서기 밀림·들기 자세·느린 추종,
 명령 분포는 서기·느린·옆걸음을 모두 남김) 3~4 시간 길게** 학습하고, 채택 기준은 오프라인 평가가 아니라
 **집기 r1~r8 (걸음 모드 ≤ 6 s, 기울기 ≤ 4°) + 미션 (≤ 400 s)** 에서 v3 이상일 때로 한다.
+
+### 14-10. 오프라인 평가 방법 (`rl/eval_policy.py`)
+
+**무엇인가**: ROS·Nav2·MoveIt·집기 앱 없이 **보행 정책 하나만** 시뮬레이터에 올려, 정해진 명령 시간표를 주고 몸이 어떻게 움직이는지 잰다.
+같은 명령을 정확히 되풀이하므로 정책끼리 같은 조건에서 비교된다(미션처럼 경로·Nav2 타이밍으로 70 s 씩 흔들리지 않음).
+
+**명령** (저장소 루트에서, GPU 를 학습이 쓰는 중이면 `CUDA_VISIBLE_DEVICES=` 로 CPU)
+```bash
+cd tron1_openarm/rl
+CUDA_VISIBLE_DEVICES= ../../mobile_openarm/.venv-mobile/bin/python eval_policy.py \
+  ../src/tron1_openarm_sim/policies/tron1sf_openarm_policy.npz ../runs/gait_v9/seed1/best.npz --out=/tmp/eval_cmp.json
+```
+- 정책 파일을 여러 개 주면 차례로 평가. 정책 1 개 × 시험 14 개 × 시드 3 개 ≈ 15 분 (CPU).
+- 결과: 화면에 시험별 표, `--out` 에 JSON — `{정책 파일: {시험 이름: {지표: 값}}}` (판별 기록은 `policies/eval_gait_history.json` 에 모음).
+
+**어떻게 돌아가나**
+1. 배포와 같은 모델(`mjcf/sf/world.xml`: SF 발, 실습 월드, 물리 2 ms, noslip, 상반신 충돌 켜짐)을 불러온다 — 학습 환경(MJX, 4 ms)이 아니다.
+   바닥만 남기고 벽·기둥·작업대 충돌은 끈다(긴 걷기 시험이 벽에 막혀 속도가 낮게 나왔던 문제, 14-1).
+2. 정책은 실로봇과 같이 50 Hz 로 IMU(자세·각속도)·다리 관절 각도·속도·명령을 받아 다리 관절 목표를 낸다 (`locomotion_policy.LocomotionPolicy`, 브리지와 같은 코드).
+   브리지의 바깥 보정 루프(위치·방향 바로잡기)는 끄고 정책 출력 그대로.
+3. 시험마다 시드 3 개(초기 자세·팔 자세 무작위)로 되풀이하고, 시뮬레이터 정답(몸통 위치·자세, 발 접촉력)을 기록해 평균.
+
+| 시험 | 주는 명령 | 보는 지표 |
+|---|---|---|
+| `stand` | 제자리 30 s | `tilt`, 흐름, `liftoff` |
+| `walk` | 전진 0.3 m/s 20 s | `track`, `drift`, `yaw_deg` |
+| `turn` | 제자리 회전 0.6 rad/s 15 s | 실제 회전 속도 |
+| `arms` | 서서 팔 자세 home→ready→carry→hands_up→home (각 2 s) | `sway`, `yaw_deg`, `tilt` |
+| `push` | 서서 2 s 마다 옆으로 0.3 m/s 밀기 10 회 | `falls`, `sway` |
+| `one_arm` | 오른팔 carry·왼팔 home 20 s | 흐름 |
+| `fast` / `back` | 전진 0.6 / 후진 0.4 m/s 15 s | `track` |
+| `side_l` / `side_r` | 옆 ±0.3 m/s 15 s | `track`, `lift` |
+| `walk_arms` | 팔을 2.5 s 마다 바꾸며 전진 0.3 m/s 15 s | `yaw_deg` |
+| `slow_f` / `slow_b` / `slow_s` | 0.05 / 0.05 / 옆 0.04 m/s 6 s | `track` |
+
+지표:
+- `track` = 명령 방향 실제 속도 ÷ 명령 속도 (1 = 명령대로), `drift` = 명령에 수직인 흐름 ÷ 명령 속도 (작을수록 좋음)
+- `yaw_deg` = 시험 동안 방향 변화 [°], `tilt` = 몸통 기울기 [°] (머리 카메라·팔 좌표 정확도에 직접 영향)
+- `sway` = 서 있는 동안 몸통이 움직인 범위 [m], `falls` = 넘어진 시드 수 (몸통 높이 < 0.45 m)
+- `lift` = 두 발 높이 차이 95 백분위 [m] — 시뮬 정답이 아니라 **관절 각도 정기구학 + IMU 자세**로 계산(실로봇에서도 같은 방법)
+- `liftoff` = 서 있는 동안 한 발이라도 접촉력 5 N 미만인 시간 비율
+
+**한계 — 왜 집기·미션 시험이 따로 필요한가**: 브리지 방향 바로잡기, 들고 있는 상자 무게, MoveIt 팔 경로, Nav2 의 느린 위치 맞추기 명령 같은
+실제 작업 상호작용은 이 평가에 없다. v7 best 는 오프라인 서기 방향 변화 −0.2° 였지만 집기에서 바로잡기 걸음 31 s 였다.
+그래서 채택 판단은 집기·미션 시험(14-7 ⑤~⑦)을 먼저 보고, 오프라인 평가는 **왜 그런 결과가 나왔는지**(느린 추종·서기 기울기 등)를 설명하는 데 쓴다.
 
 ## 확인 질문
 
