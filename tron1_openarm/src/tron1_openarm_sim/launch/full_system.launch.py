@@ -39,6 +39,9 @@ def generate_launch_description():
         OpaqueFunction(function=_srdf_env),
         SetEnvironmentVariable("OPENARM_BIPED", "1"),      # robot_skills: 옆걸음(strafe)·출렁임 대기 사용
         DeclareLaunchArgument("planner", default_value="offline"),
+        # 계획 최대 단계 수 (llm_planner.MAX_STEPS, 공통 기본 12): 상자 3 개 운반이 13 단계라 TRON1 은 20
+        DeclareLaunchArgument("max_steps", default_value="20"),
+        SetEnvironmentVariable("OPENARM_MAX_STEPS", LaunchConfiguration("max_steps")),
         DeclareLaunchArgument("viewer", default_value="true"),
         DeclareLaunchArgument("rviz", default_value="false"),
         DeclareLaunchArgument("world", default_value="world.xml"),

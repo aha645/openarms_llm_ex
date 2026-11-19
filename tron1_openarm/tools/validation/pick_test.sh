@@ -3,6 +3,7 @@
 #       VIEW=1 bash pick_test.sh sf _r1          → MuJoCo 뷰어(로봇 움직임) + RViz(MoveIt 계획 장면) + 양 손목 카메라 영상 창을 띄워 눈으로 확인
 #       OBJ=box_1 BOXES="box_1=2.43,3.00,-15" bash pick_test.sh sf _l1   → 집을 상자(box_1 = 로봇 왼쪽 → 왼팔)와 상자 위치(월드 x,y,yaw도)
 #       BOX_SOURCE=color bash pick_test.sh sf _c1   → 상자를 마커 없이 색으로 인식 (sim.launch.py box_source)
+#       SIM_START=2.70,2.45,1.5708 bash pick_test.sh sf _o1  → 시뮬레이터 속 로봇만 다른 곳에 세움 (집기 앱은 2.5, 2.45 로 믿음 = 지도 위치 오차 흉내)
 # 시뮬 + MoveIt 을 띄우고, 정답 기록기(grasp_recorder.py)를 켠 채 pick_place 를 한 번 실행한 뒤 결과를 요약한다
 foot=$1; tag=$2; S=${LOG_DIR:-/tmp/tron1_logs}; mkdir -p $S; D=$(cd "$(dirname "$0")" && pwd)
 cd "$D/../.." && source install/setup.bash   # tron1_openarm 워크스페이스 (mobile_openarm underlay 포함)
@@ -10,7 +11,8 @@ V=false; [ "${VIEW:-0}" = 1 ] && V=true
 BA=(); [ -n "${BOXES:-}" ] && BA=("box_poses:=$BOXES")   # 빈 값(box_poses:=)은 ros2 launch 가 거부
 BA+=("box_source:=${BOX_SOURCE:-aruco}")
 echo "로그: $S/${foot}_sim.log (시뮬·브리지), $S/${foot}_mg.log (MoveIt), $S/${foot}pk${tag}.log (집기 앱)"
-(ros2 launch tron1_openarm_sim sim.launch.py foot:=$foot start_x:=2.5 start_y:=2.45 start_yaw:=1.5708 viewer:=$V rviz:=false "${BA[@]}" > $S/${foot}_sim.log 2>&1 &)
+IFS=, read -r SX SY SYAW <<< "${SIM_START:-2.5,2.45,1.5708}"
+(ros2 launch tron1_openarm_sim sim.launch.py foot:=$foot start_x:=$SX start_y:=$SY start_yaw:=$SYAW viewer:=$V rviz:=false "${BA[@]}" > $S/${foot}_sim.log 2>&1 &)
 (ros2 launch tron1_openarm_moveit_config move_group.launch.py foot:=$foot rviz:=$V > $S/${foot}_mg.log 2>&1 &)
 # 준비될 때까지만 기다린다 (예전 고정 45 s: 실제로는 MoveIt 준비 약 6 s, 카메라 서버 즉시 → 35 s 넘게 빈 대기).
 # move_group "You can start planning now" + 카메라 서버 첫 처리 보고, 그 뒤 로봇이 서서 자리 잡을 5 s. 최대 90 s
