@@ -11,11 +11,7 @@ __pycache__/
 .DS_Store
 MUJOCO_LOG.TXT
 # 휠형 (mobile_openarm)
-mobile_openarm/src/mobile_openarm_sim/mjcf/meshes/*
-!mobile_openarm/src/mobile_openarm_sim/mjcf/meshes/README.txt
 mobile_openarm/src/mobile_openarm_sim/tools/selftest_camera.png
 # TRON1 이족
-tron1_openarm/src/tron1_openarm_sim/mjcf/meshes/
-tron1_openarm/src/tron1_openarm_sim/mjcf/sf/meshes/
 tron1_openarm/runs/*
 !tron1_openarm/runs/COLCON_IGNORE

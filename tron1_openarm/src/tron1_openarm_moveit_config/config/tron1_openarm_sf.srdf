@@ -254,11 +254,11 @@
   <disable_collisions link1="ankle_R_Link" link2="openarm_right_link6" reason="Never" />
   <disable_collisions link1="ankle_R_Link" link2="openarm_right_link7" reason="Never" />
   <disable_collisions link1="ankle_R_Link" link2="openarm_right_right_finger" reason="Never" />
-  <disable_collisions link1="base_link" link2="hip_L_Link" reason="Never" />
-  <disable_collisions link1="base_link" link2="hip_R_Link" reason="Never" />
+  <disable_collisions link1="base_link" link2="hip_L_Link" reason="Adjacent" />
+  <disable_collisions link1="base_link" link2="hip_R_Link" reason="Adjacent" />
   <disable_collisions link1="base_link" link2="imu_Link" reason="Adjacent" />
-  <disable_collisions link1="base_link" link2="knee_L_Link" reason="Never" />
-  <disable_collisions link1="base_link" link2="knee_R_Link" reason="Never" />
+  <disable_collisions link1="base_link" link2="knee_L_Link" reason="Adjacent" />
+  <disable_collisions link1="base_link" link2="knee_R_Link" reason="Adjacent" />
   <disable_collisions link1="base_link" link2="limx_imu" reason="Adjacent" />
   <disable_collisions link1="base_link" link2="openarm_body_link0" reason="Adjacent" />
   <disable_collisions link1="base_link" link2="openarm_left_link0" reason="Adjacent" />

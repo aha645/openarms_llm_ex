@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# mobile_openarm 워크스페이스: .venv-mobile → OpenArm 에셋 받기 → MJCF/URDF/SRDF 생성 → colcon build
+# mobile_openarm 워크스페이스: .venv-mobile → 자체 점검 → colcon build
 #   사용: bash mobile_openarm/scripts/04_setup_workspace.sh
 #   워크스페이스 루트 = 이 스크립트의 상위 폴더(mobile_openarm/). 실행 위치와 무관.
-#   다시 실행하면 3)의 생성 파일(mjcf/, urdf/, config/locations.yaml, maps/, SRDF)을 원래대로 덮어쓴다.
-#   직접 고친 config/locations.yaml 등은 미리 백업하거나 tools/build_world.py 쪽을 고칠 것.
+#   모델(MJCF·URDF·SRDF·지도·OpenArm 메시)은 저장소에 들어 있는 것을 그대로 쓴다 — 인터넷으로 원본을 받지 않고, 생성 파일을 덮어쓰지 않는다.
+#   OpenArm 원본에서 모델을 다시 만들 때만: bash mobile_openarm/scripts/05_regen_models.sh
 set -e
 if [ ! -f /opt/ros/jazzy/setup.bash ]; then
   echo "ROS 2 Jazzy 가 없습니다. 먼저 설치하세요: 노트북은 mobile_openarm/scripts/03_install_ros2_jazzy.sh, DGX Spark 는 doc/setup/dgx-spark.md 3절"; exit 1
@@ -19,30 +19,17 @@ source /opt/ros/jazzy/setup.bash
 bash "$WS/scripts/setup_venv_mobile.sh"
 export PYTHONNOUSERSITE=1      # ~/.local 의 예전 pip --user 설치가 섞이지 않게
 
-# 2) OpenArm MuJoCo 에셋 (enactic/openarm_mujoco, Apache-2.0) — v1 메시 48MB
-mkdir -p "$WS/third_party"
-if [ ! -d "$WS/third_party/openarm_mujoco" ]; then
-  git clone --depth 1 https://github.com/enactic/openarm_mujoco "$WS/third_party/openarm_mujoco"
-fi
-# third_party 는 ROS 패키지가 아님 → colcon 이 openarm_mujoco/setup.py 를 패키지로 읽지 않도록 제외
-touch "$WS/third_party/COLCON_IGNORE"
-rm -rf "$SIM/mjcf/meshes"
-cp -r "$WS/third_party/openarm_mujoco/v1/meshes" "$SIM/mjcf/meshes"
+# 2) 저장소의 모델·메시 확인 (OpenArm 원본 enactic/openarm_mujoco, Apache-2.0 — 출처: src/mobile_openarm_sim/mjcf/MESHES_NOTICE.md)
+for f in "$SIM/mjcf/mobile_openarm.xml" "$SIM/mjcf/world.xml" "$SIM/mjcf/meshes/visual" "$SIM/urdf/mobile_openarm.urdf" \
+         "$WS/src/mobile_openarm_moveit_config/config/mobile_openarm.srdf"; do
+  [ -e "$f" ] || { echo "모델 파일이 없습니다: $f — 저장소를 다시 받거나 bash mobile_openarm/scripts/05_regen_models.sh"; exit 1; }
+done
 
-# 3) 모델 생성 (MJCF → URDF → SRDF, 지도, Nav2 파라미터) — venv 의 Python(mujoco 포함)으로
+# 3) 시뮬레이션 단독 점검 (ROS 불필요)
 cd "$SIM"
-"$PY" tools/build_mjcf.py --src "$WS/third_party/openarm_mujoco/v1/openarm_bimanual.xml" --out mjcf/mobile_openarm.xml
-"$PY" tools/build_mjcf.py --src "$WS/third_party/openarm_mujoco/v1/openarm_bimanual.xml" --out mjcf/mobile_openarm_light.xml --light
-"$PY" tools/build_world.py --out mjcf --config config
-"$PY" tools/mjcf_to_urdf.py --mjcf mjcf/mobile_openarm.xml --out urdf/mobile_openarm.urdf
-"$PY" tools/make_map.py --world mjcf/world.xml --out maps/world_map
-"$PY" "$WS/src/mobile_openarm_moveit_config/tools/make_srdf.py" --mjcf mjcf/mobile_openarm.xml \
-        --out "$WS/src/mobile_openarm_moveit_config/config/mobile_openarm.srdf"
-
-# 4) 시뮬레이션 단독 점검 (ROS 불필요)
 MUJOCO_GL=egl "$PY" tools/selftest.py || MUJOCO_GL=osmesa "$PY" tools/selftest.py || true
 
-# 5) 빌드 — venv 의 Python 으로 colcon 을 실행해야 ros2 run 실행 파일 첫 줄(shebang)이 venv Python 이 된다
+# 4) 빌드 — venv 의 Python 으로 colcon 을 실행해야 ros2 run 실행 파일 첫 줄(shebang)이 venv Python 이 된다
 cd "$WS"
 rosdep install --from-paths src --ignore-src -r -y || true
 "$PY" -m colcon build --symlink-install --base-paths src
