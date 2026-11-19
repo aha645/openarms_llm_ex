@@ -13,6 +13,7 @@
   6. 한 팔만 carry (오른팔 carry, 왼팔 home) 제자리 20 s : 흐름 — DAY2 앱은 한 팔씩 움직인다
   7. 빠른 걸음 (v4 학습 범위 확인, 각 15 s): fast 전진 0.6 / back 후진 −0.4 / side_l 왼쪽 0.3 / side_r 오른쪽 −0.3 m/s
   8. walk_arms: 팔을 2.5 s 마다 다른 자세로 바꾸며 직진 0.3 m/s 15 s — 팔을 움직여도 일자로 걷는가 (yaw_deg: 방향 변화 [도])
+  9. 느린 미세 이동 (각 6 s): slow_f 전진 0.05 / slow_b 후진 0.05 / slow_s 옆 0.04 m/s — 작업대 앞 위치 맞추기·제자리 복귀에 쓰는 속도
   (서 있는 항목: liftoff = 한 발이라도 접촉력 5 N 아래인 시간 비율 — 발바닥을 붙이고 서 있는가)
   (걷는 항목: lift = 두 발 높이 차이의 95 백분위 [m] — 발을 얼마나 드는가. 관절 각도 정기구학 + IMU 자세로 구함,
    실로봇에서도 같은 방법. track = 명령 방향 실제 속도 / 명령 속도, drift = 명령에 수직인 흐름 / 명령 속도)
@@ -131,9 +132,10 @@ def stats(log, skip=1.0, cmd=None):
 
 
 def evaluate(npz, seeds=(0, 1, 2)):
-    res = {k: [] for k in ("stand", "walk", "turn", "arms", "push", "one_arm", "fast", "back", "side_l", "side_r", "walk_arms")}
+    res = {k: [] for k in ("stand", "walk", "turn", "arms", "push", "one_arm", "fast", "back", "side_l", "side_r", "walk_arms",
+                           "slow_f", "slow_b", "slow_s")}
     CMDS = {"walk": (0.3, 0, 0), "fast": (0.6, 0, 0), "back": (-0.4, 0, 0), "side_l": (0, 0.3, 0), "side_r": (0, -0.3, 0),
-            "walk_arms": (0.3, 0, 0)}
+            "walk_arms": (0.3, 0, 0), "slow_f": (0.05, 0, 0), "slow_b": (-0.05, 0, 0), "slow_s": (0, 0.04, 0)}
     falls = {k: 0 for k in res}
     for s in seeds:
         tests = [("stand", lambda r: r.run(30, (0, 0, 0))),
@@ -144,6 +146,8 @@ def evaluate(npz, seeds=(0, 1, 2)):
         for nm in ("fast", "back", "side_l", "side_r"):
             tests.append((nm, lambda r, c=CMDS[nm]: (r.run(2, (0, 0, 0)), r.run(15, c))[1]))
         tests.append(("walk_arms", None))
+        for nm in ("slow_f", "slow_b", "slow_s"):
+            tests.append((nm, lambda r, c=CMDS[nm]: (r.run(2, (0, 0, 0)), r.run(6, c))[1]))
         for name, fn in tests:
             r = Runner(npz, s)
             if name == "walk_arms":

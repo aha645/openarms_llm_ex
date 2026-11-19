@@ -82,6 +82,11 @@ CLEAR_ADAPT = os.environ.get("TRON1_CLEAR_ADAPT", "0") == "1"
 # (3 cm 에서 1, 상한 2). v7 best 는 팔을 움직일 때 몸통이 15.8 cm 밀렸고(v3 8.4 cm), 집기 중 방향 바로잡기 걸음이 31 s 이어졌다
 STAND_SWAY_SCALE = float(os.environ.get("TRON1_STAND_SWAY", 0.0))
 STAND_SWAY_REF = 0.03
+# v10 느린 명령 추종: 작업대 앞 미세 이동·마커 기준 제자리 복귀는 0.02~0.06 m/s 명령을 쓴다. 절대 오차 추종 보상(폭 0.05)에서는
+# 0.05 m/s 명령을 전혀 못 따라가도 보상이 95 % 남아, v9 best 는 전진 0.05 에 17 %, 후진 0.05 에 187 % 로 위치 맞추기에 45~80 s 걸렸다
+# → 느린 명령(0 < |명령| < 0.15)에서 0.5 s 평균 속도(걸음마다 출렁임 제거)의 '명령 대비 비율 오차' 로 보상
+TRACK_SLOW_SCALE = float(os.environ.get("TRON1_TRACK_SLOW", 0.0))
+SLOW_TAU = 0.5
 
 # ── SF 서기 버티기 (보행 학습 13절) ─────────────────────────────────────────────────────────────────────
 # 실제 집기에서 손이 상자·작업대에 막혀 팔이 계속 밀면 손에 수십 N 이 걸리고, 서기 정책이 버티지 못해 한 발에 하중이 쏠리면
@@ -145,6 +150,7 @@ class EnvState(NamedTuple):
     yaw0: jax.Array          # SF: 서기 방향 기준
     walk_yaw: jax.Array      # SF: 직진 방향 기준 (v6 walk_heading)
     stand_xy: jax.Array      # SF: 서기 위치 기준 (v9 stand_sway)
+    v_avg: jax.Array         # 몸통 수평 속도 0.5 s 평균 (v10 느린 명령 추종)
     cmd_until: jax.Array     # 다음 명령 재설정 스텝
     hist: jax.Array
     obs: jax.Array           # 마지막 관측 (잡음 포함, hist 의 마지막 항목과 같음)
@@ -241,6 +247,7 @@ class Tron1MjxEnv:
         self.rs["walk_yawrate"] = -WALK_YAWRATE_SCALE
         self.rs["stand_liftoff"] = -STAND_LIFT_SCALE
         self.rs["stand_sway"] = -STAND_SWAY_SCALE
+        self.rs["tracking_slow"] = TRACK_SLOW_SCALE
         self.rs["stand_planted"] = STAND_PLANTED_SCALE
         # 랜덤화 대상 인덱스
         self.base_bid = m.body("base_link").id
@@ -339,7 +346,7 @@ class Tron1MjxEnv:
                               jax.random.uniform(k[8], minval=-0.08, maxval=0.08) * (jax.random.uniform(k[9]) < 0.5),
                               jax.random.uniform(k[10], minval=-0.3, maxval=0.3) * (jax.random.uniform(k[11]) < 0.5)])
             c = jnp.where((z >= 0.6) & (z < 0.75), slow, c)
-            if CMD_MIX in ("v7", "v9"):
+            if CMD_MIX in ("v7", "v9", "v10"):
                 gen = jnp.array([jax.random.uniform(k[0], minval=r["vx"][0], maxval=r["vx"][1]),
                                  jax.random.uniform(k[1], minval=r["vy"][0], maxval=r["vy"][1]) * (jax.random.uniform(k[2]) < VY_P),
                                  jax.random.uniform(k[3], minval=r["wz"][0], maxval=r["wz"][1])])
@@ -349,6 +356,9 @@ class Tron1MjxEnv:
                 diag = jnp.array([jax.random.uniform(k[16], minval=r["vx"][0], maxval=r["vx"][1]),
                                   jax.random.uniform(k[17], minval=r["vy"][0], maxval=r["vy"][1]), 0.0])
                 c = jnp.select([z < 0.20, z < 0.35, z < 0.50, z < 0.60, z < 0.70, z < 0.85],
+                               [jnp.zeros(3), gen * jnp.array([1.0, 0.0, 0.0]), side, diag, slow, turn], gen)
+            if CMD_MIX == "v10":  # 느린 미세 이동 15 % 로 되돌림 (v9 8 %), 서기 25 %
+                c = jnp.select([z < 0.25, z < 0.35, z < 0.48, z < 0.57, z < 0.72, z < 0.85],
                                [jnp.zeros(3), gen * jnp.array([1.0, 0.0, 0.0]), side, diag, slow, turn], gen)
             if CMD_MIX == "v9":   # 서기 비율을 다시 30 % 로 (서서 작업하는 안정성), 옆걸음·대각선은 v7 그대로
                 c = jnp.select([z < 0.30, z < 0.42, z < 0.57, z < 0.67, z < 0.75, z < 0.87],
@@ -404,7 +414,7 @@ class Tron1MjxEnv:
         z = jnp.zeros(self.nj, jnp.float32)
         s = EnvState(d=d, last_action=z, last_action2=z, last_target=self.q_def, gait_index=jnp.array(0.0),
                      cmd=cmd, want_still=still, standing=jnp.array(False), stand_t=jnp.array(0.0), yaw0=jnp.array(0.0),
-                     walk_yaw=_yaw(q[3:7]), stand_xy=q[0:2],
+                     walk_yaw=_yaw(q[3:7]), stand_xy=q[0:2], v_avg=jnp.zeros(2, jnp.float32),
                      cmd_until=dur, hist=jnp.zeros(self.HIST * self.obs_dim, jnp.float32),
                      obs=jnp.zeros(self.obs_dim, jnp.float32),
                      t=jnp.array(0, jnp.int32), delay=delay, arm_from=arm, arm_to=arm, arm_t0=jnp.array(0.0),
@@ -546,7 +556,9 @@ class Tron1MjxEnv:
             walk_yaw = jnp.where(straight, s.walk_yaw + follow * _wrap(yaw - s.walk_yaw), yaw)
             xy = s.d.qpos[0:2]
             stand_xy = jnp.where(stand_t < STAND_YAW_SETTLE, xy, s.stand_xy + follow * (xy - s.stand_xy))
-            return s._replace(gait_index=g, standing=standing, stand_t=stand_t, yaw0=yaw0, walk_yaw=walk_yaw, stand_xy=stand_xy)
+            v_avg = s.v_avg + (POLICY_DT / SLOW_TAU) * (self._sens(s.d, "base_linvel")[:2] - s.v_avg)
+            return s._replace(gait_index=g, standing=standing, stand_t=stand_t, yaw0=yaw0, walk_yaw=walk_yaw, stand_xy=stand_xy,
+                              v_avg=v_avg)
         return s._replace(gait_index=(g + POLICY_DT * self.GAIT[0]) % 1.0)
 
     def _reward(self, s, a):
@@ -603,6 +615,8 @@ class Tron1MjxEnv:
             * jnp.minimum((gyro[2] / 0.05) ** 2, 4.0),
             stand_liftoff=settled * (jnp.min(F) < STAND_LIFT_F).astype(jnp.float32),
             stand_sway=settled * jnp.minimum(jnp.linalg.norm(d.qpos[0:2] - s.stand_xy) / STAND_SWAY_REF, 2.0),
+            tracking_slow=((~s.standing) & (jnp.linalg.norm(s.cmd[:2]) > 0.005) & (jnp.linalg.norm(s.cmd[:2]) < 0.15)).astype(jnp.float32)
+            * jnp.exp(-(jnp.linalg.norm(s.cmd[:2] - s.v_avg) / jnp.maximum(jnp.linalg.norm(s.cmd[:2]), 0.03)) ** 2 / 0.25),
             stand_planted=settled * (jnp.min(F) >= STAND_LIFT_F).astype(jnp.float32)
             * jnp.mean(jnp.exp(-(fvxy / STAND_FEET_SIGMA) ** 2)),
         )

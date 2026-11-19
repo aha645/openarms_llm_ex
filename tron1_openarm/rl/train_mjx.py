@@ -80,8 +80,9 @@ def split_stats(tr):
     side = jnp.abs(c[..., 1]) / 2.0 > 0.05
     straight = moving & (jnp.abs(c[..., 2]) / 0.25 < 0.05)
     avg = lambda x, m: jnp.sum(x * m) / jnp.maximum(jnp.sum(m), 1.0)  # noqa: E731
+    slow = moving & (jnp.hypot(c[..., 0], c[..., 1]) / 2.0 < 0.15)
     return dict(side_vy=avg(tr["vy_track"], side), head_straight=avg(tr["heading"], straight),
-                clear_walk=avg(tr["feet_clear"], moving))
+                clear_walk=avg(tr["feet_clear"], moving), slow_track=avg(tr["slow"], slow))
 
 
 def main():
@@ -153,7 +154,7 @@ def main():
                        stand_twist=info["terms"]["stand_twist"], stand_tilt=info["terms"]["stand_tilt"],
                        feet_clear=info["terms"]["feet_clearance"], vy_track=info["terms"]["tracking_vy"],
                        heading=info["terms"]["walk_heading"], liftoff=info["terms"]["stand_liftoff"],
-                       sway=info["terms"]["stand_sway"],
+                       sway=info["terms"]["stand_sway"], slow=info["terms"]["tracking_slow"],
                        standing=st.standing.astype(jnp.float32))
             return (st, key), out
         (states, key), tr = jax.lax.scan(body, (states, key), None, length=T)
@@ -292,7 +293,8 @@ def main():
                    sway=round(float(st["sway"]), 4),         # 서 있을 때 몸통 밀림 (3 cm = 1)
                    # 명령 종류별 (v7): 옆걸음 명령일 때 옆 추종, 직진(회전 0)할 때 방향 오차, 걷는 중 발 들기 부족 [cm²]
                    side_vy=round(float(st["side_vy"]), 3), head_straight=round(float(st["head_straight"]), 4),
-                   clear_walk=round(float(st["clear_walk"]) * 1e4, 3))
+                   clear_walk=round(float(st["clear_walk"]) * 1e4, 3),
+                   slow_track=round(float(st["slow_track"]), 3))   # 느린 명령일 때 비율 오차 추종 (1 = 명령대로)
         log.append(rec)
         if it % 5 == 0 or it == 1:
             print(json.dumps(rec, ensure_ascii=False), flush=True)
