@@ -1280,6 +1280,12 @@ class RobotSkills(Node):
         # 45° 로 내려오면 아래쪽 손가락이 상판에 걸린다 → 낮은 pitch 부터 시도
         pitches = ([20.0, 30.0, self.APPROACH_PITCH, 55.0] if self.can_strafe else [self.APPROACH_PITCH])
         rolls = self.ROLL_CANDIDATES
+        if not self.can_strafe:
+            # 바퀴형(45° 고정): roll ±70° (손가락 벌림 방향이 수평에서 20° 기움)는 아래쪽 손가락이 손끝 하한 계산(수평 벌림 기준)보다
+            # 더 내려가 상판을 긁고, 두 손가락이 상자에 함께 닿지 못했다 (바퀴형 회귀 시험 3·4: 첫 시도 파지 실패 — 접촉 기록).
+            # roll 0° (손가락이 접근 방향과 같은 수직면에서 벌어져 상자 윗면·앞면을 잡음)는 시험 3 재시도·시험 5 에서 첫 시도에 성공.
+            # 예전 파지 보조는 손가락 하나만 닿아도 상자를 붙여 이 문제를 가렸다 → 작은 roll 부터
+            rolls = sorted(rolls, key=abs)
         if self.wrist_cameras:
             # 손목 카메라는 손의 −x 쪽에 있어 roll 이 음수(−70~−90°)일 때 위에서 상자를 내려다본다 → 음수 roll 먼저
             rolls = [r for r in rolls if r < 0] + [r for r in rolls if r == 0] + [r for r in rolls if r > 0]
@@ -1399,9 +1405,15 @@ class RobotSkills(Node):
         return top
 
     def _refind_box(self, side, mid):
-        """재시도용: 팔을 carry 로 접고 상자를 다시 잰다. 안 보이면(팔·몸통 회전에 가려짐) home 으로 내려 한 번 더."""
-        if self.can_strafe:
-            self._lift_clear(side)
+        """재시도용: 팔을 carry 로 접고 상자를 다시 잰다. 안 보이면(팔·몸통 회전에 가려짐) home 으로 내려 한 번 더.
+        바퀴형: 손을 위로 뺀 뒤 home 으로 내리고 잰다 — 작업대 앞에서 carry 로 접으면 손가락이 상판·옆 상자를 쳤다 (바퀴형 회귀 시험 4)"""
+        self._lift_clear(side)
+        if not self.can_strafe:
+            self.set_table(pad=self.TRANSIT_PAD)
+            self.set_boxes()
+            self.move_named(f"{side}_arm", "home")
+            self.set_table()
+            return self.find_marker(mid, timeout=10.0) - np.array([0, 0, self.box_size / 2])
         self.move_named(f"{side}_arm", "carry")
         self.wait_still(timeout=8.0)
         try:
@@ -1476,19 +1488,18 @@ class RobotSkills(Node):
         for attempt in (1, 2):
             self.open_gripper(side)
             # 몸 쪽 carry 자세에서 출발 → 접근점까지의 경로가 상자들 위쪽으로 지나감
-            # 이족: 손을 옮기는 동안(home → carry → 접근점)은 작업대에 3 cm 여유를 둔다.
-            # 여유 없이 계획하면 손가락이 상판을 스쳐(시뮬 접촉 기록) 몸통이 밀리고 넘어질 뻔했다 (기울기 18°)
-            if self.can_strafe:
-                self.set_table(pad=self.TRANSIT_PAD)
-            # 접근을 carry 에서 출발할지: 바퀴형만. 이족은 home 에서 바로 접근한다 (무작위 배치 r1~r8 8/8 로 검증된 경로).
+            # 손을 옮기는 동안(home → carry → 접근점)은 작업대에 3 cm 여유를 둔다.
+            # 여유 없이 계획하면 손가락이 상판을 스쳐(시뮬 접촉 기록) 이족은 몸통이 밀리고 넘어질 뻔했다 (기울기 18°).
+            # 바퀴형도 같다: 상판을 1.2 cm 낮춘 MoveIt 작업대로 home→carry 를 계획하면 손가락이 상판을 긁었다 (바퀴형 회귀 시험 3)
+            self.set_table(pad=self.TRANSIT_PAD)
+            # 접근은 carry 를 거치지 않고 home 에서 바로 한다. 이족: home 에서 바로 접근 (무작위 배치 r1~r8 8/8 로 검증된 경로).
             # 이족이 carry 에서 출발하면 접근 직선 경로가 막히고(0 %), home 으로 되돌리는 계획이 손을 작업대 위로 휘둘러
             # 손가락이 상판에 걸려 몸통이 22° 기울었다 (전체 미션 18). 상자를 쥔 뒤 carry 로 접는 것(fold_carry)은 그대로
-            via_carry = self.fold_carry and not self.can_strafe
-            if via_carry:
-                self.move_named(f"{side}_arm", "carry")
+            # 바퀴형도 같다: 작업대 앞(모서리 0.38 m)에서 home→carry 는 팔을 앞으로 크게 휘둘러 손목·손가락이 상판 모서리를 쳤다
+            # (바퀴형 회귀 시험 3·4 접촉 기록, 시뮬 재현: 모서리 0.50 m 에서도 닿음) → 바퀴형도 home 에서 바로 접근
+            # (그래서 fold_carry 는 이제 '쥔 뒤 carry 로 접기'·'놓은 뒤 carry 를 거쳐 home' 에만 쓰인다)
             self.set_boxes()                                   # 계획 중에는 모든 상자가 장애물
-            if self.can_strafe:
-                self.set_table()                               # 접근 자세 계산은 실제 상판 높이로
+            self.set_table()                                   # 접근 자세 계산은 실제 상판 높이로
             try:
                 R, pre, q_pre = self._solve_approach(side, center, exclude_id=mid, yaw=box_yaw)
             except SkillError as e:
@@ -1503,12 +1514,9 @@ class RobotSkills(Node):
                 self._table_top_seen = float(center[2] - self.box_size / 2)
                 self._box_seen_fwd = float(center[0])
                 self.set_table()
-                if via_carry:
-                    self.move_named(f"{side}_arm", "carry")
                 self.set_boxes()
                 R, pre, q_pre = self._solve_approach(side, center, exclude_id=mid, yaw=box_yaw)
-            if self.can_strafe:
-                self.set_table(pad=self.TRANSIT_PAD)           # carry → 접근점 이동도 여유를 두고
+            self.set_table(pad=self.TRANSIT_PAD)               # carry → 접근점 이동도 여유를 두고
             servo = self.can_strafe and (WRIST is not None or self.wrist_cameras)
             station_ref = None
             if servo:
@@ -1532,20 +1540,21 @@ class RobotSkills(Node):
                     pass
             self._go_to_approach(side, R, pre, q_pre)
             bias = np.zeros(3)
-            floor_z = None
+            self.set_table()                                   # 직선 접근은 실제 상판 높이로
             if self.can_strafe:
-                self.set_table()                               # 직선 접근은 실제 상판 높이로
                 self.wait_still()
+            # 손끝(TCP)을 내릴 수 있는 가장 낮은 높이: 손가락 가장 낮은 곳 = 손가락 끝 길이·sin(pitch) + 반두께·cos(pitch) 아래.
+            # 예전 고정값 '상판 + 2 cm' 는 거의 수평(pitch 20°) 접근 기준이라, 옆 상자에 막혀 가파르게(55°) 들어가면
+            # 손가락 끝이 상판에 닿았다 (놓을 자리 막힘 시험 p2, TCP 상판 + 2.3 cm 에서 접촉). → pitch 20° 2.4 cm, 55° 2.9 cm.
+            # 바퀴형(45° 고정)도 상자 중심 + 1 cm 깊이 목표(TCP 상판 + 1.8 cm)는 하한(2.9 cm)보다 낮아 손가락이 상판을 긁고,
+            # 두 손가락이 상자에 닿지 못해 파지에 실패했다 (바퀴형 회귀 시험 1·3: 첫 시도 손가락 0.001 m)
+            top = self._table_top_seen if (self.can_strafe and self._table_top_seen is not None) else self.table_h
+            s_p = max(0.0, -float(R[2, 2]))
+            floor_z = top + self.FINGER_TIP_BELOW * s_p + self.FINGER_HALF_T * math.sqrt(1.0 - s_p * s_p) + 0.006
             if servo:
                 self.station_keep(station_ref, label=" 접근점")    # 팔을 뻗는 동안 흐른 몸통을 마커 기준으로 되돌림
                 # 시각 피드백 1단계 (접근점): 팔 처짐·몸통 반동으로 손이 접근점에서 몇 cm 벗어나 있다.
                 # 손목 마커와 상자 마커를 함께 재서 '상자 기준' 접근점에 손을 맞춘 뒤 직선으로 들어간다.
-                top = self._table_top_seen if self._table_top_seen is not None else self.table_h
-                # 손끝(TCP)을 내릴 수 있는 가장 낮은 높이: 손가락 가장 낮은 곳 = 손가락 끝 길이·sin(pitch) + 반두께·cos(pitch) 아래.
-                # 예전 고정값 '상판 + 2 cm' 는 거의 수평(pitch 20°) 접근 기준이라, 옆 상자에 막혀 가파르게(55°) 들어가면
-                # 손가락 끝이 상판에 닿았다 (놓을 자리 막힘 시험 p2, TCP 상판 + 2.3 cm 에서 접촉). → pitch 20° 2.4 cm, 55° 2.9 cm
-                s_p = max(0.0, -float(R[2, 2]))
-                floor_z = top + self.FINGER_TIP_BELOW * s_p + self.FINGER_HALF_T * math.sqrt(1.0 - s_p * s_p) + 0.006
                 self.set_boxes(exclude_id=mid)
                 pre_goal, center = self.visual_servo(side, mid, R, pre.copy(), center, pre - center,
                                                      floor_z=floor_z, label=" 접근점")
@@ -1605,6 +1614,7 @@ class RobotSkills(Node):
                 goal, center = self.visual_servo(side, mid, R, goal, center, R[:, 2] * self.SERVO_DEPTH,
                                                  floor_z=floor_z, label=" 파지", peek=True)
             else:
+                goal[2] = max(goal[2], floor_z)
                 self.cartesian(side, [goal], R,   # 더 깊이: 상자가 손가락 안쪽에 오도록
                                min_fraction=need, start_q=q_pre if self.can_strafe else None)
             if self.can_strafe and not servo and self.GRASP_PUSH > 0:
@@ -1710,11 +1720,10 @@ class RobotSkills(Node):
         # 놓을 자리를 정한 순간의 작업대 위 마커들 (쥔 상자 마커는 손과 같이 움직이므로 뺌)
         held_id = self.objects.get(self.holding[side], {}).get("marker_id")
         place_ref = self._other_markers(exclude=held_id) if self.can_strafe else None
-        if self.can_strafe:
-            self.set_table(station, pad=self.TRANSIT_PAD)
+        self.set_table(station, pad=self.TRANSIT_PAD)
         self.move_joints(f"{side}_arm", q_pre, vel=self.HOLD_VEL if self.can_strafe else 0.3)
+        self.set_table(station)
         if self.can_strafe:
-            self.set_table(station)
             # 상자를 쥔 팔을 천천히 옮기는 동안 몸통이 흐를 수 있다 (r6: 바로잡기 걸음으로 옆 0.5 m, 작업대 밖에서 놓음)
             # → 놓기 전에 마커 기준 제자리로 돌아온다
             self.station_keep(place_ref, label=" 놓기 전")
@@ -1760,8 +1769,7 @@ class RobotSkills(Node):
         obj = self.holding[side]
         self.holding[side] = None
         # 'ready'(손이 작업대 위)를 거치면 방금 놓은 상자를 칠 수 있으므로, 몸 쪽 carry 를 거쳐 home 으로
-        if self.can_strafe:
-            self.set_table(station, pad=self.TRANSIT_PAD)
+        self.set_table(station, pad=self.TRANSIT_PAD)
         if self.fold_carry and not self.can_strafe:   # 이족은 놓은 뒤 바로 home (carry 를 거치는 계획이 작업대 위로 손을 휘두름, 미션 18)
             self.move_named(f"{side}_arm", "carry")
             self.move_named(f"{side}_arm", "home")

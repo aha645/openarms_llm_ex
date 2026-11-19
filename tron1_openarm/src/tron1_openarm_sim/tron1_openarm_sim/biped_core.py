@@ -94,6 +94,8 @@ def default_policy_path():
 
 
 class BipedOpenArmSim(W.MobileOpenArmSim):
+    ROBOT_PREFIXES = ("openarm_", "base", "abad", "hip", "knee", "ankle", "foot")   # arm_contacts 에서 로봇 몸으로 볼 이름
+
     def __init__(self, xml_path, camera_width=640, camera_height=480, camera_hz=10.0,
                  enable_camera=True, lidar_rays=360, lidar_range=(0.12, 12.0), lidar_hz=10.0,
                  lidar_noise=0.005, grasp_assist=True, move_person=True, person_speed=0.4,
