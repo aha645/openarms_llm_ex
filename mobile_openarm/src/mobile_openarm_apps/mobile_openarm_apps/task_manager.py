@@ -17,7 +17,7 @@ import traceback
 from std_msgs.msg import String
 from std_srvs.srv import Trigger
 
-from .llm_planner import plan_offline, plan_to_json, plan_with_llm, validate_plan
+from .llm_planner import plan_offline, plan_to_json, plan_with_llm, table_sides, validate_plan
 from .robot_skills import RobotSkills, SkillError
 
 
@@ -37,7 +37,20 @@ class TaskManager:
         self.status = {"state": "idle", "command": "", "steps": [], "current": -1, "message": "대기 중",
                        "warnings": [], "planner": n.get_parameter("planner").value, "history": []}
         n.create_timer(1.0, self.publish, callback_group=n.cb)
+        # 출발 지점 (map): '왼쪽/오른쪽 작업대' 를 여기서 작업대들 쪽을 바라본 방향으로 정한다 (llm_planner.table_sides)
+        self.start_xy = None
+        self._start_timer = n.create_timer(0.5, self._record_start, callback_group=n.cb)
         n.log("task_manager 준비 완료 — /task/command 로 자연어 명령을 보내세요")
+
+    def _record_start(self):
+        p = self.sk.robot_pose()
+        if p is None:
+            return
+        self.start_xy = (p[0], p[1])
+        self._start_timer.cancel()
+        sides = table_sides(self.sk.world, self.start_xy)
+        self.sk.log(f"[task] 출발 지점 ({p[0]:.2f}, {p[1]:.2f}) 기준 작업대: "
+                    + ", ".join(f"{w}={st}" for st, w in sorted(sides.items(), key=lambda kv: kv[1])))
 
     def publish(self):
         m = String()
@@ -66,15 +79,16 @@ class TaskManager:
     # ------------------------------------------------------------------
     def make_plan(self, command):
         planner = self.sk.get_parameter("planner").value
+        sides = table_sides(self.sk.world, self.start_xy)
         if planner == "offline":
-            return plan_offline(command), "offline"
+            return plan_offline(command, sides), "offline"
         try:
             model = self.sk.get_parameter("model").value or None
-            return plan_with_llm(command, model=model), "llm"
+            return plan_with_llm(command, model=model, sides=sides), "llm"
         except Exception as e:  # noqa: BLE001
             if self.sk.get_parameter("fallback_offline").value:
                 self.sk.log(f"LLM 실패 → 오프라인 계획 사용: {e}")
-                return plan_offline(command), "offline(fallback)"
+                return plan_offline(command, sides), "offline(fallback)"
             raise
 
     def run(self, command):

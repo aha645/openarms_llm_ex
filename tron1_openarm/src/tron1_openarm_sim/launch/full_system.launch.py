@@ -45,6 +45,7 @@ def generate_launch_description():
         DeclareLaunchArgument("policy", default_value="", description="비우면 발 형태별 기본 정책"),
         DeclareLaunchArgument("camera_hz", default_value="10.0", description="GPU 없는 환경은 5.0"),
         DeclareLaunchArgument("lidar_rays", default_value="360"),
+        DeclareLaunchArgument("box_source", default_value="aruco", description="상자 인식: aruco | color (sim.launch.py)"),
         DeclareLaunchArgument("rate_factor", default_value="1.0", description="1.0=실시간, 느린 PC 는 0.5"),
         DeclareLaunchArgument("ekf", default_value="false", description="true = EKF(다리 오도메트리 + IMU)가 odom TF 를 냄"),
         DeclareLaunchArgument("dashboard_host",
@@ -54,7 +55,8 @@ def generate_launch_description():
                                  launch_arguments={"foot": lc("foot"), "viewer": lc("viewer"), "rviz": lc("rviz"),
                                                    "world": lc("world"), "policy": lc("policy"),
                                                    "camera_hz": lc("camera_hz"), "lidar_rays": lc("lidar_rays"),
-                                                   "rate_factor": lc("rate_factor"), "ekf": lc("ekf")}.items()),
+                                                   "rate_factor": lc("rate_factor"), "ekf": lc("ekf"),
+                                                   "box_source": lc("box_source")}.items()),
         TimerAction(period=5.0, actions=[IncludeLaunchDescription(
             PythonLaunchDescriptionSource(os.path.join(mv, "launch", "move_group.launch.py")),
             launch_arguments={"rviz": "false", "foot": lc("foot")}.items())]),

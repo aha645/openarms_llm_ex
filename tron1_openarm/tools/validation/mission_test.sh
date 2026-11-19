@@ -1,12 +1,20 @@
 #!/bin/bash
-# 사용: [VIEW=1] bash mission_test.sh <pf|sf> <기록 이름> ["자연어 명령"]   (10_setup_tron1.sh 로 tron1_openarm 빌드 후. 로그: $LOG_DIR, 기본 /tmp/tron1_logs)
+# 사용: [VIEW=1] [BOX_SOURCE=color] bash mission_test.sh <pf|sf> <기록 이름> ["자연어 명령"]   (10_setup_tron1.sh 로 tron1_openarm 빌드 후. 로그: $LOG_DIR, 기본 /tmp/tron1_logs)
 # 전체 시스템(시뮬 + Nav2 + MoveIt + 작업 관리자 + 오프라인 LLM 플래너)을 띄우고, 정답 기록기를 켠 채
 # 자연어 명령 하나를 끝까지 실행한 뒤 상자가 어디에 놓였는지 정답으로 확인한다.
 foot=$1; tag=$2; cmd=${3:-"빨간 상자를 왼쪽 작업대로 옮기고 돌아와"}
 S=${LOG_DIR:-/tmp/tron1_logs}; mkdir -p $S; D=$(cd "$(dirname "$0")" && pwd)
 cd "$D/../.." && source install/setup.bash   # tron1_openarm 워크스페이스 (mobile_openarm underlay 포함)
-(ros2 launch tron1_openarm_sim full_system.launch.py foot:=$foot planner:=offline viewer:=$([ -n "$VIEW" ] && echo true || echo false) rviz:=$([ -n "$VIEW" ] && echo true || echo false) > $S/${foot}_full${tag}.log 2>&1 &)
-sleep 90
+(ros2 launch tron1_openarm_sim full_system.launch.py foot:=$foot planner:=offline box_source:=${BOX_SOURCE:-aruco} viewer:=$([ -n "$VIEW" ] && echo true || echo false) rviz:=$([ -n "$VIEW" ] && echo true || echo false) > $S/${foot}_full${tag}.log 2>&1 &)
+# 준비될 때까지만 (예전 고정 90 s: 실제로는 작업 관리자 준비 약 16 s). 작업 관리자 준비 + Nav2 활성 + MoveIt 준비, 그 뒤 5 s. 최대 180 s
+L=$S/${foot}_full${tag}.log
+for i in $(seq 1 360); do
+  grep -q "task_manager 준비 완료" $L 2>/dev/null && grep -q "Managed nodes are active" $L 2>/dev/null \
+    && grep -q "You can start planning now" $L 2>/dev/null && break
+  sleep 0.5
+done
+sleep 5
+echo "준비까지 $((i / 2 + 5)) s"
 (python3 $D/grasp_recorder.py $S/mrec_${foot}${tag}.jsonl > /dev/null 2>&1 &)
 timeout 6000 python3 $D/mission_cli.py "$cmd" 5800 > $S/${foot}_mission${tag}.log 2>&1
 echo "=== $foot mission"; grep -E "^LOG|status|완료|실패" $S/${foot}_mission${tag}.log | tail -40

@@ -12,6 +12,8 @@ build_tron1_openarm.py 가 모델을 새로 만들 때도 자동으로 적용한
   2) 상반신이 몸통 위에 떠 보임: 기둥 아래끝(mount 판 윗면, base+0.037)과 TRON1 몸통 메시 윗면(base+0.017) 사이 2 cm 가 비어 있었다
      → 어댑터 판(질량 0.6 kg 은 openarm_mount_link 에 이미 있음)을 몸통 윗면 전체에 그린다.
   3) 손목 카메라가 손 뒤 4.5 cm 에 떠 있음: 손등(손 좌표 x −0.028)과 카메라 몸체(x −0.073) 사이에 브래킷을 그린다.
+  5) RViz 에 하체(몸통·다리)가 안 보임: URDF 의 TRON1 링크 visual 이 충돌 도형(상자·원기둥)이고 색이 rgba "0 0 1 0"(투명)
+     이었다 → MJCF 와 같은 STL 메시(링크 원점, 같은 색)를 visual 로 넣는다 (URDF 만).
   4) 팔꿈치가 TRON1 몸통 옆 손잡이를 관통: 손잡이가 시각 메시에만 있고 충돌 상자(y ±0.13)에는 없어서
      MoveIt·물리 모두 모르고 지나갔다 (carry→home 경유 경로에서 팔꿈치·아래팔 틈 0 cm)
      → 손잡이 충돌 상자(base 기준 x −0.067~0.067, y ±0.147~0.173, z −0.12~−0.08)를 넣는다.
@@ -102,8 +104,32 @@ def _urdf_box_visual(name, xyz, half, rgba):
             f'\n      </geometry>\n      <material name="{name}_mat">\n        <color rgba="{rgba}" />\n      </material>\n    </visual>')
 
 
+TRON1_LINKS = {"base_link": ("base_Link", "0.79 0.82 0.93 1")}
+for _lr in ("L", "R"):
+    for _n, _c in (("abad", "0.79 0.82 0.93 1"), ("hip", "0.95 0.95 0.95 1"), ("knee", "0.79 0.82 0.93 1"),
+                   ("ankle", "0.79 0.82 0.93 1"), ("foot", "0.79 0.82 0.93 1")):
+        TRON1_LINKS[f"{_n}_{_lr}_Link"] = (f"{_n}_{_lr}_Link", _c)
+
+
 def fix_urdf(s):
     notes = []
+    # 5) TRON1 하체 메시 visual (RViz 표시용)
+    if "tron1_mesh_vis_mat" not in s:
+        # SF URDF 는 발목 메시를 이미 package://.../mjcf/sf/meshes/tron1/ 로 참조, PF 는 메시 참조가 없음 → mjcf/meshes/tron1/
+        m = re.search(r'filename="(package://[^"]*/meshes/tron1/)[a-zA-Z_]+\.STL"', s)
+        mesh_dir = m.group(1) if m else "package://tron1_openarm_sim/mjcf/meshes/tron1/"
+        if True:
+            for link, (mesh, rgba) in TRON1_LINKS.items():
+                ml = re.search(rf'<link name="{link}">', s)
+                if ml is None:
+                    continue
+                vis = (f'\n    <visual>\n      <origin xyz="0 0 0" rpy="0 0 0" />\n      <geometry>\n'
+                       f'        <mesh filename="{mesh_dir}{mesh}.STL" scale="1 1 1" />\n      </geometry>\n'
+                       f'      <material name="tron1_mesh_vis_mat_{link}">\n        <color rgba="{rgba}" />\n      </material>\n'
+                       f'    </visual>')
+                s = s[:ml.end()] + vis + s[ml.end():]
+            s = s.replace('<material name="tron1_mesh_vis_mat_base_link">', '<material name="tron1_mesh_vis_mat_base_link"><!-- tron1_mesh_vis_mat -->', 1)
+            notes.append("TRON1 하체 메시 visual")
     # 1) 어깨 브래킷 (openarm_shoulder_bracket_vis_mat 을 쓰는 visual)
     pat = (r'(<visual>\s*<origin xyz=")[^"]*(" rpy="[^"]*" />\s*<geometry>\s*<box size=")[^"]*'
            r'(" />\s*</geometry>\s*<material name="openarm_shoulder_bracket_vis_mat")')

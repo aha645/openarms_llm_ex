@@ -12,9 +12,16 @@
 발행
   머리   /aruco/detections, /aruco/poses, /aruco/markers   (브리지가 내던 것과 같은 형식, base_footprint)
          /head_camera/image_raw/compressed
+         /table/edge  (JSON: 작업대 앞 모서리까지 거리 dist, 정면으로 마주 보려면 돌 각도 yaw, 상판 높이 — table_edge.py, 2 Hz)
   손목   /wrist_{left,right}_camera/aruco/detections  (JSON: id, 손끝(TCP) 기준 위치, base_footprint 기준 위치·yaw)
          /wrist_{left,right}_camera/image_raw/compressed
   손목 카메라는 손에 고정 → '손끝 기준 마커 위치' 는 팔 처짐·몸통 흔들림과 상관없이 정확하다 (카메라→손끝이 강체).
+
+상자 인식 (box_source)
+  aruco (기본): 상자 윗면 ArUco 마커
+  color : 마커 없이 색으로 (color_boxes.py). 이 프로세스가 그리는 장면에서 상자 마커를 지우고(상자 색으로 칠함)
+          빨강·초록·파랑 영역 + 깊이로 윗면 중심·방향을 구해, 마커와 같은 id(locations.yaml objects 의 color→marker_id)로 낸다.
+          작업대 마커(id 20, 21)는 그대로 ArUco 로 찾는다.
 """
 import json
 import math
@@ -35,6 +42,8 @@ from visualization_msgs.msg import Marker, MarkerArray
 from mobile_openarm_sim.aruco_utils import ArucoDetector
 from mobile_openarm_sim.kinematics import mat_to_quat
 
+from . import color_boxes
+from . import table_edge
 from . import wrist_cameras as WC
 from .sim_state_shm import DEFAULT_NAME, StateReader
 
@@ -49,12 +58,52 @@ def stamp(t):
     return s
 
 
+def tilt_rotation(tilt):
+    _h, pitch, roll = tilt
+    cp, sp, cr, sr = math.cos(pitch), math.sin(pitch), math.cos(roll), math.sin(roll)
+    return np.array([[cp, 0, sp], [0, 1, 0], [-sp, 0, cp]]) @ np.array([[1, 0, 0], [0, cr, -sr], [0, sr, cr]])
+
+
 def footprint(p, R, tilt):
     """base_link → base_footprint (biped_core.base_link_to_footprint 와 같은 식, 기울기는 브리지가 추정한 값)."""
-    h, pitch, roll = tilt
-    cp, sp, cr, sr = math.cos(pitch), math.sin(pitch), math.cos(roll), math.sin(roll)
-    Rrp = np.array([[cp, 0, sp], [0, 1, 0], [-sp, 0, cp]]) @ np.array([[1, 0, 0], [0, cr, -sr], [0, sr, cr]])
-    return Rrp @ p + np.array([0.0, 0.0, h]), Rrp @ R
+    Rrp = tilt_rotation(tilt)
+    return Rrp @ p + np.array([0.0, 0.0, tilt[0]]), Rrp @ R
+
+
+def depth_correct(depth, K, dets):
+    """깊이 영상으로 마커 중심 3D 위치 보정. 960x720 머리 카메라에서 0.65 m 거리의 4 cm 마커는 약 23 px 라
+    PnP 깊이 오차가 4 % (2.6 cm) — 깊이 보정 없이 내보냈더니 상자가 2~4 cm 높게 잡혀 파지가 실패했다."""
+    Kinv = np.linalg.inv(K)
+    for det in dets:
+        u, v = det["corners"].mean(0)
+        ui, vi = int(round(u)), int(round(v))
+        if 0 <= vi < depth.shape[0] and 0 <= ui < depth.shape[1]:
+            z = float(np.median(depth[max(vi - 1, 0):vi + 2, max(ui - 1, 0):ui + 2]))
+            if 0.03 < z < 5.0:
+                det["position"] = z * (Kinv @ np.array([u, v, 1.0]))
+
+
+def flat_rotation(K, det, Rw, pw, pm_w, max_tilt=math.radians(35)):
+    """마커 방향(세계 기준 회전). 마커가 거의 수평(PnP 법선이 위쪽 35° 안)이면 수평면 가정으로 다시 구한다:
+    네 모서리 시선을 마커 중심 높이의 수평면과 교차시켜 모서리 0→1 방향으로 yaw.
+    작은 마커를 비스듬히 볼 때 PnP 자세는 기울기를 헷갈려(평면 마커 모호성) yaw 가 틀렸다:
+    머리 카메라 0.64 m 에서 −8° 상자를 −18° 로 재, 손을 10° 더 돌려 들어가 집기 실패 (집기 견고성 시험 s1d).
+    색 검출(color_boxes)은 이미 세계 기준 수평 회전이라 그대로 쓴다 ("flat" 표시)."""
+    Rm_w = Rw @ det["rotation"]
+    if det.get("flat") or Rm_w[2, 2] < math.cos(max_tilt):
+        return Rm_w
+    Kinv = np.linalg.inv(K)
+    pts = []
+    for u, v in det["corners"]:
+        ray = Rw @ (Kinv @ np.array([u, v, 1.0]))
+        if abs(ray[2]) < 1e-6:
+            return Rm_w
+        pts.append(pw + ray * ((pm_w[2] - pw[2]) / ray[2]))
+    pts = np.array(pts)
+    ex = (pts[1] - pts[0]) + (pts[2] - pts[3])          # 마커 x축 (윗변·아랫변 평균)
+    yaw = math.atan2(ex[1], ex[0])
+    cy, sy = math.cos(yaw), math.sin(yaw)
+    return np.array([[cy, -sy, 0.0], [sy, cy, 0.0], [0.0, 0.0, 1.0]])
 
 
 class Cam:
@@ -84,8 +133,19 @@ class CameraServer(Node):
         p("jpeg_quality", 75)
         p("marker_size", 0.04)
         p("use_depth", True)    # RGB-D 카메라 흉내: 마커가 보이면 깊이 영상으로 3D 위치 보정 (브리지의 sim_core.maybe_camera 와 같음)
+        p("box_source", "aruco")   # aruco | color (위 설명)
+        p("table_edge_hz", 2.0)    # 작업대 앞 모서리 인식 주기 (머리 카메라, 0 이면 끔)
         g = lambda n: self.get_parameter(n).value  # noqa: E731
         self.m = mujoco.MjModel.from_xml_path(g("mjcf"))
+        self.box_source = g("box_source")
+        self.edge_period = 1.0 / g("table_edge_hz") if g("table_edge_hz") > 0 else None
+        self.last_edge_t = -1e9
+        self.is_robot = table_edge.robot_geoms(self.m)
+        self.color_ids = {}
+        if self.box_source == "color":
+            self.color_ids = self._color_ids()
+            n = color_boxes.hide_box_markers(self.m)
+            self.get_logger().info(f"상자 인식: 색 {self.color_ids} (상자 마커 {n} 개를 지움)")
         self.d = mujoco.MjData(self.m)
         self.base_id = self.m.body("base_link").id
         self.tcp_id = {s: self.m.body(f"openarm_{s}_hand_tcp").id for s in WC.SIDES}
@@ -110,6 +170,7 @@ class CameraServer(Node):
         self.pub_markers = self.create_publisher(MarkerArray, "/aruco/markers", 10)
         self.pub_img = {c.name: self.create_publisher(CompressedImage, f"/{c.name}/image_raw/compressed", 2) for c in self.cams}
         self.pub_info = {c.name: self.create_publisher(CameraInfo, f"/{c.name}/camera_info", 2) for c in self.cams}
+        self.pub_edge = self.create_publisher(String, "/table/edge", 10)
         self.pub_wdet = {c.name: self.create_publisher(String, f"/{c.name}/aruco/detections", 10)
                          for c in self.cams if c.name != "head_camera"}
         self.stats = {c.name: [0, 0.0] for c in self.cams}     # (프레임 수, 렌더+검출 시간 합)
@@ -117,6 +178,13 @@ class CameraServer(Node):
         threading.Thread(target=self.loop, daemon=True).start()
         self.create_timer(10.0, self.report)
         self.get_logger().info(f"카메라 서버: {[f'{c.name} {c.w}x{c.h}@{1 / c.period:.0f}Hz' for c in self.cams]}, 공유 메모리 {self.shm_name}")
+
+    def _color_ids(self):
+        import yaml
+        from ament_index_python.packages import get_package_share_directory
+        path = f"{get_package_share_directory('mobile_openarm_sim')}/config/locations.yaml"
+        objs = yaml.safe_load(open(path, encoding="utf-8"))["objects"]
+        return {o["color"]: int(o["marker_id"]) for o in objs.values() if "color" in o}
 
     def report(self):
         s = ", ".join(f"{k} {n / 10:.1f} fps {1000 * t / max(n, 1):.0f} ms" for k, (n, t) in self.stats.items())
@@ -175,8 +243,16 @@ class CameraServer(Node):
                 r.scene.flags[mujoco.mjtRndFlag.mjRND_REFLECTION] = 0
                 rgb = r.render().copy()
                 dets = c.det.detect(rgb)
+                depth = None
+                if (dets and self.use_depth) or self.color_ids:
+                    depth = self._depth(r, c)
                 if dets and self.use_depth:
-                    self._depth_correct(r, c, dets)
+                    depth_correct(depth, c.K, dets)
+                if self.color_ids:
+                    dets = [dt for dt in dets if dt["id"] not in self.color_ids.values()] + self._color_dets(c, rgb, depth)
+                if c.name == "head_camera" and self.edge_period and t - self.last_edge_t >= self.edge_period - 1e-6:
+                    self.last_edge_t = t
+                    self.publish_edge(r, c, t, tilt, depth if depth is not None else self._depth(r, c))
                 self.publish_dets(c, t, dets, tilt)
                 if t - c.last_img_t >= self.image_period - 1e-6:
                     c.last_img_t = t
@@ -188,46 +264,41 @@ class CameraServer(Node):
         for r in renderers.values():
             r.close()
 
-    def _depth_correct(self, r, c, dets):
-        """깊이 영상으로 마커 중심 3D 위치 보정. 960x720 머리 카메라에서 0.65 m 거리의 4 cm 마커는 약 23 px 라
-        PnP 깊이 오차가 4 % (2.6 cm) — 깊이 보정 없이 내보냈더니 상자가 2~4 cm 높게 잡혀 파지가 실패했다."""
+    def _depth(self, r, c):
         r.enable_depth_rendering()
         r.update_scene(self.d, camera=c.id)
         depth = r.render().copy()
         r.disable_depth_rendering()
-        Kinv = np.linalg.inv(c.K)
-        for det in dets:
-            u, v = det["corners"].mean(0)
-            ui, vi = int(round(u)), int(round(v))
-            if 0 <= vi < depth.shape[0] and 0 <= ui < depth.shape[1]:
-                z = float(np.median(depth[max(vi - 1, 0):vi + 2, max(ui - 1, 0):ui + 2]))
-                if 0.03 < z < 5.0:
-                    det["position"] = z * (Kinv @ np.array([u, v, 1.0]))
+        return depth
+
+    def publish_edge(self, r, c, t, tilt, depth):
+        r.enable_segmentation_rendering()
+        r.update_scene(self.d, camera=c.id)
+        seg = r.render().copy()
+        r.disable_segmentation_rendering()
+        Rw, pw = self._cam_in_world(c)
+        Rb, pb = self.d.xmat[self.base_id].reshape(3, 3), self.d.xpos[self.base_id].copy()
+        Rrp, h = tilt_rotation(tilt), tilt[0]
+        to_base = lambda P: ((P - pb) @ Rb) @ Rrp.T + np.array([0.0, 0.0, h])  # noqa: E731  (세계 → base_footprint)
+        res = table_edge.detect(depth, c.K, Rw, pw, to_base, table_edge.robot_mask_from_seg(seg, self.is_robot))
+        msg = String()
+        msg.data = json.dumps({"stamp": t, "frame": "base_footprint", "found": res is not None, **(res or {})})
+        self.pub_edge.publish(msg)
+
+    def _color_dets(self, c, rgb, depth):
+        """색 상자 → 마커 검출과 같은 꼴 (position·rotation 은 카메라 광학 좌표, flat: 이미 수평 회전)."""
+        Rw, pw = self._cam_in_world(c)
+        out = []
+        for cb in color_boxes.detect(rgb, depth, c.K, Rw, pw, self.color_ids):
+            cy, sy = math.cos(cb["yaw_w"]), math.sin(cb["yaw_w"])
+            Rz = np.array([[cy, -sy, 0.0], [sy, cy, 0.0], [0.0, 0.0, 1.0]])
+            out.append({"id": cb["id"], "position": Rw.T @ (cb["p_w"] - pw), "rotation": Rw.T @ Rz, "flat": True,
+                        "color_corners": cb["corners"], "color": cb["color"]})
+        return out
 
     # ------------------------------------------------------------------ 발행
     def _cam_in_world(self, c):
         return self.d.cam_xmat[c.id].reshape(3, 3) @ OPT, self.d.cam_xpos[c.id].copy()
-
-    def _flat_rotation(self, c, det, Rw, pw, pm_w, max_tilt=math.radians(35)):
-        """마커 방향(세계 기준 회전). 마커가 거의 수평(PnP 법선이 위쪽 35° 안)이면 수평면 가정으로 다시 구한다:
-        네 모서리 시선을 마커 중심 높이의 수평면과 교차시켜 모서리 0→1 방향으로 yaw.
-        작은 마커를 비스듬히 볼 때 PnP 자세는 기울기를 헷갈려(평면 마커 모호성) yaw 가 틀렸다:
-        머리 카메라 0.64 m 에서 −8° 상자를 −18° 로 재, 손을 10° 더 돌려 들어가 집기 실패 (집기 견고성 시험 s1d)."""
-        Rm_w = Rw @ det["rotation"]
-        if Rm_w[2, 2] < math.cos(max_tilt):
-            return Rm_w
-        Kinv = np.linalg.inv(c.K)
-        pts = []
-        for u, v in det["corners"]:
-            ray = Rw @ (Kinv @ np.array([u, v, 1.0]))
-            if abs(ray[2]) < 1e-6:
-                return Rm_w
-            pts.append(pw + ray * ((pm_w[2] - pw[2]) / ray[2]))
-        pts = np.array(pts)
-        ex = (pts[1] - pts[0]) + (pts[2] - pts[3])          # 마커 x축 (윗변·아랫변 평균)
-        yaw = math.atan2(ex[1], ex[0])
-        cy, sy = math.cos(yaw), math.sin(yaw)
-        return np.array([[cy, -sy, 0.0], [sy, cy, 0.0], [0.0, 0.0, 1.0]])
 
     def publish_dets(self, c, t, dets, tilt):
         Rw, pw = self._cam_in_world(c)
@@ -235,7 +306,7 @@ class CameraServer(Node):
         out = []
         for det in dets:
             pm_w = Rw @ det["position"] + pw
-            Rm_w = self._flat_rotation(c, det, Rw, pw, pm_w)
+            Rm_w = flat_rotation(c.K, det, Rw, pw, pm_w)
             p_fp, R_fp = footprint(Rb.T @ (pm_w - pb), Rb.T @ Rm_w, tilt)
             item = {"id": det["id"], "frame": "base_footprint", "position": [round(float(v), 4) for v in p_fp],
                     "R": R_fp, "yaw": round(math.atan2(R_fp[1, 0], R_fp[0, 0]), 4),
@@ -287,7 +358,10 @@ class CameraServer(Node):
         self.pub_markers.publish(ma)
 
     def publish_image(self, c, t, rgb, dets):
-        ok, buf = cv2.imencode(".jpg", ArucoDetector.draw(rgb, dets), [int(cv2.IMWRITE_JPEG_QUALITY), self.jpeg_q])
+        img = ArucoDetector.draw(rgb, [d for d in dets if "corners" in d])
+        img = color_boxes.draw(img, [{"id": d["id"], "color": d["color"], "corners": d["color_corners"]}
+                                     for d in dets if "color" in d])
+        ok, buf = cv2.imencode(".jpg", img, [int(cv2.IMWRITE_JPEG_QUALITY), self.jpeg_q])
         if not ok:
             return
         msg = CompressedImage()

@@ -19,7 +19,7 @@ def generate_launch_description():
     lc = LaunchConfiguration
     sim = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(os.path.join(share, "launch", "sim.launch.py")),
-        launch_arguments={"foot": lc("foot"), "policy": lc("policy"), "viewer": lc("viewer"), "world": lc("world"), "camera": lc("camera"), "move_person": lc("move_person"),
+        launch_arguments={"foot": lc("foot"), "policy": lc("policy"), "viewer": lc("viewer"), "world": lc("world"), "camera": lc("camera"), "move_person": lc("move_person"), "box_source": lc("box_source"),
                           "rviz_config": os.path.join(share, "rviz", "nav.rviz"), "rviz": lc("rviz"),
                           "camera_hz": lc("camera_hz"), "lidar_rays": lc("lidar_rays"),
                           "rate_factor": lc("rate_factor"), "ekf": lc("ekf")}.items())
@@ -33,6 +33,7 @@ def generate_launch_description():
         DeclareLaunchArgument("foot", default_value="sf", description="sf = Sole-foot(교육 기준), pf = Point-foot"),
         DeclareLaunchArgument("world", default_value="world.xml"),
         DeclareLaunchArgument("camera", default_value="true"),
+        DeclareLaunchArgument("box_source", default_value="aruco", description="상자 인식: aruco | color (sim.launch.py)"),
         DeclareLaunchArgument("rviz", default_value="true"),
         DeclareLaunchArgument("move_person", default_value="true"),
         DeclareLaunchArgument("camera_hz", default_value="10.0", description="GPU 없는 환경은 5.0"),

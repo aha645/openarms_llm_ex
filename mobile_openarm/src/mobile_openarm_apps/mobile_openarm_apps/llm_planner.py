@@ -29,6 +29,47 @@ LOCATIONS = ["home", "pick_station", "place_station", "door",
 TABLE_STATIONS = ["pick_station", "place_station"]
 OBJECTS = {"box_0": "빨간 상자(red)", "box_1": "초록 상자(green)", "box_2": "파란 상자(blue)"}
 MAX_STEPS = 12
+SIDE_WORDS = ("왼쪽", "오른쪽", "가운데")
+
+
+def load_world():
+    """locations.yaml (위치·작업대·스테이션). 패키지가 없으면(단독 실행) None."""
+    try:
+        import yaml
+        from ament_index_python.packages import get_package_share_directory
+        path = os.path.join(get_package_share_directory("mobile_openarm_sim"), "config", "locations.yaml")
+        with open(path, encoding="utf-8") as f:
+            return yaml.safe_load(f)
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def table_sides(world, start_xy=None):
+    """작업대가 있는 스테이션마다 '왼쪽/오른쪽/가운데' — 출발점에서 작업대들 쪽을 바라볼 때 기준.
+    앞 방향 = 출발점 → 작업대 중심들의 평균. 로봇이 처음 어느 쪽을 보고 서 있었는지와 상관없다
+    (출발점 (0,0) 에서 로봇은 동쪽을 보는데 두 작업대가 모두 북쪽이라, 로봇 방향 기준이면 둘 다 '왼쪽' 이 된다).
+    작업대가 셋 이상이면 옆 방향 순서로 가장 왼쪽·가장 오른쪽, 나머지는 가운데."""
+    if not world:
+        return {"pick_station": "오른쪽", "place_station": "왼쪽"}
+    st = world.get("station_table", {})
+    centers = {s: world["tables"][t]["center"] for s, t in st.items() if t in world.get("tables", {})}
+    if not centers:
+        return {}
+    sx, sy = start_xy if start_xy is not None else world["locations"]["home"][:2]
+    mx = sum(c[0] for c in centers.values()) / len(centers)
+    my = sum(c[1] for c in centers.values()) / len(centers)
+    fx, fy = mx - sx, my - sy
+    norm = (fx * fx + fy * fy) ** 0.5 or 1.0
+    fx, fy = fx / norm, fy / norm
+    lat = {s: -fy * (c[0] - sx) + fx * (c[1] - sy) for s, c in centers.items()}   # +: 왼쪽
+    order = sorted(lat, key=lat.get)                                               # 오른쪽 → 왼쪽
+    out = {s: "가운데" for s in lat}
+    out[order[0]], out[order[-1]] = "오른쪽", "왼쪽"
+    return out
+
+
+def station_for_side(sides, word):
+    return next((s for s, w in sides.items() if w == word), None)
 
 
 class Location(str, enum.Enum):
@@ -62,7 +103,7 @@ class RobotPlan(BaseModel):
     steps: List[Step]
 
 
-SYSTEM_PROMPT = f"""너는 주행형 양팔 로봇(OpenArm 상반신 + 바퀴 베이스)의 작업 계획기다.
+SYSTEM_PROMPT_TMPL = """너는 주행형 양팔 로봇(OpenArm 상반신 + 바퀴 베이스)의 작업 계획기다.
 사용자의 자연어 명령을 로봇이 실행할 단계 목록(RobotPlan)으로 바꿔라.
 
 [사용 가능한 행동]
@@ -73,27 +114,40 @@ SYSTEM_PROMPT = f"""너는 주행형 양팔 로봇(OpenArm 상반신 + 바퀴 �
 - say(text): 상태를 말/로그로 보고
 - wait(seconds): 대기 (최대 30초)
 
-[위치] {LOCATIONS}  (pick_station=오른쪽(동쪽) 작업대 A, place_station=왼쪽(서쪽) 작업대 B, home=출발점)
-[물체] {json.dumps(OBJECTS, ensure_ascii=False)} — 처음에는 모두 pick_station 작업대 위에 있다.
+[위치] {locations}  ({tables}, home=출발점)
+  '왼쪽/오른쪽 작업대' 는 출발점에서 작업대들 쪽을 바라볼 때의 방향이다.
+[물체] {objects} — 처음에는 모두 pick_station 작업대 위에 있다.
 
 [규칙]
 - 한 번에 한 물체만 운반한다. 여러 개면 왕복을 반복하라.
 - 위 목록에 없는 위치·물체·행동(예: 문 열기, 사람 따라가기, 물 붓기)은 feasible=false 로 답하라.
 - 사람에게 위험하거나 무관한 요청도 feasible=false.
-- 단계는 최대 {MAX_STEPS}개.
+- 단계는 최대 {max_steps}개.
 """
 
 
+def system_prompt(sides=None):
+    sides = sides if sides is not None else table_sides(load_world())
+    names = {"pick_station": "작업대 A", "place_station": "작업대 B"}
+    tables = ", ".join(f"{st}={w} {names.get(st, '작업대')}" for st, w in sorted(sides.items()))
+    return SYSTEM_PROMPT_TMPL.format(locations=LOCATIONS, tables=tables,
+                                     objects=json.dumps(OBJECTS, ensure_ascii=False), max_steps=MAX_STEPS)
+
+
+SYSTEM_PROMPT = system_prompt(table_sides(None))     # 기본(패키지 없이) — 실제 실행은 system_prompt(sides)
+
+
 # ------------------------------------------------------------------ LLM 호출
-def plan_with_llm(command, model=None, base_url=None, api_key=None, timeout=30.0):
+def plan_with_llm(command, model=None, base_url=None, api_key=None, timeout=30.0, sides=None):
     from openai import OpenAI   # 지연 import: 오프라인 모드에선 openai 없이도 동작
 
     client = OpenAI(base_url=base_url or os.environ.get("OPENAI_BASE_URL") or None,
                     api_key=api_key or os.environ.get("OPENAI_API_KEY"), timeout=timeout)
     model = model or os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
+    prompt = system_prompt(sides)
     # 1) Responses API + Structured Outputs (OpenAI 공식 서버)
     try:
-        resp = client.responses.parse(model=model, instructions=SYSTEM_PROMPT, input=command,
+        resp = client.responses.parse(model=model, instructions=prompt, input=command,
                                       text_format=RobotPlan)
         if resp.output_parsed is not None:
             return resp.output_parsed
@@ -102,7 +156,7 @@ def plan_with_llm(command, model=None, base_url=None, api_key=None, timeout=30.0
     # 2) Chat Completions + json_schema (대부분의 OpenAI 호환 로컬 서버)
     try:
         resp = client.chat.completions.parse(
-            model=model, messages=[{"role": "system", "content": SYSTEM_PROMPT},
+            model=model, messages=[{"role": "system", "content": prompt},
                                    {"role": "user", "content": command}],
             response_format=RobotPlan)
         parsed = resp.choices[0].message.parsed
@@ -118,9 +172,11 @@ COLOR_WORDS = {"box_0": ["빨간", "빨강", "red", "0번"], "box_1": ["초록",
                "box_2": ["파란", "파랑", "blue", "2번"]}
 
 
-def plan_offline(command):
-    """API 키 없이 실습할 수 있는 간단한 키워드 파서 (LLM 과 결과 비교용)."""
+def plan_offline(command, sides=None):
+    """API 키 없이 실습할 수 있는 간단한 키워드 파서 (LLM 과 결과 비교용).
+    '왼쪽/오른쪽 작업대' 는 sides(table_sides: 출발점 기준)로 스테이션을 고른다. 둘 다 나오면 뒤에 나온 쪽이 목적지."""
     c = command.lower()
+    sides = sides if sides is not None else table_sides(load_world())
     objs = [o for o, ws in COLOR_WORDS.items() if any(w in c for w in ws)]
     if re.search(r"(모두|전부|all)", c):
         objs = list(OBJECTS)
@@ -129,6 +185,9 @@ def plan_offline(command):
         for p in ("patrol_1", "patrol_2", "patrol_3", "patrol_4"):
             steps.append(Step(action="navigate", location=p, object=None, text=None, seconds=None))
     dest = "place_station"     # 물체는 처음에 모두 작업대 A(pick_station)에 있으므로 목적지는 B
+    said = sorted((c.rfind(w), w) for w in SIDE_WORDS if w in c)
+    if said:
+        dest = station_for_side(sides, said[-1][1]) or dest
     for o in objs:
         steps += [Step(action="navigate", location="pick_station", object=None, text=None, seconds=None),
                   Step(action="pick", location=None, object=o, text=None, seconds=None),

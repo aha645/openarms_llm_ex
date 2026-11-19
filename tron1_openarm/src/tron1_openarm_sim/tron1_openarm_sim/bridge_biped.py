@@ -54,6 +54,11 @@ class BipedBridge(B.MujocoBridge):
         self.declare_parameter("box_poses", "")
         self._box_poses = parse_box_poses(self.get_parameter("box_poses").value)
         self._apply_box_poses()
+        # 상자 마커 없이 (box_source:=color): 뷰어에도 마커 없는 색 상자로 보이게 (카메라 서버도 같은 일을 한다)
+        self.declare_parameter("box_markers", True)
+        if not self.get_parameter("box_markers").value:
+            from .color_boxes import hide_box_markers
+            self.get_logger().info(f"상자 마커 {hide_box_markers(self.sim.m)} 개를 지움 (색으로 인식)")
         self.pub_status = self.create_publisher(String, "/biped/status", 10)
         self.create_timer(0.2, self.publish_status)
         self.get_logger().info(f"TRON1 보행 정책 사용 (발 형태 {self.sim.foot}, 정책 50 Hz, 물리 {self.sim.m.opt.timestep * 1000:.0f} ms)")

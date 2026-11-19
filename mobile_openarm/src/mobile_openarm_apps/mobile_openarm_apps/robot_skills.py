@@ -126,11 +126,16 @@ class RobotSkills(Node):
             self.create_subscription(String, f"/wrist_{side}_camera/aruco/detections",
                                      lambda msg, s=side: self._on_wrist(s, msg), 10, callback_group=cb)
         self.create_subscription(String, "/sim/attached", self._on_att, 10, callback_group=cb)
+        # 작업대 앞 모서리 (머리 카메라 깊이, TRON1 카메라 서버 table_edge.py): 도착 뒤 작업대에 대한 정밀 정렬.
+        # 어느 작업대인지는 지도 좌표로 정하고(마커를 읽으러 다가갈 필요 없음), 거리·방향·상판 높이만 이것으로 맞춘다
+        self._edge = None                # (받은 시각, dict)
+        self.create_subscription(String, "/table/edge", self._on_edge, 10, callback_group=cb)
         self._joints = {}
         self.create_subscription(JointState, "/joint_states", self._on_js, 10, callback_group=cb)
         self.status_pub = self.create_publisher(String, "/task/log", 10)
         self.cmd_pub = self.create_publisher(Twist, "/cmd_vel", 10)
         self.holding = {"left": None, "right": None}
+        self._grasp_tilt = {"left": None, "right": None}     # 쥘 때 손 (pitch, roll, yaw) — place 에서 수평 유지
         # True: 집기 전후 팔을 carry(몸 쪽으로 접은 자세)로 옮긴다 — 상자를 든 채 걸어서 다른 곳으로 갈 때 필요.
         # 같은 작업대에서 집어 바로 놓을 때(pick_place)는 False: home → 접근 → 파지 → 살짝 들기 → 놓기 → home.
         # carry 를 거치면 팔 이동 4 번(약 3.5 분, 무작위 배치 r8 기록)이 더 들었다
@@ -248,6 +253,29 @@ class RobotSkills(Node):
             return None
         tr, q = t.transform.translation, t.transform.rotation
         return (tr.x, tr.y, quat_to_yaw(q.x, q.y, q.z, q.w))
+
+    def _on_edge(self, msg):
+        try:
+            e = json.loads(msg.data)
+        except ValueError:
+            return
+        if e.get("found"):
+            self._edge = (time.time(), e)
+
+    def table_edge_seen(self, wait=1.5, settle=0.3):
+        """지금(멈춘 뒤 settle 초 지나서) 잰 작업대 앞 모서리 {dist, yaw, height, ...} 또는 None (못 찾음·발행 안 함)."""
+        after = time.time() + settle
+        t_end = after + wait
+        while time.time() < t_end:
+            e = self._edge
+            if e is not None and e[0] >= after:
+                return e[1]
+            time.sleep(0.05)
+        return None
+
+    def _edge_recent(self, max_age=1.5):
+        e = self._edge
+        return e[1] if e is not None and time.time() - e[0] < max_age else None
 
     def detections(self, max_age=1.0):
         now = time.time()
@@ -654,8 +682,13 @@ class RobotSkills(Node):
         time.sleep(0.5)
 
     def table_edge_distance(self, station=None):
-        """현재 자세 기준 작업대 앞 모서리까지의 전방 거리 (map TF 사용)."""
+        """현재 자세 기준 작업대 앞 모서리까지의 전방 거리. 머리 카메라 깊이로 잰 값이 있으면 그것(정확, ±0.1 cm),
+        없으면 map TF 와 지도 좌표 (AMCL 오차 5~10 cm)."""
         station = station or self.current_station
+        if self.can_strafe:
+            e = self.table_edge_seen()
+            if e is not None:
+                return float(e["dist"])
         table = self.station_table.get(station)
         pose = self.robot_pose()
         if table is None or pose is None:
@@ -674,6 +707,15 @@ class RobotSkills(Node):
         # 1) 작업대와 정면으로 마주 보도록 yaw 보정 (Nav2 yaw 허용오차 ±7° 보정)
         want = math.radians(self.locations[station][2])
         self.rotate_base(math.atan2(math.sin(want - pose[2]), math.cos(want - pose[2])))
+        if self.can_strafe:
+            # 지도 방향으로 돈 뒤 남은 어긋남(AMCL 방향 오차 수 °)은 깊이로 잰 작업대 모서리로 바로잡는다
+            e = self.table_edge_seen()
+            if e is not None:
+                self.log(f"[dock] 작업대 모서리(깊이) 거리 {e['dist']:.3f} m, 방향 {math.degrees(e['yaw']):+.1f}°, "
+                         f"상판 {e['height']:.3f} m")
+                self.rotate_base(float(e["yaw"]))
+            else:
+                self.log("[dock] 작업대 모서리를 깊이로 못 찾음 → 지도 좌표로")
         if self.can_strafe:
             self.set_table(station, pad=self.TRANSIT_PAD)   # 이후 팔 이동 경로가 작업대를 피하도록 먼저 충돌 객체를 넣는다
         # 2) 작업대 앞 모서리까지 DOCK_GAP 이 되도록 직진
@@ -962,10 +1004,23 @@ class RobotSkills(Node):
             edge = float(np.clip(edge_map, self._box_seen_fwd - self.BOX_EDGE_MAX, self._box_seen_fwd - self.BOX_EDGE_MIN))
             if edge != edge_map:
                 local = np.array([local[0] + edge - edge_map, local[1]])
+        tbl_yaw = -pose[2]                 # 작업대 축은 map 축과 평행
+        e = self._edge_recent() if self.can_strafe else None
+        if e is not None and station in self.locations:
+            # 이족: 머리 카메라 깊이로 잰 앞 모서리(거리·방향)로 작업대를 놓는다 — 지도·오도메트리 어긋남(5~10 cm, 수 °)을 없앰.
+            # 모서리 위의 점 (dist, 0) 에서 작업대 안쪽 법선 n = (cos θ, sin θ) 으로 깊이/2, 모서리 방향 위치는 지도 값
+            th = float(e["yaw"])
+            n_in, e_dir = np.array([math.cos(th), math.sin(th)]), np.array([-math.sin(th), math.cos(th)])
+            p_edge = np.array([float(e["dist"]), 0.0])
+            s_lat = float((np.asarray(local) - p_edge) @ e_dir)
+            local = p_edge + n_in * (t["size"][1] / 2) + e_dir * s_lat
+            tbl_yaw = th - math.radians(self.locations[station][2])
+            if self._table_top_seen is None:
+                h = float(e["height"]) + 0.005 + pad
         box.dimensions = [float(t["size"][0]) + 2 * pad, float(t["size"][1]) + 2 * pad, float(h)]
         p = Pose()
         p.position.x, p.position.y, p.position.z = float(local[0]), float(local[1]), h / 2
-        q = yaw_to_quat(-pose[2])          # 작업대 축은 map 축과 평행
+        q = yaw_to_quat(tbl_yaw)
         p.orientation.x, p.orientation.y, p.orientation.z, p.orientation.w = q
         co.primitives = [box]
         co.primitive_poses = [p]
@@ -1138,13 +1193,14 @@ class RobotSkills(Node):
             return True
         return False
 
-    def _solve_approach(self, side, target, back=0.10, exclude_id=None, yaw=0.0):
+    def _solve_approach(self, side, target, back=0.10, exclude_id=None, yaw=0.0, tilt=None, yaws=None):
         """접근 자세 후보(roll × 물러선 거리)들 중 '접근점 IK + 목표 IK + 접근점→목표 직선 경로' 가 모두 되는 것 → (R, pre, q_pre).
         직선 경로까지 미리 검사하는 이유: 두 끝점의 IK 가 풀려도 중간에 관절 한계에 걸려 직선이 끊길 수 있다
         (TRON1 이족에서 실제로 64%·45% 에서 끊김). 그러면 같은 roll 로 더 가까이(0.07, 0.05 m)에서 시작하거나 다른 roll 을 쓴다.
         yaw: 접근 방향을 수평으로 이만큼 돌림 [rad] — 돌아간 상자의 옆면에 수직으로 들어가 두 손가락이 옆면에 함께 닿게.
-        돌리지 않으면 손가락 하나가 상자 모서리에 먼저 닿아 닫히며 상자를 옆으로 10 cm 밀었다 (무작위 배치 시험 s1c, 상자 −8°)"""
-        fwd = (math.cos(yaw), math.sin(yaw), 0.0)
+        돌리지 않으면 손가락 하나가 상자 모서리에 먼저 닿아 닫히며 상자를 옆으로 10 cm 밀었다 (무작위 배치 시험 s1c, 상자 −8°)
+        tilt=(pitch, roll): 이 기울기만 쓴다 (놓기: 집을 때와 같은 기울기 → 상자가 수평). yaws: 수평 방향 후보 [rad].
+        고른 (pitch, roll, yaw) 는 self._last_approach 에 남긴다."""
         best = None
         # 이족: 어깨를 몸통 위로 낮춘 설계(어깨 0.78~0.83 m, 상자 0.69 m)에서는 거의 수평 접근이 자연스럽고,
         # 45° 로 내려오면 아래쪽 손가락이 상판에 걸린다 → 낮은 pitch 부터 시도
@@ -1153,14 +1209,16 @@ class RobotSkills(Node):
         if self.wrist_cameras:
             # 손목 카메라는 손의 −x 쪽에 있어 roll 이 음수(−70~−90°)일 때 위에서 상자를 내려다본다 → 음수 roll 먼저
             rolls = [r for r in rolls if r < 0] + [r for r in rolls if r == 0] + [r for r in rolls if r > 0]
-        cands = [(p, b, r) for b in (back, 0.07, 0.05) for p in pitches for r in rolls]
+        if tilt is not None:
+            pitches, rolls = [tilt[0]], [tilt[1]]
+        cands = [(p, b, r, yw) for b in (back, 0.07, 0.05) for yw in (yaws or [yaw]) for p in pitches for r in rolls]
         # 직선 접근 검사는 실제 접근 때와 같은 장면(목표 상자만 뺀)에서 해야 한다.
         # 목표 상자를 장애물로 둔 채 검사하면 손이 상자에 닿는 마지막 구간이 '충돌'로 판정돼 항상 실패한다.
         if exclude_id is not None:
             self.set_boxes(exclude_id=exclude_id)
         try:
-            for pitch, b, roll in cands:
-                R = approach_rotation(pitch, roll, forward=fwd)
+            for pitch, b, roll, yw in cands:
+                R = approach_rotation(pitch, roll, forward=(math.cos(yw), math.sin(yw), 0.0))
                 pre = target - R[:, 2] * b
                 if self.can_strafe:
                     # 이족: 팔을 뻗으면 몸통이 앞으로 숙여져(SF 최대 7°) 손이 3~5 cm 내려가 접근점에서 손가락이 상판에 닿았다
@@ -1177,7 +1235,10 @@ class RobotSkills(Node):
                         continue
                     f = self._cart_fraction(side, q_pre, R, target + R[:, 2] * self.GRASP_DEPTH)
                     if f >= self._need_fraction(b):
-                        self.log(f"[ik] {side} 접근 자세 pitch={pitch:.0f}° roll={roll}°, {b * 100:.0f} cm 앞에서 직선 접근")
+                        self.log(f"[ik] {side} 접근 자세 pitch={pitch:.0f}° roll={roll}°"
+                                 + (f" yaw={math.degrees(yw):+.0f}°" if abs(yw) > 1e-6 else "")
+                                 + f", {b * 100:.0f} cm 앞에서 직선 접근")
+                        self._last_approach = (pitch, roll, yw)
                         return R, pre, q_pre
                     if best is None or f > best[0]:
                         best = (f, roll, b)
@@ -1514,6 +1575,8 @@ class RobotSkills(Node):
             raise SkillError(f"{obj} 파지 실패 (2회)")
         self.clear_boxes()
         self.holding[side] = obj
+        # 쥘 때의 손 기울기 (상자는 수평이었다) → 놓을 때 같은 기울기로 내려놓으면 상자도 수평
+        self._grasp_tilt[side] = getattr(self, "_last_approach", None)
         if self.can_strafe:
             self.set_table(pad=self.TRANSIT_PAD)
             # 이족: 상자를 쥔 뒤 뻗은 팔을 carry 로 빠르게(0.3) 접자 반동으로 PF 몸통이 1 초 만에 21°→70° 넘어졌다 (시험 11,
@@ -1541,7 +1604,19 @@ class RobotSkills(Node):
         lat = self._free_place_lat(fwd, lat, side, top_h)
         target = np.array([fwd, lat, top_h + self.box_size / 2 + 0.01])
         self.log(f"[place] {self.holding[side]} → base {np.round(target, 3)} ({side})")
-        R, pre, q_pre = self._solve_approach(side, target + np.array([0, 0, 0.05]), back=0.06)
+        # 놓을 때 손 기울기(pitch, roll)를 쥘 때와 같게: 다르면 쥔 상자도 그만큼 기울어진 채 내려가 모서리부터 닿고
+        # 넘어지거나 비틀어졌다 (예: 쥘 때 roll −90°, 놓을 때 첫 후보 roll −70° → 상자 20° 기울어짐, 사용자 지적).
+        # 같은 기울기에서 수평 방향(yaw)만 바꾸면 상자는 수평을 유지한다 → yaw 0, ±10°, ±20° 만 찾고, 없을 때만 다른 기울기
+        gt = self._grasp_tilt.get(side)
+        try:
+            if gt is None:
+                raise SkillError("쥘 때 기울기 기록 없음")
+            yaws = [0.0] + [math.radians(v) for v in (10, -10, 20, -20)]
+            R, pre, q_pre = self._solve_approach(side, target + np.array([0, 0, 0.05]), back=0.06,
+                                                 tilt=gt[:2], yaws=yaws)
+        except SkillError as e:
+            self.log(f"[place] 쥘 때와 같은 기울기로 놓을 자세 없음({e}) → 다른 기울기로 (상자가 기울어질 수 있음)")
+            R, pre, q_pre = self._solve_approach(side, target + np.array([0, 0, 0.05]), back=0.06)
         # 놓을 자리를 정한 순간의 작업대 위 마커들 (쥔 상자 마커는 손과 같이 움직이므로 뺌)
         held_id = self.objects.get(self.holding[side], {}).get("marker_id")
         place_ref = self._other_markers(exclude=held_id) if self.can_strafe else None
