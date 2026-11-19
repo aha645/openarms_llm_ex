@@ -153,6 +153,7 @@ def main():
                        stand_twist=info["terms"]["stand_twist"], stand_tilt=info["terms"]["stand_tilt"],
                        feet_clear=info["terms"]["feet_clearance"], vy_track=info["terms"]["tracking_vy"],
                        heading=info["terms"]["walk_heading"], liftoff=info["terms"]["stand_liftoff"],
+                       sway=info["terms"]["stand_sway"],
                        standing=st.standing.astype(jnp.float32))
             return (st, key), out
         (states, key), tr = jax.lax.scan(body, (states, key), None, length=T)
@@ -179,7 +180,8 @@ def main():
                      stand_tilt=tr["stand_tilt"].sum() / jnp.maximum(tr["standing"].sum(), 1.0), standing=tr["standing"].mean(),
                      clear=tr["feet_clear"].mean(), vy_track=tr["vy_track"].mean(), heading=tr["heading"].mean(),
                      **split_stats(tr),
-                     liftoff=tr["liftoff"].sum() / jnp.maximum(tr["standing"].sum(), 1.0))
+                     liftoff=tr["liftoff"].sum() / jnp.maximum(tr["standing"].sum(), 1.0),
+                     sway=tr["sway"].sum() / jnp.maximum(tr["standing"].sum(), 1.0))
         return states, tr, stats, key
 
     @partial(jax.jit, static_argnums=(7,))
@@ -287,6 +289,7 @@ def main():
                    standing=round(float(st["standing"]), 3), clear=round(float(st["clear"]) * 1e4, 3),   # 발 들기 부족 [cm²]
                    vy_track=round(float(st["vy_track"]), 3), heading=round(float(st["heading"]), 4),   # 직진 방향 오차 (3° = 1)
                    liftoff=round(float(st["liftoff"]), 4),   # 서 있을 때 한 발이 떨어진 비율
+                   sway=round(float(st["sway"]), 4),         # 서 있을 때 몸통 밀림 (3 cm = 1)
                    # 명령 종류별 (v7): 옆걸음 명령일 때 옆 추종, 직진(회전 0)할 때 방향 오차, 걷는 중 발 들기 부족 [cm²]
                    side_vy=round(float(st["side_vy"]), 3), head_straight=round(float(st["head_straight"]), 4),
                    clear_walk=round(float(st["clear_walk"]) * 1e4, 3))

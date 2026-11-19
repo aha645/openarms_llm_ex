@@ -78,6 +78,10 @@ CMD_MIX = os.environ.get("TRON1_CMD_MIX", "")
 # 발 들기 목표를 걸음 속도에 맞춘다 (TRON1_CLEAR_ADAPT=1): 고정 0.12 m 는 느린 걸음·제자리 걸음에서 닿을 수 없어 늘 벌점이
 # 남았다(평가: 0.3 m/s 직진 7~8 cm, 0.6 m/s 10~12 cm) → 목표 = 0.06 + 0.07 × |명령 속도| (0.3 m/s 8.1 cm, 0.6 m/s 10.2 cm), 상한 0.12
 CLEAR_ADAPT = os.environ.get("TRON1_CLEAR_ADAPT", "0") == "1"
+# v9 서 있을 때 몸통 밀림: 서기 안정 구간에 기준 위치(서기 시작 위치, STAND_YAW_TAU 로 천천히 따라감)에서 수평으로 밀린 거리에 벌점
+# (3 cm 에서 1, 상한 2). v7 best 는 팔을 움직일 때 몸통이 15.8 cm 밀렸고(v3 8.4 cm), 집기 중 방향 바로잡기 걸음이 31 s 이어졌다
+STAND_SWAY_SCALE = float(os.environ.get("TRON1_STAND_SWAY", 0.0))
+STAND_SWAY_REF = 0.03
 
 # ── SF 서기 버티기 (보행 학습 13절) ─────────────────────────────────────────────────────────────────────
 # 실제 집기에서 손이 상자·작업대에 막혀 팔이 계속 밀면 손에 수십 N 이 걸리고, 서기 정책이 버티지 못해 한 발에 하중이 쏠리면
@@ -119,6 +123,13 @@ REACH_R = [[-0.538, 2.972, 0.732, 2.148, 0.282, 0.702, -0.799], [-1.201, 2.998, 
            [-1.167, 2.819, 0.603, 1.656, -0.056, 0.356, -0.824], [-0.805, 2.799, 0.607, 1.709, 0.037, 0.445, -0.57],
            [-0.469, 2.362, 0.509, 2.284, -0.07, 0.622, -0.673], [-1.178, 2.58, 0.615, 1.685, -0.293, 0.357, -0.715],
            [-0.781, 2.598, 0.557, 1.736, -0.173, 0.425, -0.456]]
+# v9: 상자를 수평으로 들어 머리 카메라 시야 밖(손끝 앞 0.28 m·옆 0.20 m·높이 1.00 m)에 둔 자세 (robot_skills._hold_level).
+# 실제 작업은 이 자세로 서 있고 걷는데 학습 팔 자세에 없었다. 집기 자세(REACH_R)에서 손 방향을 지키며 1 cm 씩 이어 푼 역기구학의 도착점
+HOLD_R = [[0.843, 2.431, 0.285, 1.969, -0.62, 0.462, 1.056], [0.836, 2.399, 0.308, 1.97, -0.642, 0.492, 1.071],
+          [0.828, 2.374, 0.329, 1.971, -0.667, 0.507, 1.087], [0.852, 2.434, 0.273, 1.975, -0.368, 0.754, 0.903],
+          [0.837, 2.41, 0.302, 1.972, -0.405, 0.774, 0.927], [0.834, 2.388, 0.315, 1.97, -0.422, 0.785, 0.937]]
+if os.environ.get("TRON1_HOLD", "0") == "1":
+    REACH_R = REACH_R + HOLD_R * 2        # 집기 자세 17 + 들기 자세 12 (두 번 넣어 비율을 맞춤)
 
 
 class EnvState(NamedTuple):
@@ -133,6 +144,7 @@ class EnvState(NamedTuple):
     stand_t: jax.Array       # SF: 서기 시작 뒤 경과 시간 [s]
     yaw0: jax.Array          # SF: 서기 방향 기준
     walk_yaw: jax.Array      # SF: 직진 방향 기준 (v6 walk_heading)
+    stand_xy: jax.Array      # SF: 서기 위치 기준 (v9 stand_sway)
     cmd_until: jax.Array     # 다음 명령 재설정 스텝
     hist: jax.Array
     obs: jax.Array           # 마지막 관측 (잡음 포함, hist 의 마지막 항목과 같음)
@@ -228,6 +240,7 @@ class Tron1MjxEnv:
         self.rs["walk_heading"] = -WALK_HEADING_SCALE
         self.rs["walk_yawrate"] = -WALK_YAWRATE_SCALE
         self.rs["stand_liftoff"] = -STAND_LIFT_SCALE
+        self.rs["stand_sway"] = -STAND_SWAY_SCALE
         self.rs["stand_planted"] = STAND_PLANTED_SCALE
         # 랜덤화 대상 인덱스
         self.base_bid = m.body("base_link").id
@@ -326,7 +339,7 @@ class Tron1MjxEnv:
                               jax.random.uniform(k[8], minval=-0.08, maxval=0.08) * (jax.random.uniform(k[9]) < 0.5),
                               jax.random.uniform(k[10], minval=-0.3, maxval=0.3) * (jax.random.uniform(k[11]) < 0.5)])
             c = jnp.where((z >= 0.6) & (z < 0.75), slow, c)
-            if CMD_MIX == "v7":
+            if CMD_MIX in ("v7", "v9"):
                 gen = jnp.array([jax.random.uniform(k[0], minval=r["vx"][0], maxval=r["vx"][1]),
                                  jax.random.uniform(k[1], minval=r["vy"][0], maxval=r["vy"][1]) * (jax.random.uniform(k[2]) < VY_P),
                                  jax.random.uniform(k[3], minval=r["wz"][0], maxval=r["wz"][1])])
@@ -336,6 +349,9 @@ class Tron1MjxEnv:
                 diag = jnp.array([jax.random.uniform(k[16], minval=r["vx"][0], maxval=r["vx"][1]),
                                   jax.random.uniform(k[17], minval=r["vy"][0], maxval=r["vy"][1]), 0.0])
                 c = jnp.select([z < 0.20, z < 0.35, z < 0.50, z < 0.60, z < 0.70, z < 0.85],
+                               [jnp.zeros(3), gen * jnp.array([1.0, 0.0, 0.0]), side, diag, slow, turn], gen)
+            if CMD_MIX == "v9":   # 서기 비율을 다시 30 % 로 (서서 작업하는 안정성), 옆걸음·대각선은 v7 그대로
+                c = jnp.select([z < 0.30, z < 0.42, z < 0.57, z < 0.67, z < 0.75, z < 0.87],
                                [jnp.zeros(3), gen * jnp.array([1.0, 0.0, 0.0]), side, diag, slow, turn], gen)
             c = jnp.where(jnp.abs(c) < 0.015, 0.0, c)
             want_still = jnp.all(c == 0) & (jax.random.uniform(k[12]) < 0.8)
@@ -388,7 +404,7 @@ class Tron1MjxEnv:
         z = jnp.zeros(self.nj, jnp.float32)
         s = EnvState(d=d, last_action=z, last_action2=z, last_target=self.q_def, gait_index=jnp.array(0.0),
                      cmd=cmd, want_still=still, standing=jnp.array(False), stand_t=jnp.array(0.0), yaw0=jnp.array(0.0),
-                     walk_yaw=_yaw(q[3:7]),
+                     walk_yaw=_yaw(q[3:7]), stand_xy=q[0:2],
                      cmd_until=dur, hist=jnp.zeros(self.HIST * self.obs_dim, jnp.float32),
                      obs=jnp.zeros(self.obs_dim, jnp.float32),
                      t=jnp.array(0, jnp.int32), delay=delay, arm_from=arm, arm_to=arm, arm_t0=jnp.array(0.0),
@@ -528,7 +544,9 @@ class Tron1MjxEnv:
             yaw0 = jnp.where(stand_t < STAND_YAW_SETTLE, yaw, s.yaw0 + follow * _wrap(yaw - s.yaw0))
             straight = ~standing & (jnp.abs(s.cmd[2]) < 0.05)
             walk_yaw = jnp.where(straight, s.walk_yaw + follow * _wrap(yaw - s.walk_yaw), yaw)
-            return s._replace(gait_index=g, standing=standing, stand_t=stand_t, yaw0=yaw0, walk_yaw=walk_yaw)
+            xy = s.d.qpos[0:2]
+            stand_xy = jnp.where(stand_t < STAND_YAW_SETTLE, xy, s.stand_xy + follow * (xy - s.stand_xy))
+            return s._replace(gait_index=g, standing=standing, stand_t=stand_t, yaw0=yaw0, walk_yaw=walk_yaw, stand_xy=stand_xy)
         return s._replace(gait_index=(g + POLICY_DT * self.GAIT[0]) % 1.0)
 
     def _reward(self, s, a):
@@ -584,6 +602,7 @@ class Tron1MjxEnv:
             walk_yawrate=(~s.standing & (jnp.abs(s.cmd[2]) < 0.05)).astype(jnp.float32)
             * jnp.minimum((gyro[2] / 0.05) ** 2, 4.0),
             stand_liftoff=settled * (jnp.min(F) < STAND_LIFT_F).astype(jnp.float32),
+            stand_sway=settled * jnp.minimum(jnp.linalg.norm(d.qpos[0:2] - s.stand_xy) / STAND_SWAY_REF, 2.0),
             stand_planted=settled * (jnp.min(F) >= STAND_LIFT_F).astype(jnp.float32)
             * jnp.mean(jnp.exp(-(fvxy / STAND_FEET_SIGMA) ** 2)),
         )
