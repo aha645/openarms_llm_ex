@@ -1,6 +1,75 @@
 {
  "_설명": "보행 정책 후보 집기 시험(series_run.sh r1~r8, POLICY=후보)·미션 시험 요약. step_time.py 와 같은 계산(0.2 s 기록). doc/tron1/locomotion-rl.md 14-8",
  "_기록_원본": "/tmp/tron1_logs (재부팅하면 지워짐): series_<접두어>.txt, sfpk_<접두어>rN.log, rec_sf_<접두어>rN.jsonl, mrec_sf_<이름>.jsonl",
+ "pick_v3z": {
+  "policy": "배포 v3 (src/tron1_openarm_sim/policies/tron1sf_openarm_policy.npz), 2026-11-19 같은 코드",
+  "runs": {
+   "r1": {
+    "placed": 1,
+    "final": "final box [2.533 2.971 0.725]",
+    "total_s": 113.0,
+    "walk_mode_s": 5.4,
+    "yaw_fix_s": 1.2,
+    "max_tilt": 2.7
+   },
+   "r2": {
+    "placed": 1,
+    "final": "final box [2.443 2.957 0.725]",
+    "total_s": 101.8,
+    "walk_mode_s": 3.4,
+    "yaw_fix_s": 1.8,
+    "max_tilt": 2.7
+   },
+   "r3": {
+    "placed": 1,
+    "final": "final box [2.52  2.955 0.725]",
+    "total_s": 96.6,
+    "walk_mode_s": 1.6,
+    "yaw_fix_s": 0.2,
+    "max_tilt": 3.3
+   },
+   "r4": {
+    "placed": 1,
+    "final": "final box [2.451 2.944 0.725]",
+    "total_s": 104.8,
+    "walk_mode_s": 3.0,
+    "yaw_fix_s": 0.6,
+    "max_tilt": 3.4
+   },
+   "r5": {
+    "placed": 1,
+    "final": "final box [2.524 2.958 0.725]",
+    "total_s": 98.4,
+    "walk_mode_s": 1.4,
+    "yaw_fix_s": 0.4,
+    "max_tilt": 2.7
+   },
+   "r6": {
+    "placed": 1,
+    "final": "final box [2.445 2.951 0.725]",
+    "total_s": 110.2,
+    "walk_mode_s": 1.6,
+    "yaw_fix_s": 0.4,
+    "max_tilt": 2.6
+   },
+   "r7": {
+    "placed": 1,
+    "final": "final box [2.552 2.959 0.725]",
+    "total_s": 136.4,
+    "walk_mode_s": 6.2,
+    "yaw_fix_s": 2.8,
+    "max_tilt": 3.4
+   },
+   "r8": {
+    "placed": 1,
+    "final": "final box [2.467 2.945 0.725]",
+    "total_s": 105.2,
+    "walk_mode_s": 2.6,
+    "yaw_fix_s": 0.2,
+    "max_tilt": 3.6
+   }
+  }
+ },
  "pick_v5s1": {
   "policy": "runs/gait_v5/seed1/final.npz",
   "runs": {
