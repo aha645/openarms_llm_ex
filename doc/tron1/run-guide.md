@@ -11,12 +11,13 @@
 
 | 무엇 | 위치 | 비고 |
 |---|---|---|
-| 보행 정책 (Sole-foot, 교육 기준) | `tron1_openarm/src/tron1_openarm_sim/policies/tron1sf_openarm_policy.npz` | v3, 서 있을 때 기울기 2.3° ([보행 학습 13-5](locomotion-rl.md)) |
+| 보행 정책 (Sole-foot, 교육 기준) | `tron1_openarm/src/tron1_openarm_sim/policies/tron1sf_openarm_policy.npz` | v3 = `runs/upright/seed1/final.npz`, 서 있을 때 기울기 2.3° ([보행 학습 13-5](locomotion-rl.md)) |
 | 보행 정책 (Point-foot, 비교용) | `.../policies/tron1_openarm_policy.npz` | `foot:=pf` |
 | 로봇·월드 모델 (MJCF) | `.../mjcf/`, `.../mjcf/sf/` | 생성 도구로 만든 결과 그대로 |
 | 메시 (OpenArm·TRON1) | `.../mjcf/meshes/`, `.../mjcf/sf/meshes/`, `mobile_openarm/src/mobile_openarm_sim/mjcf/meshes/` | Apache-2.0, 출처: 각 `mjcf/MESHES_NOTICE.md` |
 | ROS 용 URDF·SRDF | `.../urdf/`, `tron1_openarm_moveit_config/config/` | |
 | 지도·Nav2 설정·위치 | `.../maps/`, `.../config/` | |
+| 정책 평가 기록 | `tron1_openarm/policies/eval_results.json` | 배포 SF·PF 정책의 오프라인 평가 (`rl/eval_policy.py`). 같은 폴더의 `limx_*_pretrained.npz` 는 학습 시작점이며 실행에 쓰이지 않음 |
 
 배포 정책이 맞는지 확인 (마지막 검증 때의 파일):
 
@@ -52,6 +53,8 @@ VIEW=1 BOX_SOURCE=color bash tron1_openarm/tools/validation/mission_test.sh sf _
 #   BOX_SOURCE    color = 상자를 색으로 인식 (마지막 검증 기준), aruco = 상자 윗면 마커
 #   _m1           기록 이름 (로그 파일 이름에 붙음)
 #   세 번째 인자로 명령을 바꿀 수 있음 (기본 "빨간 상자를 왼쪽 작업대로 옮기고 돌아와")
+#   START=x,y,yaw   출발 위치 (지도 좌표, yaw 는 rad). 예: 작업대 북쪽에서 남쪽을 보고 출발
+START=0.0,3.7,-1.5708 VIEW=1 BOX_SOURCE=color bash tron1_openarm/tools/validation/mission_test.sh sf _m2 "빨간 상자를 오른쪽 작업대로 옮기고 돌아와"
 ```
 
 끝나면 마지막 줄에 판정이 나옵니다.
@@ -88,7 +91,8 @@ python3 tron1_openarm/tools/validation/mission_cli.py "초록 상자를 오른�
 | `box_source` | `aruco` (기본) / `color` | 상자 인식 방식 |
 | `world` | `world.xml` / `world_light.xml` | 저사양은 light |
 | `viewer`, `rviz` | `true` / `false` | 화면 |
-| `policy` | npz 경로 | 다른 보행 정책으로 (5절) |
+| `policy` | npz 경로 | 다른 보행 정책으로 (6절) |
+| `start_x`, `start_y`, `start_yaw` | `0.0` | 출발 위치 (지도 좌표, rad) — 시뮬레이터와 AMCL 초기 위치를 같이 바꿈 |
 | `camera_hz`, `rate_factor` | `10.0`, `1.0` | 느린 PC 는 `5.0`, `0.5` |
 
 명령 예: "빨간 상자를 왼쪽 작업대로 옮기고 돌아와", "파란 상자를 왼쪽 작업대로 옮겨", "상자 모두 옮기고 돌아와".
