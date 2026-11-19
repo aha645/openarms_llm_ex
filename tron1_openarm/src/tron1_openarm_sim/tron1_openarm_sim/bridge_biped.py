@@ -43,13 +43,16 @@ class BipedBridge(B.MujocoBridge):
         super().__init__()
         B.BASE_LINK_Z = self.sim.nominal_height
         # 카메라 서버용 공유 메모리(state_shm)·상자 마커 숨기기(box_markers)는 바퀴형 브리지에 있다 (공통)
-        # 상자 위치 바꾸기 (반복 집기 시험): "box_0=2.60,2.98,15;box_1=2.43,3.00,-10" = 월드 x, y [m], yaw [도]
-        self.declare_parameter("box_poses", "")
-        self._box_poses = parse_box_poses(self.get_parameter("box_poses").value)
-        self._apply_box_poses()
         self.pub_status = self.create_publisher(String, "/biped/status", 10)
         self.create_timer(0.2, self.publish_status)
         self.get_logger().info(f"TRON1 보행 정책 사용 (발 형태 {self.sim.foot}, 정책 50 Hz, 물리 {self.sim.m.opt.timestep * 1000:.0f} ms)")
+
+    def _before_physics(self):
+        # 상자 위치 바꾸기 (반복 집기 시험): "box_0=2.60,2.98,15;box_1=2.43,3.00,-10" = 월드 x, y [m], yaw [도].
+        # 물리 스레드가 시작되기 전에 (bridge_node._before_physics 설명)
+        self.declare_parameter("box_poses", "")
+        self._box_poses = parse_box_poses(self.get_parameter("box_poses").value)
+        self._apply_box_poses()
 
     def _apply_box_poses(self):
         for name, (x, y, yaw) in self._box_poses.items():
