@@ -755,25 +755,25 @@ TRON1_STAND_TILT=4 TRON1_EP_S=60 TRON1_STAND_LONG_MAX_S=50 \
 
 **`tron1_openarm/rl/tron1_mjx_env.py`** (MJX 학습 환경 — 새 항목은 모두 환경 변수로 켜고 기본은 꺼짐, v3 까지의 학습을 그대로 재현)
 
-| 판 | 위치 | 바꾼 것 | 커밋 |
-|---|---|---|---|
-| v4 | 모듈 상수 | `_rng()`·`CMD_RANGES`(`TRON1_VX`·`TRON1_VY`), `VY_P`(`TRON1_VY_P`), `CLEAR_SCALE`(`TRON1_CLEAR`) | 127be28 |
-| v4 | `_reward()` | `feet_clearance` 항: 발 높이 `fz` = 몸통 기준 발 위치(관절 각도 정기구학) × IMU 자세(`quat_to_mat` 새 함수). 발 위치 센서(`framepos`)는 쓰지 않음 | 127be28 |
-| v4 | `_sample_cmd()` | 옆 성분 비율 0.3 → `VY_P` | 127be28 |
-| v5 | 상수·`_reward()`·`__init__` | `TRACK_VY_SCALE`·`TRACK_VY_SIGMA`, `tracking_vy` 항, `self.rs["tracking_vy"]` | 46a67ee |
-| v6 | 상수 | `WALK_HEADING_SCALE/REF`, `STAND_LIFT_SCALE`, `STAND_PLANTED_SCALE`, `STAND_LIFT_F`, `FD_SIDE_SCALE` | 151e0f8 |
-| v6 | `EnvState`·`reset()`·`_advance_clock()` | `walk_yaw` 필드(직진 방향 기준, 회전 명령·서기 중엔 현재 방향, 직진 중엔 `STAND_YAW_TAU` 로 천천히 따라감) | 151e0f8 |
-| v6 | `_reward()` | `walk_heading`·`stand_liftoff`·`stand_planted` 항, `feet_distance` 에 옆걸음 배율 | 151e0f8 |
-| v7 | 상수 | `CMD_MIX`(`TRON1_CMD_MIX`), `CLEAR_ADAPT` | e53c2a1 |
-| v7 | `_sample_cmd()` | 난수 키 14 → 20, `CMD_MIX == "v7"` 이면 `jnp.select` 로 서기·직진·옆걸음(`side`)·대각선(`diag`)·느린·회전·일반 | e53c2a1 |
-| v7 | `_reward()` | `feet_clearance` 목표 높이 `clear_h` = 0.06 + 0.07·\|명령\| (상한 걸음 설정 0.12) | e53c2a1 |
-| v8 | 상수·`_reward()` | `WALK_HEADING_CAP`, `WALK_YAWRATE_SCALE`, `walk_yawrate` 항 (v8 은 버림, 코드는 기본 꺼짐으로 남김) | 50639af |
-| v9 | 상수 | `HOLD_R`(들기 자세 6 개, `TRON1_HOLD=1` 이면 `REACH_R` 에 덧붙임), `STAND_SWAY_SCALE/REF` | 592d965 |
-| v9 | `EnvState`·`reset()`·`_advance_clock()` | `stand_xy` 필드(서기 위치 기준) | 592d965 |
-| v9 | `_reward()`·`_sample_cmd()` | `stand_sway` 항, `CMD_MIX == "v9"` 분포 | 592d965 |
-| v10 | 상수 | `TRACK_SLOW_SCALE`, `SLOW_TAU` | 4408667 |
-| v10 | `EnvState`·`reset()`·`_advance_clock()` | `v_avg` 필드(몸통 수평 속도 0.5 s 평균) | 4408667 |
-| v10 | `_reward()`·`_sample_cmd()` | `tracking_slow` 항, `CMD_MIX == "v10"` 분포 | 4408667 |
+| 판 | 위치 | 어떻게 바꿨나 (식) | 왜 (그 전 판에서 본 문제) | 커밋 |
+|---|---|---|---|---|
+| v4 | 모듈 상수 | `_rng()`·`CMD_RANGES` 를 `TRON1_VX`·`TRON1_VY` 로, `VY_P`(`TRON1_VY_P`), `CLEAR_SCALE`(`TRON1_CLEAR`) | 학습 속도 범위가 앞 0.6·뒤 0.35·옆 0.2 m/s 로 묶여 있었음 (사용자: 더 빠르게) | 127be28 |
+| v4 | `_reward()` + 새 함수 `quat_to_mat()` | `feet_clearance = Σ(1−des)·max(0, h* − (fz − min fz))²`, `h*` = 걸음 설정 4번째 값(0.12 m). `fz` = 몸통 기준 발 위치(`(xpos_발 − xpos_몸통)·R_몸통`, 관절 각도 정기구학)를 IMU 자세로 돌린 높이 | 보상에 발 높이 항이 없어 발을 끌듯이 걸음(옆걸음 발 들기 2~4 cm). 발 위치 센서는 시뮬 정답이라 쓰지 않음 (사용자: 관절 각도로 유추) | 127be28 |
+| v4 | `_sample_cmd()` | 일반 명령의 옆 성분 비율 0.3 → `VY_P` | 옆걸음 연습을 늘리려고 | 127be28 |
+| v5 | 상수·`_reward()`·`__init__` | `tracking_vy = exp(−(cmd_y − v_y)²/0.02)`, `TRON1_TRACK_VY` | `tracking_lin_vel` 은 앞뒤·옆 오차를 합쳐 보므로 빠를 때 옆 오차가 묻힘 → v3 직진 치우침 19 %, v4 58 % | 46a67ee |
+| v6 | 상수 | `WALK_HEADING_SCALE/REF`, `STAND_LIFT_SCALE`, `STAND_PLANTED_SCALE`, `STAND_LIFT_F`(5 N), `FD_SIDE_SCALE` | 아래 세 항목용 | 151e0f8 |
+| v6 | `EnvState`·`reset()`·`_advance_clock()` | `walk_yaw` 필드: 회전 명령 0 으로 걸을 때 `walk_yaw += (dt/5 s)·(yaw − walk_yaw)`, 회전 명령·서기 중엔 `yaw` | 직진 방향 기준이 필요. 기준이 천천히 따라가야 밀려서 돈 몫은 잊고 정책 자신의 회전만 남음 | 151e0f8 |
+| v6 | `_reward()` | `walk_heading = 직진중·min(|yaw − walk_yaw|/0.05, 2)`, `stand_liftoff = 서기안정·[min F < 5 N]`, `stand_planted = 서기안정·[min F ≥ 5 N]·평균 exp(−(발 수평속도/0.05)²)`, `feet_distance` 에 옆걸음일 때 `FD_SIDE` 배 | v5 는 팔을 움직이며 직진하면 13.5° 돎 (사용자: 일자로, 팔 움직여도 일자로, 서 있을 때 발바닥 붙이기). 옆걸음은 발을 모았다 벌려야 하는데 발 사이 거리 벌점(−100)이 막음 | 151e0f8 |
+| v7 | 상수 | `CMD_MIX`(`TRON1_CMD_MIX`), `CLEAR_ADAPT` | 아래 두 항목용 | e53c2a1 |
+| v7 | `_sample_cmd()` | 난수 키 14 → 20, `CMD_MIX == "v7"` 이면 `jnp.select` 로 서기 20·직진 15·옆걸음 15(`side`: vy 0.1~0.35)·대각선 10(`diag`)·느린 10·회전 15·일반 15 % | 예전 분포는 일반 명령 10 % 안에서만 옆 성분이 붙어 0.3 m/s 급 옆걸음이 전체의 약 6 % — v6 에서 드문 후진·옆걸음이 −33~−35° 돎 | e53c2a1 |
+| v7 | `_reward()` | 목표 발 높이 `h* = clip(0.06 + 0.07·|명령|, 0.06, 0.12)` | 고정 0.12 m 는 느린 걸음에서 닿을 수 없어 늘 벌점이 남아 줄일 기울기가 없었음 (실측 0.3 m/s 7~8 cm) | e53c2a1 |
+| v8 | 상수·`_reward()` | `walk_heading` 상한 `WALK_HEADING_CAP`(2 → 10), `walk_yawrate = 직진중·min((ω_z/0.05)², 4)` | v7 final 이 직진 20 s 에 −66° 돎: 회전 추종 허용 폭 0.25 에서 3 °/s 회전은 보상이 1.3 % 만 줄고, 방향 벌점은 6° 에서 상한이라 되돌릴 이유가 없음. **결과: 회전 자체를 꺼려 옆걸음에서 넘어져 버림, 코드는 기본 꺼짐으로 남김** | 50639af |
+| v9 | 상수 | `HOLD_R`(6 개, `TRON1_HOLD=1` 이면 `REACH_R` 에 두 번 덧붙임) | 실제 작업은 상자를 수평으로 들어(손끝 1.00 m·앞 0.28 m) 서 있는데 학습 팔 자세에 없었음 | 592d965 |
+| v9 | `EnvState`·`reset()`·`_advance_clock()` | `stand_xy` 필드: 서기 안정 전엔 현재 위치, 뒤엔 `+= (dt/5 s)·(xy − stand_xy)` | 몸통 밀림 기준 | 592d965 |
+| v9 | `_reward()`·`_sample_cmd()` | `stand_sway = 서기안정·min(|xy − stand_xy|/0.03, 2)`, `TRON1_STAND_YAW` 3 → 6, `CMD_MIX == "v9"`(서기 30 %) | v7 best 가 집기 r3 에서 방향 바로잡기 걸음 31 s — 팔 동작 중 몸통이 돌고 밀림(흐름 15.8 cm, v3 8.4 cm) | 592d965 |
+| v10 | 상수 | `TRACK_SLOW_SCALE`, `SLOW_TAU`(0.5 s) | 아래 항목용 | 4408667 |
+| v10 | `EnvState`·`reset()`·`_advance_clock()` | `v_avg` 필드: `v_avg += (dt/0.5 s)·(v_xy − v_avg)` | 걸음마다 몸통 속도가 출렁여 느린 명령은 순간 속도로 비교할 수 없음 | 4408667 |
+| v10 | `_reward()`·`_sample_cmd()` | `tracking_slow = [0.005 < |cmd| < 0.15]·exp(−(|cmd − v_avg| / max(|cmd|, 0.03))²/0.25)`, `CMD_MIX == "v10"`(느린 15·서기 25 %) | v9 best 는 0.05 m/s 전진 17 %·후진 187 % → 작업대 앞 위치 맞추기에 45~80 s. 절대 오차 보상(폭 0.05)은 못 따라가도 보상이 95 % 남음. **결과: 서기 안정성을 잃어 30 분에 중단** | 4408667 |
 
 **`tron1_openarm/rl/train_mjx.py`** (PPO 학습)
 - `--ck-min`: 중간 정책 저장 간격(기본 10 분, 학습 보기용으로 5 분) — 127be28
