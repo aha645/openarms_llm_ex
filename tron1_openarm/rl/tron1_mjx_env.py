@@ -33,7 +33,21 @@ ACTION_SCALE = 0.25
 POLICY_DT = 0.02
 CMD_SCALE = jnp.array([2.0, 2.0, 0.25], jnp.float32)
 BASE_HEIGHT_TARGET = {"pf": 0.68, "sf": SF_BASE_HEIGHT_CMD}
-CMD_RANGES = dict(vx=(-0.35, 0.6), vy=(-0.2, 0.2), wz=(-0.9, 0.9))
+# 속도 명령 범위 (환경 변수로 넓힐 수 있음, 기본은 v3 까지와 같음). 빠른 걸음 학습(v4): TRON1_VX=-0.5,0.8 TRON1_VY=0.35
+def _rng(name, default):
+    v = os.environ.get(name)
+    if not v:
+        return default
+    a = [float(x) for x in v.split(",")]
+    return (a[0], a[1]) if len(a) == 2 else (-a[0], a[0])
+
+
+CMD_RANGES = dict(vx=_rng("TRON1_VX", (-0.35, 0.6)), vy=_rng("TRON1_VY", (-0.2, 0.2)), wz=(-0.9, 0.9))
+VY_P = float(os.environ.get("TRON1_VY_P", 0.3))      # 일반 명령 중 옆걸음 성분을 넣는 비율
+# 발 들기 (v4): 걸을 때 발을 거의 끌어(보상에 발 높이 항이 없음) 걸음이 느렸다 → 들어야 하는 구간(기대 접지 1 − des)에
+# '디딘 발보다 걸음 설정 4번째 값(SF 0.12 m) 위' 에 못 미치는 만큼 제곱 벌점. 발 높이는 발 위치 센서(시뮬 정답)가 아니라
+# 관절 각도 정기구학 + IMU 자세로 구한다 (실로봇에서도 얻을 수 있는 값)
+CLEAR_SCALE = float(os.environ.get("TRON1_CLEAR", 0.0))
 
 # ── SF 서기 버티기 (보행 학습 13절) ─────────────────────────────────────────────────────────────────────
 # 실제 집기에서 손이 상자·작업대에 막혀 팔이 계속 밀면 손에 수십 N 이 걸리고, 서기 정책이 버티지 못해 한 발에 하중이 쏠리면
@@ -178,6 +192,7 @@ class Tron1MjxEnv:
             self.rs["stand_tilt"] = -STAND_TILT_SCALE
         else:
             self.rs["stand_feet"] = self.rs["stand_load"] = self.rs["stand_twist"] = self.rs["stand_tilt"] = 0.0
+        self.rs["feet_clearance"] = -CLEAR_SCALE
         # 랜덤화 대상 인덱스
         self.base_bid = m.body("base_link").id
         self.contact_geoms = jnp.array([g for g in range(m.ngeom) if m.geom_contype[g] or m.geom_conaffinity[g]])
@@ -262,7 +277,7 @@ class Tron1MjxEnv:
         k = jax.random.split(key, 14)
         r = CMD_RANGES
         c = jnp.array([jax.random.uniform(k[0], minval=r["vx"][0], maxval=r["vx"][1]),
-                       jax.random.uniform(k[1], minval=r["vy"][0], maxval=r["vy"][1]) * (jax.random.uniform(k[2]) < 0.3),
+                       jax.random.uniform(k[1], minval=r["vy"][0], maxval=r["vy"][1]) * (jax.random.uniform(k[2]) < VY_P),
                        jax.random.uniform(k[3], minval=r["wz"][0], maxval=r["wz"][1])])
         z = jax.random.uniform(k[4])
         c = jnp.where(z < 0.25, 0.0, c)
@@ -478,6 +493,11 @@ class Tron1MjxEnv:
         F = jnp.array([self._sens(d, "foot_L_touch")[0], self._sens(d, "foot_R_touch")[0]])
         fv = jnp.array([jnp.linalg.norm(self._sens(d, "foot_L_vel")), jnp.linalg.norm(self._sens(d, "foot_R_vel"))])
         fp = self._sens(d, "foot_L_pos")[:2] - self._sens(d, "foot_R_pos")[:2]
+        # 발 높이: 실제 로봇에는 발 위치 센서가 없다 → 관절 각도의 정기구학(몸통 기준 발 위치, 몸통의 실제 위치·자세와 무관)을
+        # IMU 자세로 돌려 '세계 위쪽' 높이로. 두 발의 차이만 쓰므로 발 원점이 발바닥보다 조금 위인 것은 상쇄된다
+        Rb = d.xmat[self.base_bid].reshape(3, 3)
+        p_b = (d.xpos[self.foot_bid] - d.xpos[self.base_bid]) @ Rb          # (2, 3) 몸통 기준 = 정기구학
+        fz = (p_b @ quat_to_mat(self._sens(d, "imu_quat")).T)[:, 2]
         fvxy = jnp.array([jnp.linalg.norm(self._sens(d, "foot_L_vel")[:2]), jnp.linalg.norm(self._sens(d, "foot_R_vel")[:2])])
         settled = (s.standing & (s.stand_t >= STAND_YAW_SETTLE)).astype(jnp.float32)
         des = desired_contacts(s.gait_index, self.GAIT)
@@ -506,6 +526,7 @@ class Tron1MjxEnv:
             stand_twist=settled * jnp.mean(1 - jnp.exp(-(d.cvel[self.foot_bid, 2] / STAND_TWIST_SIGMA) ** 2)),
             stand_load=settled * jnp.clip((STAND_LOAD_MIN - jnp.min(F) / jnp.maximum(jnp.sum(F), 1.0)) / STAND_LOAD_MIN, 0.0, 1.0),
             stand_tilt=settled * jnp.clip((jnp.linalg.norm(grav[:2]) - STAND_TILT_FREE) / STAND_TILT_REF, 0.0, 2.0),
+            feet_clearance=jnp.sum((1 - des) * jnp.clip(self.GAIT[3] - (fz - jnp.min(fz)), 0.0, None) ** 2),
         )
         r = sum(self.rs[k] * v for k, v in t.items()) * POLICY_DT
         return r, t
@@ -517,6 +538,14 @@ def _yaw(q):
 
 def _wrap(a):
     return (a + jnp.pi) % (2 * jnp.pi) - jnp.pi
+
+
+def quat_to_mat(q):
+    """q (wxyz) → 3×3 회전 행렬."""
+    w, x, y, z = q[0], q[1], q[2], q[3]
+    return jnp.array([[1 - 2 * (y * y + z * z), 2 * (x * y - z * w), 2 * (x * z + y * w)],
+                      [2 * (x * y + z * w), 1 - 2 * (x * x + z * z), 2 * (y * z - x * w)],
+                      [2 * (x * z - y * w), 2 * (y * z + x * w), 1 - 2 * (x * x + y * y)]])
 
 
 def quat_rot_inv(q, v):

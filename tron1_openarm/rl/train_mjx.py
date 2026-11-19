@@ -45,6 +45,7 @@ def parse():
     ap.add_argument("--init-std", type=float, default=0.1)
     ap.add_argument("--critic-warmup", type=int, default=20)
     ap.add_argument("--seed", type=int, default=1)
+    ap.add_argument("--ck-min", type=int, default=10, help="중간 정책 저장 간격 [분] (watch_training.py 가 새로 저장될 때마다 보여 줌)")
     ap.add_argument("--max-difficulty", type=float, default=0.5)
     ap.add_argument("--payload-start", type=float, default=1.0)
     ap.add_argument("--train-encoder", type=int, default=1)
@@ -138,7 +139,7 @@ def main():
                        stand_drift=info["terms"]["stand_drift"], stand_yaw=info["terms"]["stand_yaw"],
                        stand_feet=info["terms"]["stand_feet"], stand_load=info["terms"]["stand_load"],
                        stand_twist=info["terms"]["stand_twist"], stand_tilt=info["terms"]["stand_tilt"],
-                       standing=st.standing.astype(jnp.float32))
+                       feet_clear=info["terms"]["feet_clearance"], standing=st.standing.astype(jnp.float32))
             return (st, key), out
         (states, key), tr = jax.lax.scan(body, (states, key), None, length=T)
         obs, hist, cmd, lin = vobs(states)
@@ -161,7 +162,8 @@ def main():
                      stand_feet=tr["stand_feet"].sum() / jnp.maximum(tr["standing"].sum(), 1.0),
                      stand_load=tr["stand_load"].sum() / jnp.maximum(tr["standing"].sum(), 1.0),
                      stand_twist=tr["stand_twist"].sum() / jnp.maximum(tr["standing"].sum(), 1.0),
-                     stand_tilt=tr["stand_tilt"].sum() / jnp.maximum(tr["standing"].sum(), 1.0), standing=tr["standing"].mean())
+                     stand_tilt=tr["stand_tilt"].sum() / jnp.maximum(tr["standing"].sum(), 1.0), standing=tr["standing"].mean(),
+                     clear=tr["feet_clear"].mean())
         return states, tr, stats, key
 
     @partial(jax.jit, static_argnums=(7,))
@@ -266,14 +268,15 @@ def main():
                    stand_drift=round(float(st["stand_drift"]), 4), stand_yaw=round(float(st["stand_yaw"]), 4),
                    stand_feet=round(float(st["stand_feet"]), 4), stand_load=round(float(st["stand_load"]), 4),
                    stand_twist=round(float(st["stand_twist"]), 4), stand_tilt=round(float(st["stand_tilt"]), 4),
-                   standing=round(float(st["standing"]), 3))
+                   standing=round(float(st["standing"]), 3), clear=round(float(st["clear"]) * 1e4, 3))   # 발 들기 부족 [cm²]
         log.append(rec)
         if it % 5 == 0 or it == 1:
             print(json.dumps(rec, ensure_ascii=False), flush=True)
         score = rec["lin_track"] + 0.5 * rec["ang_track"] - 50 * fr + 0.5 * difficulty - 10 * (1 - payload)
-        if actor_on and (time.time() - t_start) // 600 > ck_done[0]:      # 10 분마다 중간 정책 (서기 버티기 시험으로 고르려고)
-            ck_done[0] = int((time.time() - t_start) // 600)
-            np.savez(os.path.join(a.out, f"ck{ck_done[0] * 10:03d}min.npz"), **P.to_npz_dict(params["encoder"], "encoder"),
+        ck_s = a.ck_min * 60
+        if actor_on and (time.time() - t_start) // ck_s > ck_done[0]:      # ck_min 분마다 중간 정책 (서기 버티기 시험으로 고르려고)
+            ck_done[0] = int((time.time() - t_start) // ck_s)
+            np.savez(os.path.join(a.out, f"ck{ck_done[0] * a.ck_min:03d}min.npz"), **P.to_npz_dict(params["encoder"], "encoder"),
                      **P.to_npz_dict(params["policy"], "policy"))
         if it % 25 == 0:
             with open(os.path.join(a.out, "last.pkl"), "wb") as fp:
