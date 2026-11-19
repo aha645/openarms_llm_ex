@@ -9,6 +9,8 @@
      (모든 두 점 쌍 중 1 cm 안에 드는 칸이 가장 많은 직선 → 그 칸들로 최소제곱). 화면 양옆에서는 '가장 가까운 점' 이
      모서리가 아니라 시야 경계(비스듬한 선)라서, 단순 최소제곱은 방향이 7~8° 틀렸다 (오프라인 시험).
      거리 = a (y=0 에서), 정면으로 마주 보려면 돌 각도 = −atan(b)
+  4) 점유 칸: 모서리 안쪽(작업대 위)에서 상판보다 1~30 cm 높은 점 → 2 cm 칸 (상자·모르는 물건 모두. 로봇 자신은 1) 에서 뺐다)
+     → 놓을 빈자리 찾기 (robot_skills._free_place). 손에 든 상자는 로봇 몸이 아니라 여기 들어오므로 쓰는 쪽에서 손끝 근처를 뺀다
 """
 import math
 
@@ -24,6 +26,9 @@ BIN_Y = 0.02
 MIN_TOP = 300
 MIN_BINS = 8
 INLIER = 0.01
+OCC_Z = (0.010, 0.30)    # 점유로 볼 상판 위 높이 [m]
+OCC_DEPTH = 0.60         # 모서리에서 안쪽으로 볼 깊이 [m]
+OCC_CELL = 0.02
 
 
 def detect(depth, K, Rw, pw, to_base, robot_mask=None):
@@ -42,6 +47,7 @@ def detect(depth, K, Rw, pw, to_base, robot_mask=None):
     Kinv = np.linalg.inv(K)
     pc = (Kinv @ np.vstack([us, vs, np.ones_like(us)])) * z
     P = to_base((Rw @ pc).T + pw)
+    P_all = P
     sel = (P[:, 2] > Z_RANGE[0]) & (P[:, 2] < Z_RANGE[1]) & (P[:, 0] > X_RANGE[0]) & (P[:, 0] < X_RANGE[1]) \
         & (np.abs(P[:, 1]) < Y_MAX)
     P = P[sel]
@@ -85,9 +91,17 @@ def detect(depth, K, Rw, pw, to_base, robot_mask=None):
     A = np.vstack([np.ones(keep.sum()), pts[keep, 1]]).T
     a, b = np.linalg.lstsq(A, pts[keep, 0], rcond=None)[0]
     res = np.abs(pts[keep, 0] - (a + b * pts[keep, 1]))
+    xe = a + b * P_all[:, 1]                                   # 각 점의 옆 위치에서 모서리 x
+    above = (P_all[:, 2] > h + OCC_Z[0]) & (P_all[:, 2] < h + OCC_Z[1]) & (P_all[:, 0] > xe + 0.005) \
+        & (P_all[:, 0] < xe + OCC_DEPTH) & (np.abs(P_all[:, 1]) < Y_MAX)
+    occ = []
+    if above.any():
+        cells, cnt = np.unique(np.floor(P_all[above, :2] / OCC_CELL).astype(int), axis=0, return_counts=True)
+        occ = [[round((cx + 0.5) * OCC_CELL, 3), round((cy + 0.5) * OCC_CELL, 3)] for (cx, cy), n in zip(cells, cnt) if n >= 2]
     return {"dist": round(float(a), 4), "yaw": round(-math.atan(b), 4), "height": round(h, 4),
             "n_top": int(len(top)), "n_edge": int(keep.sum()), "rms_cm": round(100 * float(np.sqrt((res ** 2).mean())), 2),
-            "y_span": [round(float(pts[keep, 1].min()), 3), round(float(pts[keep, 1].max()), 3)]}
+            "y_span": [round(float(pts[keep, 1].min()), 3), round(float(pts[keep, 1].max()), 3)],
+            "occ": occ, "occ_cell": OCC_CELL}
 
 
 def robot_geoms(m, base_body="base_link"):
