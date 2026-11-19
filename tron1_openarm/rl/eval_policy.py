@@ -4,7 +4,7 @@
     python3 eval_policy.py ../src/tron1_openarm_sim/policies/tron1sf_openarm_policy.npz ../src/tron1_openarm_sim/policies/tron1_openarm_policy.npz
       (배포 정책 SF·PF 는 src/tron1_openarm_sim/policies/, ../policies/ 에는 LimX 사전학습 정책과 이 평가 기록만 있다)
 
-시험 항목 (각 정책, 시드 3개)
+시험 항목 (각 정책, 시드 3개) — 바닥만 남기고 벽·기둥·작업대 충돌은 끔 (긴 걷기 시험이 벽에 막히지 않게)
   1. 제자리 30 s (명령 0)           : 넘어짐, 흐름(drift) 속도 [m/s], 회전 흐름 [rad/s]
   2. 직진 0.3 m/s 20 s              : 실제 전진 속도, 옆 흐름, 진행 방향 오차
   3. 제자리 회전 0.6 rad/s 15 s      : 실제 회전 속도
@@ -54,6 +54,11 @@ class Runner:
         for i in range(m.nu):
             if "finger" in m.actuator(i).name:
                 self.d.ctrl[i] = 0.044
+        # 벽·기둥·작업대(세계에 고정된 물체) 충돌을 끈다 — 바닥만 남김. 빠른 걸음(0.6 m/s × 15 s = 9 m)이 실습 월드 벽(x 4.8 m)에
+        # 부딪혀 멈춘 시간까지 평균에 들어가 속도가 0.31 m/s 로 낮게 나왔다 (실제로는 0.6 m/s 로 걸음). 물리 조건(2 ms, 상반신 충돌)은 그대로
+        for g in range(m.ngeom):
+            if m.body_weldid[m.geom_bodyid[g]] == 0 and m.geom(g).name != "floor":
+                m.geom_contype[g] = m.geom_conaffinity[g] = 0
         pm = m.body("person").id
         self.person = m.body_mocapid[pm]
         self.d.mocap_pos[self.person] = [-4.5, -3.5, 0]     # 사람은 구석으로 치움
