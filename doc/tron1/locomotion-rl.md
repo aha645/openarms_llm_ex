@@ -705,7 +705,7 @@ TRON1_STAND_TILT=4 TRON1_EP_S=60 TRON1_STAND_LONG_MAX_S=50 \
 
 사용자 요청: "다리를 더 들고 보폭을 길게, 앞·뒤·옆으로 빠르면서도 치우치지 않고 넘어지지 않게", 이어서
 "일자로 걷기, 팔을 움직이며 일자로, 서 있을 때 발바닥을 붙이고 발을 구르지 않기". 모두 v3(배포 정책)에서 이어 학습한 미세조정이고,
-결과마다 문제를 찾아 다음 판의 보상·명령 분포를 바꿨다. 학습: `train_mjx.py --impl warp --envs 4096`, RTX 3090, 시드당 45~60 분 (판별 실행 스크립트 `tron1_openarm/tools/gait_runs/train_vN.sh`, 절차와 명령은 14-7).
+결과마다 문제를 찾아 다음 판의 보상·명령 분포를 바꿨다. 학습: `train_mjx.py --impl warp --envs 4096`, RTX 3090, 시드당 45~60 분 (판별 실행 스크립트 `tron1_openarm/tools/gait_runs/train_vN.sh`, 절차와 명령은 14-7, **처음부터 끝까지 한 바퀴 흐름은 14-11**).
 평가: `rl/eval_policy.py`(배포 조건 SF 월드·2 ms), 집기 시험: `tools/validation/series_run.sh` r1~r8 (`POLICY=` 로 후보 지정).
 학습 과정 보기: `rl/watch_training.py plot|play <runs/폴더>` (그래프·중간 정책 보행 화면).
 
@@ -1009,6 +1009,98 @@ CUDA_VISIBLE_DEVICES= ../../mobile_openarm/.venv-mobile/bin/python eval_policy.p
 **한계 — 왜 집기·미션 시험이 따로 필요한가**: 브리지 방향 바로잡기, 들고 있는 상자 무게, MoveIt 팔 경로, Nav2 의 느린 위치 맞추기 명령 같은
 실제 작업 상호작용은 이 평가에 없다. v7 best 는 오프라인 서기 방향 변화 −0.2° 였지만 집기에서 바로잡기 걸음 31 s 였다.
 그래서 채택 판단은 집기·미션 시험(14-7 ⑤~⑦)을 먼저 보고, 오프라인 평가는 **왜 그런 결과가 나왔는지**(느린 추종·서기 기울기 등)를 설명하는 데 쓴다.
+
+### 14-11. 한 바퀴 작업 흐름 — 보상 추가 → 학습 → 결과 보기 → 보완 → 이어 학습 → 시험 → 판정 (v10 을 예로)
+
+앞 절들의 내용을 실제 순서대로 묶었다. 예: v9 best 가 느린 미세 이동을 못 따라가 → v10 에서 `tracking_slow` 보상 추가.
+
+**1) 문제를 숫자로 확인** — 집기 시험 `step_time.py` 에서 r1·r2·r8 걸음 모드 45~80 s, 오프라인 평가 `slow_f.track` 0.17 (14-8).
+"무엇을 고칠지"는 느낌이 아니라 이런 지표 하나로 정하고, 같은 지표로 나중에 판정한다.
+
+**2) 보상 항목 추가** (`tron1_openarm/rl/tron1_mjx_env.py`, v10 커밋 4408667 이 그대로 예시) — 다섯 곳을 고친다.
+
+| 순서 | 위치 | v10 에서 쓴 코드 | 왜 |
+|---|---|---|---|
+| ① | 모듈 상수 | `TRACK_SLOW_SCALE = float(os.environ.get("TRON1_TRACK_SLOW", 0.0))` | 환경 변수로 켜고 **기본 0(꺼짐)** — 예전 판 학습을 그대로 재현할 수 있게 |
+| ② | `EnvState` (필요하면) | `v_avg: jax.Array` + `reset()` 에서 `v_avg=jnp.zeros(2)` | 보상 계산에 이전 스텝 값(평균 속도·기준 위치 등)이 필요할 때 |
+| ③ | `_advance_clock()` (필요하면) | `v_avg = s.v_avg + (POLICY_DT / SLOW_TAU) * (base_linvel[:2] - s.v_avg)` | 상태를 매 스텝 갱신 |
+| ④ | `_reward()` 의 `terms` | `tracking_slow = [0.005 < |cmd| < 0.15] · exp(−(|cmd − v_avg| / max(|cmd|, 0.03))² / 0.25)` | 항목 값 (0~1 또는 벌점 크기) — 무게는 곱하지 않음 |
+| ⑤ | `__init__` 의 `self.rs` | `self.rs["tracking_slow"] = TRACK_SLOW_SCALE` (벌점이면 `-SCALE`) | 총 보상 = Σ 무게 × 항목 |
+
+학습 중에 보려면 `tron1_openarm/rl/train_mjx.py` 도 고친다: 롤아웃 기록에 `slow=info["terms"]["tracking_slow"]`, 명령 종류별 평균 `split_stats()` 에 `slow_track`,
+로그 `rec` 에 `slow_track=…` (그래프 `watch_training.py plot` 은 키 이름으로 읽음). 명령 분포를 바꿀 때는 `_sample_cmd()` 의 `CMD_MIX` 분기(v7·v9·v10 예시).
+고친 뒤 짧게 확인: `TRON1_TRACK_SLOW=3 … train_mjx.py --minutes 2 --envs 512 --out /tmp/smoke` → 로그에 `slow_track` 이 찍히고 넘어짐 0 인지.
+
+**3) 학습 명령 — 이전 가중치에서 이어서 (`--init`)**
+```bash
+bash tron1_openarm/tools/gait_runs/train_v10.sh      # 안에서 실행하는 핵심 줄 ↓
+TRON1_…(v9 설정)… TRON1_CMD_MIX=v10 TRON1_TRACK_SLOW=3 \
+  ../.venv-biped/bin/python train_mjx.py --foot sf --init ../runs/gait_v9/seed1/best.npz --init-std 0.1 \
+  --impl warp --envs 4096 --minutes 60 --seed 1 --ck-min 5 --out ../runs/gait_v10/seed1
+```
+
+| 옵션 | 뜻 | 언제 |
+|---|---|---|
+| `--init <정책.npz>` | 그 정책의 신경망 가중치(인코더·정책)를 시작점으로. 가치망(critic)은 새로 — 보상이 바뀌었으므로 처음 20 반복(`--critic-warmup`)은 critic 만 학습 | **보상·명령 분포를 바꾼 이어 학습** (v4~v10 모두 이것) |
+| `--init` 생략 | 배포 정책(`policies/tron1sf_openarm_policy.npz`, 지금 v3)에서 | v4·v5 |
+| `--init scratch` | 무작위 가중치에서 (수 시간 필요) | 관측 규약을 바꿀 때 |
+| `--init-std 0.1` | 처음 행동 탐색 잡음(표준편차). 작을수록 시작 정책을 덜 흔듦 | 0.1~0.15 |
+| `--resume <폴더>/last.pkl` | 끊긴 학습을 **같은 설정**으로 이어감 (가치망·탐색·난이도까지 복원) | 학습이 중간에 죽었을 때만 |
+
+**4) 학습 출력 읽기** — 5 반복마다 한 줄 JSON (`runs/gait_v10/seed1.log`, 같은 내용이 `seed1/log.json`)
+```
+{"it": 2920, "t": 3596.7, "fall_rate": 3e-05, "lin_track": 0.888, "ang_track": 0.952, "side_vy": …, "head_straight": …, "sway": …, "slow_track": …}
+```
+- `fall_rate` 넘어짐 비율(0 근처여야), `lin_track`·`ang_track` 속도·회전 추종(1 = 명령대로), 새로 넣은 항목의 지표(`slow_track`)가 오르는지,
+  그리고 **다른 지표가 떨어지지 않는지**(`sway`·`side_vy`·`head_straight`). 전체 평균은 쉬운 명령이 대부분이라 명령 종류별 지표를 본다.
+- 저장: `ckNNNmin.npz` (`--ck-min` 분마다), `best.npz` (점수 `lin_track + 0.5·ang_track − 50·fall_rate + 0.5·난이도 − 10·(1−팔 하중)` 최고일 때),
+  `final.npz` (끝), `last.pkl` (재개용). **best 는 학습 점수 기준이라 새 항목·서기 안정성은 반영하지 않는다** → 반드시 평가로 고른다.
+
+**5) 학습 중 보기** — 그래프와 시뮬레이션 화면 (14-7 ②)
+```bash
+python3 tron1_openarm/rl/watch_training.py plot tron1_openarm/runs/gait_v10      # 지표 그래프 (지금 학습 중인 시드를 따라감)
+mobile_openarm/.venv-mobile/bin/python tron1_openarm/rl/watch_training.py play tron1_openarm/runs/gait_v10   # 최신 ckNNNmin.npz 로 걷기
+```
+`play` 는 배포와 같은 모델(SF 월드, 2 ms)에서 전진 0.6 → 후진 0.4 → 왼쪽·오른쪽 0.3 m/s 를 되풀이하고, 한 바퀴 끝날 때 새 중간 정책으로 바꾼다.
+화면 왼쪽 위에 정책 파일·명령·실제 속도·발 들기(관절 각도 + IMU). 학습(GPU)과 화면 그리기가 겹쳐 멈추지 않도록 화면 밖 렌더러 + OpenCV 창, 10 Hz.
+
+**6) 중간 평가로 계속할지 결정** — 20·30 분째 `ck020min.npz`·`ck030min.npz` 를 오프라인 평가(14-10)로 이전 best 와 비교.
+고치려던 지표가 좋아져도 **다른 지표가 나빠지면 멈춘다** (v10: `slow_f` 0.17 → 1.14 였지만 `stand.tilt` 4.4 → 6.7°, `arms.sway` 8.0 → 18.3 cm → 30 분에 중단).
+
+**7) 오프라인 평가** (14-10) — 정책만 떼어 같은 명령 시간표로
+```bash
+cd tron1_openarm/rl && CUDA_VISIBLE_DEVICES= ../../mobile_openarm/.venv-mobile/bin/python eval_policy.py \
+  ../src/tron1_openarm_sim/policies/tron1sf_openarm_policy.npz ../runs/gait_v10/seed1/best.npz --out=/tmp/eval.json
+```
+출력: 정책마다 시험 14 개 줄 `walk {'track': 0.955, 'drift': 0.193, 'yaw_deg': 15.68, 'tilt': 0.94, 'falls': '0/3', …}`.
+
+**8) 실제 작업 시험 두 가지** (14-7 ⑤~⑦) — 후보 정책을 `POLICY=` 로 넣어 전체 앱과 함께
+```bash
+# (a) 집기 r1~r8: 상자 배치만 다른 8 번 (series_layouts.txt — 왼/오 팔, 상자 위치 2~6 cm 차이, 회전 −18~+20°)
+POLICY=$PWD/tron1_openarm/runs/gait_v10/seed1/best.npz bash tron1_openarm/tools/validation/series_run.sh F10_ r1 r2 r3 r4 r5 r6 r7 r8
+python3 tron1_openarm/tools/validation/step_time.py /tmp/tron1_logs/rec_sf_F10_r*.jsonl
+# (b) 미션: Nav2·LLM 플래너·작업 관리자까지 — "빨간 상자를 왼쪽 작업대로 옮기고 돌아와"
+VIEW=1 POLICY=$PWD/tron1_openarm/runs/gait_v10/seed1/best.npz bash tron1_openarm/tools/validation/mission_test.sh sf _F10m
+```
+출력:
+- (a) `/tmp/tron1_logs/series_F10_.txt` 에 `RESULT r1 1 final box [2.539 2.965 0.725]` (가운데 1 = 놓기 완료), `step_time.py` 가
+  `rec_sf_F10_r1.jsonl: 전체 130.6 s, 걸음 모드 4.0 s, 방향 바로잡기 1.4 s, 최대 기울기 3.2°`
+- (b) 끝에 `state=done … 완료 (436s)` 와 `final box0 [...] | on place table …: True | max tilt 3.1`
+- 결과를 `policies/gait_pick_tests.json` 에 요약해 남긴다 (`/tmp/tron1_logs` 는 재부팅하면 지워짐).
+
+**9) 판정 — 배포 정책(v3)과 같은 날 나란히 시험해서**
+
+| 시험 | 통과 기준 (v3 실측 2026-11-20) | 왜 |
+|---|---|---|
+| 집기 r1~r8 | 8/8 놓기, **걸음 모드 ≤ 6 s** (v3 1.2~6.4), **최대 기울기 ≤ 4°** (v3 3.1~3.4) | 서 있어야 할 때 걸으면 발 구르기·위치 어긋남, 기울면 카메라·팔 좌표가 틀어짐 |
+| 미션 | 성공(상자가 놓을 작업대 위), 기울기 ≤ 4° (v3 3.1°), 시간은 참고 (실행마다 ±70 s) | 전체 시스템에서 문제 없는지 |
+| 오프라인 | 넘어짐 0, 고치려던 지표 개선, **나머지 지표가 v3 보다 크게 나빠지지 않음** (특히 `stand/arms/push.tilt`, `slow_*.track`) | 실제 시험 결과의 원인 설명 |
+
+- 집기·미션이 기준을 넘고 v3 이상이면 배포(14-7 ⑧). 하나라도 v3 보다 나쁘면 v3 유지 — **v9 best 가 이 이유로 탈락**(14-9).
+- 오프라인 평가만 좋은 것은 채택 근거가 아니다(v7 best: 오프라인 서기 방향 −0.2° 였지만 집기에서 바로잡기 걸음 31 s).
+
+**10) 기록** — 판마다 이 문서 14-2(바꾼 것·결과·문제→다음 판), 14-4(코드 위치·식·이유), 14-5(학습 명령), 14-8(근거 데이터 파일·키·값)에 한 줄씩,
+실행 스크립트는 `tools/gait_runs/train_vN.sh`, 평가 결과는 `policies/eval_gait_history.json`·`gait_pick_tests.json` 에 추가.
 
 ## 확인 질문
 
