@@ -102,7 +102,7 @@ def generate_launch_description():
                               description="true = robot_localization EKF 가 odom TF 를 냄 (다리 오도메트리 + IMU)"),
         DeclareLaunchArgument("box_poses", default_value="",
                               description='상자 위치 바꾸기 (반복 집기 시험) "box_0=x,y,yaw도;box_1=..." 월드 좌표. 비우면 MJCF 그대로'),
-        DeclareLaunchArgument("box_source", default_value="aruco",
+        DeclareLaunchArgument("box_source", default_value="color",
                               description="상자 인식: aruco = 윗면 마커, color = 마커 없이 색(빨강·초록·파랑)+깊이 (camera_server.py)"),
         DeclareLaunchArgument("policy", default_value="",
                               description="보행 정책 가중치(npz). 비우면 발 형태별 기본값. LimX 사전학습: policies/limx_pf_tron1a_pretrained.npz"),

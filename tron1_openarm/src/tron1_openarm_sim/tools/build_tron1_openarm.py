@@ -407,8 +407,9 @@ def build(tron1_dir, openarm_xml, out_dir, xacro_file, mount_x=None, shoulder=No
     train.find("option").set("timestep", "0.004")   # 학습은 4 ms (정책 50 Hz = 5 스텝) — 속도 2배, 배포는 2 ms 로 검증
     with open(os.path.join(out_dir, "tron1_openarm_train.xml"), "w", encoding="utf-8") as fp:
         fp.write(header + ET.tostring(train, encoding="unicode"))
-    # 양손 손목 카메라 (시뮬·저사양 모델만, 학습 모델 제외 — tron1_openarm_sim/wrist_cameras.py)
+    # 양손 손목 카메라 (시뮬·저사양 모델만, 학습 모델 제외 — 바퀴형과 같은 정의: mobile_openarm_sim/wrist_cameras.py)
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../../../mobile_openarm/src/mobile_openarm_sim/tools"))
     from wrist_cameras import apply_wrist_cameras
     for fn in ("tron1_openarm.xml", "tron1_openarm_light.xml"):
         print(f"[cam] {fn}: 손목 카메라 {apply_wrist_cameras(os.path.join(out_dir, fn))}")

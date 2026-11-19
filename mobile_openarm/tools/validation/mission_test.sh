@@ -18,6 +18,9 @@ for i in $(seq 1 360); do   # 작업 관리자 준비 + Nav2 활성 + MoveIt 준
 done
 sleep 5
 echo "준비까지 $((i / 2 + 5)) s"
+if [ -n "${VIEW:-}" ]; then   # 손목 카메라 영상 창 (camera_process:=true 기본일 때)
+  for side in left right; do (ros2 run rqt_image_view rqt_image_view /wrist_${side}_camera/image_raw/compressed > $S/view_${side}_$tag.log 2>&1 &); done
+fi
 python3 $D/contact_recorder.py $S/contacts_$tag.log > /dev/null 2>&1 &
 CR=$!
 T0=$(date +%s)
@@ -37,4 +40,5 @@ for k, b in sorted(got.get("o", {}).items()):
 PY
 kill $CR 2>/dev/null
 echo "=== 팔 접촉 (작업대·상자·벽, 쥔 상자 제외)"; grep -v "(없음)" $S/contacts_$tag.log | tail -30
+pkill -f "rqt_image_view /wrist_" 2>/dev/null
 kill -- -$PG 2>/dev/null; sleep 3; kill -9 -- -$PG 2>/dev/null

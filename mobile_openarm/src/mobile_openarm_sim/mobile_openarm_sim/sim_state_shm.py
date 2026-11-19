@@ -12,7 +12,7 @@ from multiprocessing import shared_memory
 import numpy as np
 
 HEADER = 5
-DEFAULT_NAME = "tron1_sim_state"
+DEFAULT_NAME = "openarm_sim_state"
 
 
 def size_of(m):

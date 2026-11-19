@@ -48,7 +48,7 @@ def generate_launch_description():
         DeclareLaunchArgument("policy", default_value="", description="비우면 발 형태별 기본 정책"),
         DeclareLaunchArgument("camera_hz", default_value="10.0", description="GPU 없는 환경은 5.0"),
         DeclareLaunchArgument("lidar_rays", default_value="360"),
-        DeclareLaunchArgument("box_source", default_value="aruco", description="상자 인식: aruco | color (sim.launch.py)"),
+        DeclareLaunchArgument("box_source", default_value="color", description="상자 인식: aruco | color (sim.launch.py)"),
         DeclareLaunchArgument("start_x", default_value="0.0", description="시작 위치 (지도 좌표, nav.launch.py)"),
         DeclareLaunchArgument("start_y", default_value="0.0"),
         DeclareLaunchArgument("start_yaw", default_value="0.0", description="[rad]"),

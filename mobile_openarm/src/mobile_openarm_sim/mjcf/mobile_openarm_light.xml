@@ -109,6 +109,9 @@
                         <geom name="openarm_left_link7_collision" pos="0.0 -0.0 -0.5585" quat="1.0 0.0 0.0 0.0" type="mesh" mesh="link7_collision_left" class="collision" />
                         <site name="left_ee_control_point" pos="0 0 0" quat="0 1 0 0" size="0.01" rgba="0 1 0 1" />
                         <body name="openarm_left_hand" pos="0 0 0.1001">
+                          <camera name="wrist_left_camera" pos="-0.085 0 -0.01" fovy="80" xyaxes="0 -1 0 -0.868 0 0.496" />
+                          <geom name="wrist_left_camera_vis" type="box" size="0.012 0.02 0.01" pos="-0.085 0 -0.01" rgba="0.1 0.1 0.1 1" contype="0" conaffinity="0" group="2" mass="0" />
+                            <geom name="wrist_left_camera_bracket_vis" type="box" size="0.0225 0.015 0.006" pos="-0.0505 0 -0.005" rgba="0.25 0.25 0.25 1" contype="0" conaffinity="0" group="2" mass="0" />
                           <inertial pos="0 0 0.005122940871819574" mass="0.1723111736408497" fullinertia="0.000250930641371331 5.560627616753029e-05 0.0002906093338421478 1.18380219510342e-05 0 0" />
                           <geom name="openarm_left_hand_collision" pos="0 0 -0.6586" quat="1.0 0.0 0.0 0.0" type="mesh" mesh="hand_collision" class="collision" />
                           <body name="openarm_left_hand_tcp" pos="0 0 0.09" quat="1.0 0.0 0.0 0.0" />
@@ -164,6 +167,9 @@
                         <geom name="openarm_right_link7_collision" pos="0.0 -0.0 -0.5585" quat="1.0 0.0 0.0 0.0" type="mesh" mesh="link7_collision" class="collision" />
                         <site name="right_ee_control_point" pos="0 0 0" quat="0 1 0 0" size="0.01" rgba="1 0 0 1" />
                         <body name="openarm_right_hand" pos="0 0 0.1001">
+                          <camera name="wrist_right_camera" pos="-0.085 0 -0.01" fovy="80" xyaxes="0 -1 0 -0.868 0 0.496" />
+                          <geom name="wrist_right_camera_vis" type="box" size="0.012 0.02 0.01" pos="-0.085 0 -0.01" rgba="0.1 0.1 0.1 1" contype="0" conaffinity="0" group="2" mass="0" />
+                            <geom name="wrist_right_camera_bracket_vis" type="box" size="0.0225 0.015 0.006" pos="-0.0505 0 -0.005" rgba="0.25 0.25 0.25 1" contype="0" conaffinity="0" group="2" mass="0" />
                           <inertial pos="0 0 0.005122940871819574" mass="0.1723111736408497" fullinertia="0.000250930641371331 5.560627616753029e-05 0.0002906093338421478 1.18380219510342e-05 0 0" />
                           <geom name="openarm_right_hand_collision" pos="0 0 -0.6586" quat="1.0 0.0 0.0 0.0" type="mesh" mesh="hand_collision" class="collision" />
                           <body name="openarm_right_hand_tcp" pos="0 0 0.09" quat="1.0 0.0 0.0 0.0" />
