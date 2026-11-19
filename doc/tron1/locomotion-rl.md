@@ -887,6 +887,28 @@ DISPLAY=:1 gnome-terminal --title "v5 미션" -- bash -c \
 **⑧ 배포** (아직 안 함, 배포 정책은 v3) — 후보를 `tron1_openarm/src/tron1_openarm_sim/policies/tron1sf_openarm_policy.npz` 로 바꾸고,
 `eval_policy.py` 결과를 `tron1_openarm/policies/eval_results.json` 에, 문서 갱신 뒤 PR.
 
+### 14-8. 판단 근거 데이터 — 어느 결과를 보고 다음 판을 정했나
+
+결과 파일 (저장소):
+- **오프라인 평가** `tron1_openarm/policies/eval_gait_history.json` — 키 `<판>/<정책 파일>` → 시험 이름(`walk`, `side_l`, `arms`, `slow_f` …) → 지표.
+  지표: `track`(명령 방향 실제 속도 / 명령), `drift`(옆 흐름 / 명령), `yaw_deg`(방향 변화 °), `lift`(발 들기 m), `tilt`(°), `sway`(몸통 흐름 m), `falls`.
+- **집기·미션 시험 요약** `tron1_openarm/policies/gait_pick_tests.json` — 키 `pick_<접두어>` → `runs.rN` → `placed`(놓기 완료), `walk_mode_s`(서기 모드가 꺼진 시간),
+  `yaw_fix_s`(그중 방향 바로잡기), `max_tilt`; `mission_<이름>` → `total_s` 등. 원본 기록은 `/tmp/tron1_logs` (재부팅하면 지워짐 — 이 요약만 남음).
+- 학습 곡선 `tron1_openarm/runs/gait_vN/seedS/log.json`, 정책 파일 `runs/gait_vN/seedS/*.npz` (git 밖, 학습 PC 에만).
+
+| 판 | 본 데이터 (파일 → 키 → 값) | 해결 안 된 문제 | 그래서 다음 판에서 |
+|---|---|---|---|
+| v3 (출발점) | `eval_gait_history.json` → `v3` → `side_l.track` 0.33·`side_r.track` 0.38, `side_l.lift` 0.02 m, `walk.drift` 0.19 | 옆걸음이 명령의 1/3, 발을 거의 안 듦, 직진도 옆으로 흐름 | v4: 발 들기 보상·속도 범위 |
+| v4 | → `v4/seed1/final.npz` → `walk.drift` 0.58, `side_l.track` 0.43 | 발은 들지만(6~8 cm) 직진 치우침 3 배 | v5: 옆 속도 오차를 따로 보는 `tracking_vy` (v3 에서 다시) |
+| v5 | → `v5/seed1/final.npz` → `walk.drift` 0.06, `side_r.track` 0.68; `…(다시 잼)` → `walk_arms.yaw_deg` 13.5; `gait_pick_tests.json` → `pick_v5s1` 8/8, `mission_v5m1.total_s` 399 (v3 `mission_fast1` 364) | 팔을 움직이며 직진하면 13.5° 돎, 옆걸음 왼쪽 43 % | v6: 직진 방향 유지, 서 있을 때 발바닥 |
+| v6 | → `v6/seed1/final.npz` → `walk_arms.yaw_deg` −1.8, 그러나 `back.yaw_deg` −33·`side_l.yaw_deg` −35, `stand.tilt` 3.6 | 드문 명령(후진·옆걸음)에서 크게 돎 — 명령 분포 계산: 옆걸음 0.3 m/s 급이 전체의 약 6 % | v7: 옆걸음·대각선 명령 따로 |
+| v7 | → `v7/seed1/best.npz` → `side_l.track` 0.98·`side_r` 0.87; `v7/seed1/final.npz` → `walk.yaw_deg` −66 | final 이 직진에서 돎 (best 는 괜찮음) | v8: 회전 속도 벌점 — best 에서 이어서 |
+| v8 | → `v8/ck030min.npz` → `side_l.falls` 3/3, `turn` 실제 0.17 rad/s (명령 0.6) | 회전 자체를 못 함, 옆걸음 넘어짐 | 버림. v7 best 를 집기 시험으로 |
+| v7 best 집기 | `gait_pick_tests.json` → `pick_v7b.runs.r3` → `walk_mode_s` 47.4·`yaw_fix_s` 31.0 (v5 `pick_v5s1.runs.r3` 1.2·0.2); `eval…` → `v7/seed1/best.npz` → `arms.sway` 0.158 (v3 0.084) | 팔로 작업할 때 몸통이 돌고 밀려 브리지가 방향 바로잡기 걸음 — 사용자가 본 "서 있는데 발 구르기" | v9: 들기 자세 학습, 서기 밀림 벌점, 서기 30 % |
+| v9 20 분 | → `v9/ck020min.npz` → `arms.sway` 0.26; `pick_v9c20.runs.r3` → `walk_mode_s` 40.4 | 밀림 기준이 따라가서 천천히 밀리는 것은 벌점이 안 됨 (계속 학습) | 학습 계속 → best 에서 확인 |
+| v9 best | → `v9/seed1/best.npz` → `arms.sway` 0.080·`arms.yaw_deg` 0, `side_l.track` 0.98; `pick_v9bA` r3~r7 `walk_mode_s` 0, 그러나 r1 48.8·r2 80.6·r8 45.6; 그 뒤 느린 시험 추가: `slow_f.track` 0.17·`slow_b.track` 1.87 | 서서 작업하기는 해결. 작업대 앞 위치 맞추기(0.02~0.06 m/s 명령)를 못 따라가 오래 걸음 | v10: 느린 명령 비율 오차 추종, 느린 15 % |
+| v10 30 분 | → `v10/ck030min.npz` → `slow_f.track` 1.14 이지만 `slow_s.track` 0.10, `back.track` 0.65, `stand.tilt` 6.7, `arms.sway` 0.183 | 느린 전진만 고치고 서기 안정성을 잃음 | 버림. 배포 후보 v9 best, 다음은 처음부터 긴 학습 제안 |
+
 ## 확인 질문
 
 
