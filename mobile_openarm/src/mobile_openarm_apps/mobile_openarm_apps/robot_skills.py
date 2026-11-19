@@ -1601,22 +1601,34 @@ class RobotSkills(Node):
         fwd = offset[0] if edge is None else edge + 0.12    # 모서리에서 12cm 안쪽에 내려놓기
         lat = offset[1] if offset[1] is not None else (-0.12 if side == "right" else 0.12)
         top_h = self._table_top_seen if (self.can_strafe and self._table_top_seen is not None) else self.table_h
-        lat = self._free_place_lat(fwd, lat, side, top_h)
-        target = np.array([fwd, lat, top_h + self.box_size / 2 + 0.01])
-        self.log(f"[place] {self.holding[side]} → base {np.round(target, 3)} ({side})")
+        obs0 = self._place_obstacles(top_h)                # 놓을 자리를 정할 때 본 물체 (팔이 나중에 가려도 기억)
+        cands = self._place_candidates(fwd, lat, side, edge, obs0)
+        if not cands:
+            raise SkillError(f"놓을 빈자리 없음 (작업대 위 물체 점 {len(obs0)} 개)")
+        if abs(cands[0][0] - fwd) > 1e-3 or abs(cands[0][1] - lat) > 1e-3:
+            hit = self._place_blocked(fwd, lat, obs0)
+            why = f"물체 {np.round(hit, 2)}" if hit is not None else "범위 밖"
+            self.log(f"[place] 원래 자리 ({fwd:.2f}, {lat:+.2f}) 막힘({why}) → 빈자리 후보 {len(cands)} 개")
         # 놓을 때 손 기울기(pitch, roll)를 쥘 때와 같게: 다르면 쥔 상자도 그만큼 기울어진 채 내려가 모서리부터 닿고
         # 넘어지거나 비틀어졌다 (예: 쥘 때 roll −90°, 놓을 때 첫 후보 roll −70° → 상자 20° 기울어짐, 사용자 지적).
-        # 같은 기울기에서 수평 방향(yaw)만 바꾸면 상자는 수평을 유지한다 → yaw 0, ±10°, ±20° 만 찾고, 없을 때만 다른 기울기
+        # 같은 기울기에서 수평 방향(yaw)만 바꾸면 상자는 수평을 유지한다 → yaw 0, ±10°, ±20° 만 찾는다.
+        # 빈자리 후보를 가까운 순으로 8 개까지 보고, 모두 안 되면 다른 기울기로 첫 후보에
         gt = self._grasp_tilt.get(side)
-        try:
-            if gt is None:
-                raise SkillError("쥘 때 기울기 기록 없음")
-            yaws = [0.0] + [math.radians(v) for v in (10, -10, 20, -20)]
-            R, pre, q_pre = self._solve_approach(side, target + np.array([0, 0, 0.05]), back=0.06,
-                                                 tilt=gt[:2], yaws=yaws)
-        except SkillError as e:
-            self.log(f"[place] 쥘 때와 같은 기울기로 놓을 자세 없음({e}) → 다른 기울기로 (상자가 기울어질 수 있음)")
-            R, pre, q_pre = self._solve_approach(side, target + np.array([0, 0, 0.05]), back=0.06)
+        yaws = [0.0] + [math.radians(v) for v in (10, -10, 20, -20)]
+        sol = None
+        for fx, ly in (cands[:8] if gt is not None else []):
+            tgt = np.array([fx, ly, top_h + self.box_size / 2 + 0.01])
+            try:
+                sol = (tgt,) + self._solve_approach(side, tgt + np.array([0, 0, 0.05]), back=0.06, tilt=gt[:2], yaws=yaws)
+                break
+            except SkillError:
+                continue
+        if sol is None:
+            tgt = np.array([cands[0][0], cands[0][1], top_h + self.box_size / 2 + 0.01])
+            self.log("[place] 쥘 때와 같은 기울기로 놓을 자세 없음 → 다른 기울기로 (상자가 기울어질 수 있음)")
+            sol = (tgt,) + self._solve_approach(side, tgt + np.array([0, 0, 0.05]), back=0.06)
+        target, R, pre, q_pre = sol
+        self.log(f"[place] {self.holding[side]} → base {np.round(target, 3)} ({side})")
         # 놓을 자리를 정한 순간의 작업대 위 마커들 (쥔 상자 마커는 손과 같이 움직이므로 뺌)
         held_id = self.objects.get(self.holding[side], {}).get("marker_id")
         place_ref = self._other_markers(exclude=held_id) if self.can_strafe else None
@@ -1628,6 +1640,12 @@ class RobotSkills(Node):
             # 상자를 쥔 팔을 천천히 옮기는 동안 몸통이 흐를 수 있다 (r6: 바로잡기 걸음으로 옆 0.5 m, 작업대 밖에서 놓음)
             # → 놓기 전에 마커 기준 제자리로 돌아온다
             self.station_keep(place_ref, label=" 놓기 전")
+            # 내려놓기 바로 전에 다시 본다: 팔을 뻗고 기다리는 동안 몸통이 흐르거나(시험: 11 cm·10°) 물체가 옮겨졌으면
+            # 정한 자리가 더는 비어 있지 않다 → 지금 본 물체 + 처음 본 물체로 확인, 막혔으면 놓지 않고 실패로 알린다
+            self.table_edge_seen(wait=1.0)
+            hit = self._place_blocked(target[0], target[1], np.vstack([obs0, self._place_obstacles(top_h)]))
+            if hit is not None:
+                raise SkillError(f"놓기 직전 확인: 놓을 자리 {np.round(target[:2], 3)} 옆 물체 {np.round(hit, 3)} → 놓지 않음")
         self.cartesian(side, [target], R, avoid_collisions=False)
         self.open_gripper(side)
         time.sleep(0.5)
@@ -1658,28 +1676,56 @@ class RobotSkills(Node):
         self.log(f"[place] 완료: {obj}")
         return obj
 
-    PLACE_CLEAR = 0.10      # 놓을 자리 중심 ↔ 다른 상자 중심 최소 거리 [m] (상자 5 cm + 벌린 손가락·손목)
+    # 놓을 빈자리 찾기 (사용자 지적: 다른 상자가 있으면 피해서 빈 곳에). 상자가 차지할 자리뿐 아니라 벌린 손가락·손이
+    # 접근하며 지나가는 띠(로봇 쪽으로 PLACE_HAND_BACK)까지 비어 있어야 한다. 예전에는 상자 중심끼리 10 cm 만 보고 옆으로만 옮겼다
+    PLACE_FRONT = 0.040      # 놓을 자리 중심 → 앞(작업대 안쪽) 여유: 상자 반폭 2.5 + 1.5 cm
+    PLACE_HAND_BACK = 0.14   # 놓을 자리 중심 → 뒤(로봇 쪽): 손바닥·손목이 지나가는 길이
+    PLACE_HALF_W = 0.06      # 옆 반폭: 벌린 손가락(±4.4 cm) + 손가락 두께·여유
+    PLACE_FWD_RANGE = (0.08, 0.22)   # 앞 모서리에서 안쪽 거리 범위 [m]
+    PLACE_LAT_MAX = 0.24
+    PLACE_GRID = 0.02
 
-    def _free_place_lat(self, fwd, lat, side, top_h=None):
-        """놓을 자리(base: 앞 fwd, 옆 lat)가 다른 상자와 PLACE_CLEAR 안이면 집은 팔 쪽으로 2 cm 씩 옮겨 빈자리를 찾는다.
-        무작위 배치 시험(s1)에서 로봇이 옆으로 밀려난 채 고정 자리에 놓다가 그 자리의 다른 상자를 쳤다."""
-        dets = self.detections(max_age=2.0)
-        # 작업대 위 상자만 (손에 든 상자의 마커는 높이가 달라 뺀다)
-        others = [p for i, (p, _y) in dets.items() if top_h is None or abs(p[2] - (top_h + self.box_size)) < 0.04]
-        if not others:
-            return lat
-        out = 1.0 if side == "left" else -1.0          # 집은 팔 쪽 (몸 앞을 가로지르지 않게)
-        for k in range(0, 9):
-            for cand in ([lat + out * 0.02 * k] if k == 0 else [lat + out * 0.02 * k, lat - out * 0.02 * k]):
-                if abs(cand) > 0.20:
+    def _place_obstacles(self, top_h=None):
+        """작업대 위 물체 점들 (base_footprint xy, N×2).
+        ① 머리 카메라 깊이 점유 칸(/table/edge occ: 상자·모르는 물건 모두) — 손에 든 상자도 점유로 잡히므로 쥔 손끝 8 cm 안은 뺀다
+        ② 색·마커로 아는 상자 윗면 5 cm (팔에 가려 깊이로 안 보이는 곳 보완)"""
+        pts = []
+        tcps = [tf[0][:2] for tf in (self._tf_matrix(TCP[s]) for s in ("left", "right") if self.holding[s]) if tf]
+        e = self._edge_recent(2.0) if self.can_strafe else None
+        for c in (e or {}).get("occ", []):
+            c = np.asarray(c, float)
+            if all(np.linalg.norm(c - t) > 0.08 for t in tcps):
+                pts.append(c)
+        held = {self.objects.get(o, {}).get("marker_id") for o in self.holding.values() if o}
+        for i, (p, _y) in self.detections(max_age=2.0).items():
+            if i in held or (top_h is not None and abs(p[2] - (top_h + self.box_size)) > 0.04):
+                continue
+            pts += [np.array([p[0] + dx, p[1] + dy]) for dx in (-0.02, 0.0, 0.02) for dy in (-0.02, 0.0, 0.02)]
+        return np.array(pts, float).reshape(-1, 2)
+
+    def _place_blocked(self, fwd, lat, obs):
+        """(fwd, lat) 에 놓을 때 상자 자리 + 손이 지나가는 띠 안에 물체 점이 있으면 가장 가까운 점, 없으면 None."""
+        if len(obs) == 0:
+            return None
+        m = (obs[:, 0] > fwd - self.PLACE_HAND_BACK) & (obs[:, 0] < fwd + self.PLACE_FRONT) & \
+            (np.abs(obs[:, 1] - lat) < self.PLACE_HALF_W)
+        if not m.any():
+            return None
+        return obs[m][np.argmin(np.hypot(obs[m, 0] - fwd, obs[m, 1] - lat))]
+
+    def _place_candidates(self, fwd0, lat0, side, edge, obs):
+        """빈 후보 자리 (원래 자리에서 가까운 순). 집은 팔 반대쪽으로 몸 앞을 가로지르지 않게 옆 위치를 제한."""
+        lo, hi = ((edge + self.PLACE_FWD_RANGE[0], edge + self.PLACE_FWD_RANGE[1]) if edge is not None
+                  else (fwd0 - 0.06, fwd0 + 0.08))
+        sgn = -1.0 if side == "right" else 1.0
+        out = []
+        for fx in np.arange(lo, hi + 1e-6, self.PLACE_GRID):
+            for ly in np.arange(-self.PLACE_LAT_MAX, self.PLACE_LAT_MAX + 1e-6, self.PLACE_GRID):
+                if sgn * ly < -0.04:                       # 반대쪽으로 4 cm 넘게 가로지르지 않음
                     continue
-                d = min(math.hypot(p[0] - fwd, p[1] - cand) for p in others)
-                if d >= self.PLACE_CLEAR:
-                    if k:
-                        self.log(f"[place] 놓을 자리 옆 {lat:+.2f} m 에 다른 상자 → {cand:+.2f} m 로")
-                    return cand
-        self.log("[place] 빈자리를 못 찾음 → 원래 자리")
-        return lat
+                if self._place_blocked(fx, ly, obs) is None:
+                    out.append((math.hypot(1.5 * (fx - fwd0), ly - lat0), float(fx), float(ly)))
+        return [(f, l) for _c, f, l in sorted(out)]
 
     def home_arms(self):
         for s in ("left", "right"):

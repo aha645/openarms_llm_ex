@@ -1156,4 +1156,9 @@ VIEW=1 LOG_DIR=/tmp/tron1_logs bash tron1_openarm/tools/validation/mission_test.
 | 걸을 때 MuJoCo 화면의 바닥·건물이 위아래로 흔들림 | 추적 카메라가 몸통 출렁임을 그대로 따라감 → 자유 카메라 + 시선 중심이 바닥 위 위치만 0.7 s 시간 상수로 따라감, 높이 고정 (`bridge_node._track_robot`) |
 | 손목 카메라 창이 뜨기 전 오래 기다림 | `pick_test.sh` 고정 `sleep 45`(실제 준비 6~20 s), `mission_test.sh` 고정 `sleep 90`(실제 약 16 s) → 준비 문구(move_group "You can start planning now", 카메라 처리 보고, 작업 관리자 준비, Nav2 활성)를 기다림. 집기 시험 준비 45 → 20 s |
 
+| 다른 상자가 있는 곳에 놓음 (빈 곳을 찾지 않음) | 예전: 상자 중심끼리 10 cm 만 보고 옆으로만 2 cm 씩, 한 번만 확인. 시험 lvl1 에서 팔을 뻗고 기다리는 동안 몸통이 11 cm·10° 흘러 계획보다 7 cm 옆(초록 상자 쪽)에 놓으며 손가락이 닿음 → ① 머리 카메라 깊이 점유 칸(상판 위 1~30 cm, 모르는 물건 포함, 손에 든 상자 제외) + 색 상자 ② 상자 자리 + 손이 지나가는 띠(뒤 14 cm, 옆 ±6 cm)가 빈 후보를 작업대 위 2 cm 격자(모서리 안쪽 8~22 cm, 옆 ±24 cm)로 찾아 원래 자리에서 가까운 순 + 같은 기울기 IK ③ 내려놓기 직전 다시 확인, 막혔으면 놓지 않고 실패 ④ 빈자리 없으면 실패 (`robot_skills._place_*`, `table_edge.py` occ) |
+
+놓을 자리 막힘 시험 (`series_layouts.txt` p1·p2, 원래 놓을 자리에 초록 상자): 둘 다 "원래 자리 막힘 → 빈자리"로 옮겨 놓음,
+다른 상자와 접촉 0 (놓인 상자 중심 ↔ 초록 8.0~8.4 cm, 파랑 14 cm). 오프라인 점유 칸: 12 자리 모두 상자 3 개 잡음, 엉뚱한 칸 0.
+
 무작위 배치 연속 시험 배치·실행기는 저장소로 옮김: `tools/validation/series_layouts.txt`, `series_run.sh` (`[BOX_SOURCE=color] bash series_run.sh <접두어> r1 … r8`).

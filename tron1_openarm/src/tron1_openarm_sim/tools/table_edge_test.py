@@ -67,6 +67,11 @@ def run_case(world, policy, dist, yaw_off_deg, lat, arms):
     if res is None:
         row["result"] = "없음"
     else:
+        occ = np.array(res["occ"]) if res["occ"] else np.zeros((0, 2))
+        boxes = [to_base(d.xpos[m.body(f"box_{i}").id][None])[0][:2] for i in range(3)]
+        hit = sum(1 for bp in boxes if len(occ) and np.min(np.linalg.norm(occ - bp, axis=1)) < 0.03)
+        false = int(sum(1 for c in occ if min(np.linalg.norm(c - bp) for bp in boxes) > 0.05))
+        row.update(occ_boxes=hit, occ_false=false)
         row.update(err_dist_cm=round(100 * (res["dist"] - true_dist), 2),
                    err_yaw_deg=round(math.degrees(res["yaw"] - true_yaw), 2),
                    height=res["height"], n_edge=res["n_edge"], rms_cm=res["rms_cm"])
