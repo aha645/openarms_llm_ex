@@ -51,7 +51,7 @@ def plot(run):
     import matplotlib
     matplotlib.use("TkAgg")
     import matplotlib.pyplot as plt
-    keys = [("lin_track", "속도 추종 (1 = 명령대로)"), ("ang_track", "회전 추종"), ("clear", "발 들기 부족 [cm²] (작을수록 높이 듦)"),
+    keys = [("lin_track", "속도 추종 (1 = 명령대로)"), ("vy_track", "옆 방향 추종 (치우침·옆걸음)"), ("clear", "발 들기 부족 [cm²] (작을수록 높이 듦)"),
             ("fall_rate", "넘어짐 비율"), ("ep_ret", "에피소드 보상"), ("difficulty", "난이도 (잡음·밀기)")]
     for f in ("NanumGothic", "Noto Sans CJK KR", "Noto Sans CJK JP", "UnDotum"):
         try:

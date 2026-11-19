@@ -48,6 +48,10 @@ VY_P = float(os.environ.get("TRON1_VY_P", 0.3))      # 일반 명령 중 옆걸�
 # '디딘 발보다 걸음 설정 4번째 값(SF 0.12 m) 위' 에 못 미치는 만큼 제곱 벌점. 발 높이는 발 위치 센서(시뮬 정답)가 아니라
 # 관절 각도 정기구학 + IMU 자세로 구한다 (실로봇에서도 얻을 수 있는 값)
 CLEAR_SCALE = float(os.environ.get("TRON1_CLEAR", 0.0))
+# 옆 방향 추종 (v5): tracking_lin_vel 은 앞뒤·옆 오차를 합쳐 보므로 빠른 전진에서 옆 오차가 묻힌다 — v3 는 앞으로 걸으며
+# 걷는 속도의 16~19 % 만큼 옆으로 흘렀고 옆걸음은 0.3 m/s 명령에 0.1 m/s. 옆 속도 오차만 따로 좁은 폭으로 본다
+TRACK_VY_SCALE = float(os.environ.get("TRON1_TRACK_VY", 0.0))
+TRACK_VY_SIGMA = 0.02
 
 # ── SF 서기 버티기 (보행 학습 13절) ─────────────────────────────────────────────────────────────────────
 # 실제 집기에서 손이 상자·작업대에 막혀 팔이 계속 밀면 손에 수십 N 이 걸리고, 서기 정책이 버티지 못해 한 발에 하중이 쏠리면
@@ -193,6 +197,7 @@ class Tron1MjxEnv:
         else:
             self.rs["stand_feet"] = self.rs["stand_load"] = self.rs["stand_twist"] = self.rs["stand_tilt"] = 0.0
         self.rs["feet_clearance"] = -CLEAR_SCALE
+        self.rs["tracking_vy"] = TRACK_VY_SCALE
         # 랜덤화 대상 인덱스
         self.base_bid = m.body("base_link").id
         self.contact_geoms = jnp.array([g for g in range(m.ngeom) if m.geom_contype[g] or m.geom_conaffinity[g]])
@@ -527,6 +532,7 @@ class Tron1MjxEnv:
             stand_load=settled * jnp.clip((STAND_LOAD_MIN - jnp.min(F) / jnp.maximum(jnp.sum(F), 1.0)) / STAND_LOAD_MIN, 0.0, 1.0),
             stand_tilt=settled * jnp.clip((jnp.linalg.norm(grav[:2]) - STAND_TILT_FREE) / STAND_TILT_REF, 0.0, 2.0),
             feet_clearance=jnp.sum((1 - des) * jnp.clip(self.GAIT[3] - (fz - jnp.min(fz)), 0.0, None) ** 2),
+            tracking_vy=jnp.exp(-(s.cmd[1] - lin[1]) ** 2 / TRACK_VY_SIGMA),
         )
         r = sum(self.rs[k] * v for k, v in t.items()) * POLICY_DT
         return r, t
