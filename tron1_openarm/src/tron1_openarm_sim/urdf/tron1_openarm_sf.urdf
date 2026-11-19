@@ -39,6 +39,15 @@
     <limit lower="-1.0" upper="1.0" effort="0" velocity="10" />
   </joint>
   <link name="base_link">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://tron1_openarm_sim/mjcf/sf/meshes/tron1/base_Link.STL" scale="1 1 1" />
+      </geometry>
+      <material name="tron1_mesh_vis_mat_base_link"><!-- tron1_mesh_vis_mat -->
+        <color rgba="0.79 0.82 0.93 1" />
+      </material>
+    </visual>
     <!-- base_handle_L: TRON1 몸통 옆 손잡이 (tools/mech_fix.py) -->
     <collision>
       <origin xyz="0 0.16 -0.1" rpy="0 0 0" />
@@ -117,6 +126,15 @@
     <origin xyz="0 0 0" rpy="0 0 0" />
   </joint>
   <link name="abad_L_Link">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://tron1_openarm_sim/mjcf/sf/meshes/tron1/abad_L_Link.STL" scale="1 1 1" />
+      </geometry>
+      <material name="tron1_mesh_vis_mat_abad_L_Link">
+        <color rgba="0.79 0.82 0.93 1" />
+      </material>
+    </visual>
     <inertial>
       <origin xyz="-0.06977 0.04479 0.00057" rpy="1.55376 0.0133243 1.18055" />
       <mass value="1.496" />
@@ -146,6 +164,15 @@
     <limit lower="-0.383972" upper="1.39626" effort="80" velocity="10" />
   </joint>
   <link name="hip_L_Link">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://tron1_openarm_sim/mjcf/sf/meshes/tron1/hip_L_Link.STL" scale="1 1 1" />
+      </geometry>
+      <material name="tron1_mesh_vis_mat_hip_L_Link">
+        <color rgba="0.95 0.95 0.95 1" />
+      </material>
+    </visual>
     <inertial>
       <origin xyz="-0.02869 -0.0477 -0.03992" rpy="0.566248 0.224785 0.992825" />
       <mass value="2.3" />
@@ -175,6 +202,15 @@
     <limit lower="-1.01229" upper="1.39626" effort="80" velocity="10" />
   </joint>
   <link name="knee_L_Link">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://tron1_openarm_sim/mjcf/sf/meshes/tron1/knee_L_Link.STL" scale="1 1 1" />
+      </geometry>
+      <material name="tron1_mesh_vis_mat_knee_L_Link">
+        <color rgba="0.79 0.82 0.93 1" />
+      </material>
+    </visual>
     <inertial>
       <origin xyz="0.11452 0.0013 -0.19367" rpy="0.0202061 -0.525188 -0.0384438" />
       <mass value="1.22" />
@@ -204,6 +240,15 @@
     <limit lower="-0.872665" upper="1.36136" effort="80" velocity="10" />
   </joint>
   <link name="ankle_L_Link">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://tron1_openarm_sim/mjcf/sf/meshes/tron1/ankle_L_Link.STL" scale="1 1 1" />
+      </geometry>
+      <material name="tron1_mesh_vis_mat_ankle_L_Link">
+        <color rgba="0.79 0.82 0.93 1" />
+      </material>
+    </visual>
     <inertial>
       <origin xyz="0.01074 -0.00061 -0.03314" rpy="0.854931 -1.51685 2.28849" />
       <mass value="0.62" />
@@ -233,6 +278,15 @@
     <limit lower="-1.15192" upper="1.5708" effort="20" velocity="10" />
   </joint>
   <link name="abad_R_Link">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://tron1_openarm_sim/mjcf/sf/meshes/tron1/abad_R_Link.STL" scale="1 1 1" />
+      </geometry>
+      <material name="tron1_mesh_vis_mat_abad_R_Link">
+        <color rgba="0.79 0.82 0.93 1" />
+      </material>
+    </visual>
     <inertial>
       <origin xyz="-0.06977 -0.04479 0.00057" rpy="1.55376 -0.0133243 1.96104" />
       <mass value="1.496" />
@@ -262,6 +316,15 @@
     <limit lower="-1.39626" upper="0.383972" effort="80" velocity="10" />
   </joint>
   <link name="hip_R_Link">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://tron1_openarm_sim/mjcf/sf/meshes/tron1/hip_R_Link.STL" scale="1 1 1" />
+      </geometry>
+      <material name="tron1_mesh_vis_mat_hip_R_Link">
+        <color rgba="0.95 0.95 0.95 1" />
+      </material>
+    </visual>
     <inertial>
       <origin xyz="-0.02869 0.0477 -0.03992" rpy="0.566248 -0.224785 2.14877" />
       <mass value="2.3" />
@@ -291,6 +354,15 @@
     <limit lower="-1.39626" upper="1.01229" effort="80" velocity="10" />
   </joint>
   <link name="knee_R_Link">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://tron1_openarm_sim/mjcf/sf/meshes/tron1/knee_R_Link.STL" scale="1 1 1" />
+      </geometry>
+      <material name="tron1_mesh_vis_mat_knee_R_Link">
+        <color rgba="0.79 0.82 0.93 1" />
+      </material>
+    </visual>
     <inertial>
       <origin xyz="0.11452 -0.0013 -0.19367" rpy="-0.0202061 -0.525188 0.0384438" />
       <mass value="1.22" />
@@ -320,6 +392,15 @@
     <limit lower="-1.36136" upper="0.872665" effort="80" velocity="10" />
   </joint>
   <link name="ankle_R_Link">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://tron1_openarm_sim/mjcf/sf/meshes/tron1/ankle_R_Link.STL" scale="1 1 1" />
+      </geometry>
+      <material name="tron1_mesh_vis_mat_ankle_R_Link">
+        <color rgba="0.79 0.82 0.93 1" />
+      </material>
+    </visual>
     <inertial>
       <origin xyz="0.01074 0.00061 -0.03314" rpy="-0.854931 -1.51685 -2.28849" />
       <mass value="0.62" />

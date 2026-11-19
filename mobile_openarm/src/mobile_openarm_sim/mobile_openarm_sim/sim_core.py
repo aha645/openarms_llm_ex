@@ -515,6 +515,9 @@ class MobileOpenArmSim:
                         stop_event.set()
                         break
                     with self.lock:
+                        hook = getattr(self, "view_hook", None)
+                        if hook is not None:
+                            hook(viewer)        # 예: 관찰 카메라 시선 중심 갱신 (bridge_node._track_robot)
                         viewer.sync()
                     last_view = now
             target = wall0 + (self.d.time - sim0) / rate_factor

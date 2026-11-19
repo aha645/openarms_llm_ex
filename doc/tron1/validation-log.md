@@ -1124,3 +1124,36 @@ VIEW=1 LOG_DIR=/tmp/tron1_logs bash tron1_openarm/tools/validation/mission_test.
 
 `mission_test.sh` 를 기다리는 스크립트에서 `pgrep -f mission_cli.py` 를 쓰면 기다리는 셸 자신의 명령줄과도 맞아 끝나지 않는다
 → `ps -eo args | grep "^python3 .*mission_[c]li"` 처럼 실제 프로세스만 찾는다.
+
+## 15. 마커 없는 인식: 색 상자, 작업대는 지도 + 깊이 모서리, 출발점 기준 왼쪽/오른쪽
+
+사용자 제안: "상자는 빨강·초록·파랑으로 구분하면 되지 마커가 필요할까", "작업대에 마커를 붙이면 다가가서 확인한 뒤
+원하는 곳이 아니면 다시 이동해야 한다", "왼쪽/오른쪽 작업대는 출발한 지점 기준으로".
+
+| 무엇 | 어떻게 | 파일 |
+|---|---|---|
+| 상자 | `box_source:=color` — 카메라가 보는 장면에서 상자 마커를 지우고, HSV 색 영역 + 깊이 → 윗면 점 → 최소 사각형 중심·방향. 마커와 같은 id·형식으로 발행 (집기 앱 그대로) | `color_boxes.py`, `camera_server.py` |
+| 어느 작업대 | 지도 좌표 (`locations.yaml`). 마커를 읽으러 다가갈 필요 없음 | — |
+| 왼쪽/오른쪽 | 출발 지점에서 작업대들 중심 쪽을 바라볼 때의 옆 방향 부호 (로봇이 처음 어느 쪽을 보고 있었는지와 무관). LLM·오프라인 계획 모두 | `llm_planner.table_sides`, `task_manager.py` |
+| 작업대 정렬 | 머리 카메라 깊이 → (자기 몸 분할 영상으로 뺌) → 높이 분포의 봉우리 = 상판 → 옆 2 cm 칸마다 가장 가까운 상판 점 → RANSAC 직선 = 앞 모서리. `/table/edge` 2 Hz. 도킹 방향·거리, `table_edge_distance`, MoveIt 작업대 충돌 상자에 사용 (없으면 지도) | `table_edge.py`, `robot_skills.py` |
+
+오프라인 정확도 (머리 카메라 960x720, 정답 비교):
+
+| 시험 | 결과 |
+|---|---|
+| 상자 27 개 (배치 9 개, `tools/color_box_test.py`) | 마커: 위치 평균 0.16 / 최대 0.21 cm, 방향 최대 0.3° · **색: 0.14 / 0.15 cm, 0.5°**, 놓침 0 |
+| 작업대 모서리 12 자리 (거리 0.35~0.75 m, 방향 ±15°, 옆 ±0.2 m, carry 팔, `tools/table_edge_test.py`) | 12/12, 거리 최대 0.07 cm, 방향 최대 0.14° (처음 최소제곱은 화면 양옆 시야 경계를 모서리로 잡아 7~8° 틀림 → RANSAC) |
+
+전체 미션 20 (`VIEW=1 BOX_SOURCE=color bash mission_test.sh sf _m20`): 출발 지점 (−0.02, 0.01) 기준 오른쪽 = pick_station,
+왼쪽 = place_station → **완주 649 s**, 상자 왼쪽 작업대 위, 접촉 0, 최대 기울기 7.9°. 도킹 때 깊이 모서리 0.596 m / −2.3°, 0.777 m / +0.6°.
+
+같은 변경에서 함께 고친 것:
+
+| 증상 (사용자 지적) | 원인 → 수정 |
+|---|---|
+| 상자를 수평으로 내려놓지 않음 | 놓을 접근 자세를 처음부터 다시 찾아 쥘 때(roll −90°)와 다른 roll −70° 를 골랐다 → 쥔 상자가 20° 기울어진 채 내려감. 쥘 때 (pitch, roll) 을 기억해 놓을 때 같은 기울기에서 yaw(0, ±10, ±20°)만 찾음 → 집기·놓기 모두 pitch 20° roll −90° 확인 |
+| RViz 에 하체·몸통이 안 보임 | URDF 의 TRON1 링크 visual 이 충돌 도형이고 색이 투명(rgba 0 0 1 0) → MJCF 와 같은 STL 메시 visual (`mech_fix.py` 5) |
+| 걸을 때 MuJoCo 화면의 바닥·건물이 위아래로 흔들림 | 추적 카메라가 몸통 출렁임을 그대로 따라감 → 자유 카메라 + 시선 중심이 바닥 위 위치만 0.7 s 시간 상수로 따라감, 높이 고정 (`bridge_node._track_robot`) |
+| 손목 카메라 창이 뜨기 전 오래 기다림 | `pick_test.sh` 고정 `sleep 45`(실제 준비 6~20 s), `mission_test.sh` 고정 `sleep 90`(실제 약 16 s) → 준비 문구(move_group "You can start planning now", 카메라 처리 보고, 작업 관리자 준비, Nav2 활성)를 기다림. 집기 시험 준비 45 → 20 s |
+
+무작위 배치 연속 시험 배치·실행기는 저장소로 옮김: `tools/validation/series_layouts.txt`, `series_run.sh` (`[BOX_SOURCE=color] bash series_run.sh <접두어> r1 … r8`).

@@ -196,22 +196,39 @@ class MujocoBridge(Node):
                     rclpy.try_shutdown(context=self.context)
 
     def _track_robot(self, viewer):
-        """관찰 카메라가 로봇 몸통(base_link)을 따라가며 화면 중앙에 두게 한다 (추적 카메라).
-        마우스로 돌리기·확대는 그대로 되고, 로봇이 걸어가도 화면 밖으로 나가지 않는다.
-        뷰어에서 Esc 를 누르면 자유 카메라로 바뀐다 (MuJoCo 기본 동작)."""
+        """관찰 카메라가 로봇을 따라가며 화면 중앙에 두게 한다.
+        MuJoCo 추적 카메라(mjCAMERA_TRACKING)는 몸통 위치를 그대로 따라가서, 이족이 걸을 때 걸음마다 몸통이
+        위아래·앞뒤로 1~2 cm 출렁이는 것이 화면에서는 바닥·건물 전체가 흔들리는 것으로 보였다 (사용자 지적).
+        → 자유 카메라로 두고, 시선 중심을 몸통의 바닥 위 위치(x, y)만 부드럽게(시간 상수 TRACK_TAU) 따라가게 하며
+        높이는 고정한다. 마우스로 돌리기·확대는 그대로. 뷰어에서 다른 카메라를 고르면 따라가기를 멈춘다."""
         import mujoco
         m = self.sim.m
         bid = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_BODY, "base_link")
         if bid < 0:
             return
+        TRACK_TAU, LOOK_Z = 0.7, 0.8
+        state = {"t": None}
+
+        def hook(v):
+            if v.cam.type != mujoco.mjtCamera.mjCAMERA_FREE:
+                return
+            p = self.sim.d.xpos[bid]
+            now = time.monotonic()
+            a = 1.0 if state["t"] is None else min(1.0, (now - state["t"]) / TRACK_TAU)
+            state["t"] = now
+            v.cam.lookat[0] += a * (p[0] - v.cam.lookat[0])
+            v.cam.lookat[1] += a * (p[1] - v.cam.lookat[1])
+            v.cam.lookat[2] = LOOK_Z
+
         with viewer.lock():
-            viewer.cam.type = mujoco.mjtCamera.mjCAMERA_TRACKING
-            viewer.cam.trackbodyid = bid
+            viewer.cam.type = mujoco.mjtCamera.mjCAMERA_FREE
             viewer.cam.distance = 2.5          # 로봇과 앞 작업대가 함께 보이는 거리
             viewer.cam.elevation = -25.0
             # 시작 방향(start_yaw)의 뒤쪽 30° 비스듬히 위에서 → 로봇과 그 앞(작업대)이 함께 보임.
-            # 추적 카메라는 위치만 따라가고 방향은 월드 기준이라, 로봇이 돌면 마우스로 돌려 보면 된다
+            # 시선 중심만 따라가고 방향은 월드 기준이라, 로봇이 돌면 마우스로 돌려 보면 된다
             viewer.cam.azimuth = math.degrees(self.get_parameter("start_yaw").value) - 30.0
+            hook(viewer)
+            self.sim.view_hook = hook
             # 그림자·반사 끔(모델의 조명·재질 값 — 그리기에만 쓰이고 물리와 무관, 카메라 서버는 자기 모델을 따로 씀):
             # 뷰어가 한 장면을 그리는 동안(sync 가 기다림) 물리가 멈춘다. TRON1 전체 메시 모델에서
             # sync 가 10 s 중 7.8 s 를 차지해 시뮬레이션이 실시간의 0.6 배로 돌았다 (팔 이동 1 회 40 s 넘게)
