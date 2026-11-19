@@ -1684,17 +1684,15 @@ class RobotSkills(Node):
                 self.move_named(f"{side}_arm", "carry", vel=self.HOLD_VEL)
                 self.wait_still(timeout=8.0)
         else:
-            self._held_level[side] = self._hold_level(side)
-            if not self._held_level[side]:
-                self.move_named(f"{side}_arm", "carry")
+            # 바퀴형: carry 로 접지 않는다 — 관절 공간으로 접으면 손목이 돌아 상자가 회전·기울었다 (바퀴형 시험 7)
+            self._hold_level(side)
+            self._held_level[side] = True
         self.log(f"[pick] 완료: {obj}")
         return side
 
-    # 바퀴형: 쥔 상자를 들고 다니는 자세 — 쥔 손 방향을 그대로 두고 위로 들어 몸 쪽으로 당긴다 (상자가 쥘 때처럼 수평).
+    # 바퀴형: 쥔 상자를 들고 다니는 자세 — 쥔 손 방향을 그대로 두고 위로만 들어 올린다 (상자가 쥘 때처럼 수평).
     # 예전에는 정해진 관절각 carry 로 접어 손목이 돌며 상자가 기울고 가슴에 붙었다 (사용자 지적: 물이 든 그릇이면 쏟아진다).
     HOLD_UP = 0.15                  # 상판 위 손끝 높이 [m]
-    HOLD_FWD = (0.30, 0.34, 0.38)   # 몸 앞 손끝 거리 후보 [m] (Nav2 외곽 앞 0.28 m 에 가깝게)
-
     BASE_FOOTPRINT = [(0.28, 0.26), (0.28, -0.26), (-0.27, -0.26), (-0.27, 0.26)]   # config/nav2_params.yaml 과 같은 값
 
     def set_footprint(self, front=None):
@@ -1706,26 +1704,23 @@ class RobotSkills(Node):
             pub.publish(msg)
 
     def _hold_level(self, side):
-        """손 방향을 고정한 직선으로 (위로 → 몸 쪽으로) 옮긴다. 성공하면 True (그 손 방향은 놓을 때도 쓴다)."""
+        """쥔 손 방향을 그대로 두고 수직으로만 들어 올린다 (손끝 = 상판 + HOLD_UP). 앞뒤로 옮기거나 돌리지 않는다.
+        (몸 쪽으로 당기는 직선은 팔 관절 한계로 76~92 % 만 풀렸고, 사용자 요청: 그냥 들어 올린 채로 이동)"""
         tf = self._tf_matrix(TCP[side])
         if tf is None:
-            return False
+            return
         p, R = tf
         z = max(float(p[2]), self.table_h + self.HOLD_UP)
-        up = np.array([p[0], p[1], z])
-        for fwd in self.HOLD_FWD:
-            tgt = np.array([min(float(p[0]), fwd), p[1], z])
+        if z - p[2] > 0.005:
             try:
-                self.cartesian(side, [up, tgt], R, vel=0.15, min_fraction=0.95)
+                self.cartesian(side, [np.array([p[0], p[1], z])], R, vel=0.15, min_fraction=0.0)
             except SkillError as e:
-                self.log(f"[pick] 수평으로 들기 (앞 {fwd:.2f} m) 불가: {e}")
-                continue
-            front = float(tgt[0]) + self.box_size * 0.75 + 0.02      # 손끝(상자 중심) + 상자 반 대각선 + 여유
-            self.set_footprint(front)
-            self.log(f"[pick] 쥔 손 방향 그대로 들기: 손끝 base {np.round(tgt, 3)} (상자 수평), Nav2 외곽 앞 {front:.2f} m")
-            return True
-        self.log("[pick] 수평으로 들 자리 없음 → carry 로 접음")
-        return False
+                self.log(f"[pick] 더 들어 올리기 생략: {e}")
+        tf = self._tf_matrix(TCP[side])
+        tip = tf[0] if tf is not None else p
+        front = float(tip[0]) + self.box_size * 0.75 + 0.02      # 손끝(상자 중심) + 상자 반 대각선 + 여유
+        self.set_footprint(front)
+        self.log(f"[pick] 쥔 손 방향 그대로 들어 올림: 손끝 base {np.round(tip, 3)} (상자 수평), Nav2 외곽 앞 {front:.2f} m")
 
     def _choose_place(self, side, fwd, lat, edge, top_h, obs):
         """빈자리 후보(원래 자리에서 가까운 순) 중 쥘 때와 같은 기울기로 IK·직선 접근이 되는 첫 자리 → (target, R, pre, q_pre).
