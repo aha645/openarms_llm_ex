@@ -58,6 +58,11 @@ TRACK_VY_SIGMA = 0.02
 #   기준은 STAND_YAW_TAU 로 천천히 따라가 밀려서 돈 몫은 잊고, 정책 자신의 꾸준한 회전만 벌점으로 남긴다
 WALK_HEADING_SCALE = float(os.environ.get("TRON1_WALK_HEADING", 0.0))
 WALK_HEADING_REF = 0.05
+# v8: 상한 2(=6°)에서 벌점이 더 안 커져 한 번 많이 돌면 되돌릴 이유가 없었다(v7 final: 직진 20 s 에 −66°) → 상한을 10(30°)으로
+WALK_HEADING_CAP = float(os.environ.get("TRON1_WALK_HEADING_CAP", 2.0))
+# v8 직진 중 회전 속도 벌점: 회전 추종 보상(허용 폭 0.25)은 직진 중 0.057 rad/s(3 °/s) 회전에 보상이 1.3 % 만 줄어 사실상 벌점이 없었다
+# → 회전 명령 0 으로 걸을 때 (몸통 회전 속도 / 0.05 rad/s)² 벌점, 상한 4
+WALK_YAWRATE_SCALE = float(os.environ.get("TRON1_WALK_YAWRATE", 0.0))
 # 서 있을 때 발바닥: 서기 안정 구간에 한 발이라도 접촉력이 STAND_LIFT_F 아래면 벌점, 두 발 모두 붙고 미끄러지지 않으면 보상
 STAND_LIFT_SCALE = float(os.environ.get("TRON1_STAND_LIFT", 0.0))
 STAND_PLANTED_SCALE = float(os.environ.get("TRON1_STAND_PLANTED", 0.0))
@@ -221,6 +226,7 @@ class Tron1MjxEnv:
         self.rs["feet_clearance"] = -CLEAR_SCALE
         self.rs["tracking_vy"] = TRACK_VY_SCALE
         self.rs["walk_heading"] = -WALK_HEADING_SCALE
+        self.rs["walk_yawrate"] = -WALK_YAWRATE_SCALE
         self.rs["stand_liftoff"] = -STAND_LIFT_SCALE
         self.rs["stand_planted"] = STAND_PLANTED_SCALE
         # 랜덤화 대상 인덱스
@@ -574,7 +580,9 @@ class Tron1MjxEnv:
             feet_clearance=jnp.sum((1 - des) * jnp.clip(clear_h - (fz - jnp.min(fz)), 0.0, None) ** 2),
             tracking_vy=jnp.exp(-(s.cmd[1] - lin[1]) ** 2 / TRACK_VY_SIGMA),
             walk_heading=(~s.standing & (jnp.abs(s.cmd[2]) < 0.05)).astype(jnp.float32)
-            * jnp.minimum(jnp.abs(_wrap(_yaw(quat) - s.walk_yaw)) / WALK_HEADING_REF, 2.0),
+            * jnp.minimum(jnp.abs(_wrap(_yaw(quat) - s.walk_yaw)) / WALK_HEADING_REF, WALK_HEADING_CAP),
+            walk_yawrate=(~s.standing & (jnp.abs(s.cmd[2]) < 0.05)).astype(jnp.float32)
+            * jnp.minimum((gyro[2] / 0.05) ** 2, 4.0),
             stand_liftoff=settled * (jnp.min(F) < STAND_LIFT_F).astype(jnp.float32),
             stand_planted=settled * (jnp.min(F) >= STAND_LIFT_F).astype(jnp.float32)
             * jnp.mean(jnp.exp(-(fvxy / STAND_FEET_SIGMA) ** 2)),
