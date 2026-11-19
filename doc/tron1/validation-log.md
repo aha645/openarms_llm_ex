@@ -1102,6 +1102,25 @@ ros2 launch tron1_openarm_sim sim.launch.py camera_process:=false
 
 ### 13-6. 남은 과제
 
-1. 서 있을 때 기울기 6~8° (새 서기 정책) — 기울기 벌점·긴 서기 구간(60 s 이상)으로 재학습.
-2. 상자를 들고 걸어서 다른 작업대로 옮기는 전체 미션 (carry, Nav2 footprint ±0.40 m) 확인.
+1. ~~서 있을 때 기울기 6~8°~~ → 재학습(v3)으로 3°까지 줄었으나 집기 시리즈 6~7/8 로 떨어져 v2 유지 ([보행 학습 13-5](locomotion-rl.md#13-5-서-있을-때-기울기-줄이기-v3-시도-후-배포-안-함)).
+2. ~~전체 미션~~ → 14절 (미션 19 완주, 611 s).
 3. 상자 인식을 마커 대신 색·깊이로, 작업대는 작업대마다 마커 하나로 구분·도킹 (사용자 제안).
+
+## 14. 전체 미션 다시 완주 (걸어가 집기 → 들고 걷기 → 다른 작업대에 놓기)
+
+```bash
+VIEW=1 LOG_DIR=/tmp/tron1_logs bash tron1_openarm/tools/validation/mission_test.sh sf _m19   # VIEW=1: MuJoCo 뷰어·RViz 켬
+```
+명령 "빨간 상자를 왼쪽 작업대로 옮기고 돌아와" (오프라인 플래너 5 단계), 정답 기록으로 판정.
+
+| 미션 | 결과 | 원인 → 수정 |
+|---|---|---|
+| 17 | 집기 작업대 옆을 지나다 **왼손이 작업대 다리에 걸림** (25 s), 그 사이 오도메트리 30 cm 흐름 → 엉뚱한 곳 도착, 마커 못 찾음 | ① home 손 형상은 옆 ±0.447 m 인데 footprint ±0.40 m ② MPPI `CostCritic.consider_footprint: false` 라 로봇을 내접원(0.22 m)으로만 봄 → footprint ±0.45 m, `consider_footprint: true`, inflation 0.45→0.55 m (`make_nav2_params_tron1.py`) |
+| 18 | 이동 중 접촉 0. 집기에서 carry 자세 출발 접근 직선 경로 0 % → home 으로 되돌리는 계획이 손을 작업대 위로 휘둘러 **손가락이 상판에 걸림** (기울기 22°) | 이족은 접근을 home 에서 바로 (13-5 시리즈로 검증된 경로), 쥔 뒤에만 carry 로 접고, 놓은 뒤 바로 home (`robot_skills.py`) |
+| **19** | **완주 611 s**, 상자 왼쪽 작업대 위 (−2.247, 2.931, 0.725), 작업대·벽 접촉 0, 최대 기울기 9.1° | — |
+
+미션 19 시간: 집기 작업대까지 143 s → 도킹·집기·carry 129 s → 놓는 작업대까지 167 s → 놓기 55 s → 돌아오기 108 s.
+6절 미션 16(2659 s) 대비 4.4 배 빠름 (실시간 시뮬, carry 생략, 대기 단축).
+
+`mission_test.sh` 를 기다리는 스크립트에서 `pgrep -f mission_cli.py` 를 쓰면 기다리는 셸 자신의 명령줄과도 맞아 끝나지 않는다
+→ `ps -eo args | grep "^python3 .*mission_[c]li"` 처럼 실제 프로세스만 찾는다.
