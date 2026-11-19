@@ -56,7 +56,7 @@ def generate_launch_description():
         DeclareLaunchArgument("foot", default_value="sf", description="sf = Sole-foot(교육 기준), pf = Point-foot"),
         DeclareLaunchArgument("world", default_value="world.xml"),
         DeclareLaunchArgument("camera", default_value="true"),
-        DeclareLaunchArgument("box_source", default_value="aruco", description="상자 인식: aruco | color (sim.launch.py)"),
+        DeclareLaunchArgument("box_source", default_value="color", description="상자 인식: aruco | color (sim.launch.py)"),
         DeclareLaunchArgument("rviz", default_value="true"),
         DeclareLaunchArgument("move_person", default_value="true"),
         DeclareLaunchArgument("camera_hz", default_value="10.0", description="GPU 없는 환경은 5.0"),

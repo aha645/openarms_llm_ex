@@ -88,7 +88,7 @@ python3 tron1_openarm/tools/validation/mission_cli.py "초록 상자를 오른�
 |---|---|---|
 | `foot` | `sf` (기본) / `pf` | 발 형태 |
 | `planner` | `offline` (기본) / `llm` | 자연어 → 단계 계획. `llm` 은 `OPENAI_API_KEY` (로컬 LLM 은 `OPENAI_BASE_URL`, `OPENAI_MODEL`) |
-| `box_source` | `aruco` (기본) / `color` | 상자 인식 방식 |
+| `box_source` | `color` (기본) / `aruco` | 상자 인식 방식: color = 마커 없이 색(빨강·초록·파랑)+깊이, aruco = 상자 윗면 마커 |
 | `world` | `world.xml` / `world_light.xml` | 저사양은 light |
 | `viewer`, `rviz` | `true` / `false` | 화면 |
 | `policy` | npz 경로 | 다른 보행 정책으로 (6절) |

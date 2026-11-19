@@ -38,7 +38,7 @@ def generate_launch_description():
         DeclareLaunchArgument("lidar_rays", default_value="360"),
         DeclareLaunchArgument("rate_factor", default_value="1.0", description="1.0=실시간, 느린 PC 는 0.5"),
         DeclareLaunchArgument("camera_process", default_value="true", description="머리·손목 카메라를 별도 프로세스로 (sim.launch.py)"),
-        DeclareLaunchArgument("box_source", default_value="aruco", description="aruco | color (마커 없이 색+깊이)"),
+        DeclareLaunchArgument("box_source", default_value="color", description="aruco | color (마커 없이 색+깊이)"),
         DeclareLaunchArgument("slam", default_value="False"),
         DeclareLaunchArgument("map", default_value=os.path.join(share, "maps", "world_map.yaml")),
         DeclareLaunchArgument("params_file", default_value=os.path.join(share, "config", "nav2_params.yaml")),

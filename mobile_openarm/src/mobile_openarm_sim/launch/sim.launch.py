@@ -3,7 +3,7 @@
     ros2 launch mobile_openarm_sim sim.launch.py                 # 뷰어 + RViz
     ros2 launch mobile_openarm_sim sim.launch.py viewer:=false   # 헤드리스 (가벼움)
     ros2 launch mobile_openarm_sim sim.launch.py camera_process:=false   # 예전 방식: 브리지의 물리 스레드가 머리 카메라만 렌더링
-    ros2 launch mobile_openarm_sim sim.launch.py box_source:=color       # 상자 마커 없이 색(빨강·초록·파랑)+깊이로 인식
+    ros2 launch mobile_openarm_sim sim.launch.py box_source:=aruco       # 상자 윗면 ArUco 마커로 인식 (기본 color: 마커 없이 색+깊이)
 
 카메라 (camera_process:=true, 기본): 머리 RGB-D 카메라와 양 손목 카메라를 별도 프로세스(sim_cameras = camera_server.py)가
 렌더링·검출·JPEG 압축해 발행한다 (TRON1 과 같은 코드). 손목 카메라 검출(/wrist_*_camera/aruco/detections)이 들어오면
@@ -76,7 +76,7 @@ def generate_launch_description():
         DeclareLaunchArgument("rviz_config", default_value=os.path.join(share, "rviz", "sim.rviz")),
         DeclareLaunchArgument("camera_process", default_value="true",
                               description="true = 머리 RGB-D·양 손목 카메라를 별도 프로세스(sim_cameras)가 렌더링·검출·JPEG 압축 발행"),
-        DeclareLaunchArgument("box_source", default_value="aruco",
+        DeclareLaunchArgument("box_source", default_value="color",
                               description="상자 인식: aruco = 윗면 마커, color = 마커 없이 색(빨강·초록·파랑)+깊이 (camera_process 필요)"),
     ]
     lc = LaunchConfiguration
