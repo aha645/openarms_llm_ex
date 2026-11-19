@@ -1266,3 +1266,54 @@ AMCL 위치 오차 (정답 대비): 미션 21 평균 10.6 / 최대 41.8 cm, 미�
 | | | 깊이 카메라 시야(옆 ±0.3 m)로는 작업대 양 끝이 안 보임 → **LiDAR 로 앞 다리 두 개**(앞 모서리 안쪽 0~9 cm 띠, 간격 = 폭 − 8 cm)를 찾아 그 중간점 = 작업대 중심 (`robot_skills.table_center_lidar`). 도착 후 옆 위치와 MoveIt 작업대 옆 위치에 사용. 못 찾으면 AMCL 이 0.15 m 넘게 벗어난 것으로 보일 때만 절반 |
 | 확인 (`pick_test.sh` `SIM_START`: 시뮬 로봇만 ±0.2 m 옆, 집기 앱은 제자리로 믿음) | 작업대 중심을 +0.18 / −0.21 m 로 재고 옆걸음, 둘 다 집기·놓기 성공 | |
 | **D2** | **성공 1694 s**, 세 상자 모두 왼쪽 작업대 위, 접촉 0, 최대 기울기 3.0° | 도착 6 번 모두 LiDAR 다리로 맞춤 (파란 상자는 작업대 오른쪽 끝이라 −0.20 m 옆걸음) |
+
+## 19. 바퀴형 회귀 시험 — 공통 코드 변경 뒤 (PR #22)
+
+이족 작업으로 바꾼 공통 코드(weld 파지 보조·뷰어·놓기 등)를 바퀴형으로 확인. 바퀴형 미션 시험 스크립트·팔 접촉 기록기를 새로 만들었다
+(`mobile_openarm/tools/validation/mission_test.sh`, `contact_recorder.py`, `/sim/objects` 의 `arm_contacts` — `sim_core.arm_contacts()`, 이족은 `ROBOT_PREFIXES` 만 덮어씀).
+
+| 문제 | 원인 | 고친 곳 | 결과 |
+|---|---|---|---|
+| 이동 중 목표 18 cm 앞에서 약 100 s 서 있다가 갑자기 90° 회전 | MPPI `GoalAngleCritic` 이 0.5 m 안에서 방향 맞추기를 우선 → 목표 옆 18 cm 에서 이미 목표 방향을 보고 멈춤(바퀴형은 옆으로 못 감), 진행 확인 실패 4 번 뒤 복구 회전 | `mobile_openarm_sim/config/nav2_params.yaml`: `threshold_to_consider` 0.5 → 0.2, `movement_time_allowance` 20 → 10 s | 출발점→집기 작업대 140 → 35 s, 작업대 사이 182 → 48 s |
+| 집기 때 손가락이 상판에 닿고 첫 시도 파지 실패(손가락 0.001 m) | weld 파지 보조는 두 손가락이 상자에 닿아야 붙음 — 예전(손가락 하나만 닿아도 붙임)이 가리던 문제. ① 45° 직선 목표가 손끝 하한보다 1.1 cm 낮음 ② roll ±70° 는 아래 손가락이 더 내려감 ③ 작업대 앞에서 home→carry 가 팔을 휘둘러 손목이 모서리를 침 | `robot_skills.py` `pick()`: 손끝 하한(`floor_z`)을 바퀴형 직선 접근에도, 이동 중 작업대 여유(`TRANSIT_PAD`) 바퀴형에도, carry 경유 없앰, `_solve_approach()` 바퀴형 roll 작은 각도부터, `_refind_box()` 바퀴형은 손을 들고 home | 상자 모두 옮기기 3/3, 557 s, 파지 실패 0 |
+
+## 20. 바퀴형 손목 카메라·카메라 서버 공통화·색 인식 기본값 (PR #23·#24)
+
+- 카메라 서버를 공통 패키지로 옮김: `camera_server.py`·`sim_state_shm.py`·`wrist_cameras.py`·`color_boxes.py`·`table_edge.py`·`tools/wrist_cameras.py` →
+  `mobile_openarm_sim` (TRON1 은 같은 코드, `tron1_cameras` 실행 파일 이름 유지). 공유 메모리 쓰기·상자 마커 숨기기는 공통 브리지(`bridge_node.MujocoBridge`)로,
+  이족은 `_state_tilt()` 만 덮어씀.
+- 바퀴형 모델 양손에 손목 카메라·브래킷(`tools/wrist_cameras.py`, `05_regen_models.sh`), 바퀴형 `sim.launch.py` 가 `sim_cameras` 를 띄움(`camera_process`, `box_source`).
+- `robot_skills.py`: 손목 카메라 검출이 오면 바퀴형도 `visual_servo`(roll −90°·−70° 먼저, 손목 마커 정의가 없으면 정기구학 손끝으로),
+  깊이로 잰 작업대 모서리·점유 칸을 바퀴형도 사용(`dock`·`table_edge_distance`·`set_table`·`_place_obstacles`).
+- 상자 인식 기본값 `box_source:=color`(마커 없음) — 바퀴형·TRON1 launch, 시험 스크립트.
+- 결과: 손목 카메라 접근점 보정 1.6 → 0.1 cm, 상판 접촉 0.
+
+## 21. 쥔 상자를 수평으로 들고 머리 카메라를 가리지 않기 (PR #23·#25·#27)
+
+| 단계 | 문제 | 고친 곳 (`robot_skills.py`) |
+|---|---|---|
+| 1 | 쥔 뒤 carry 관절각으로 접으면 손목이 돌아 상자가 회전·기울고 가슴에 붙음 | `_hold_level()`: 쥔 손의 숙임·기울기를 지키며 위로 듦, 놓을 때 같은 손 방향으로 직선 (`place()`) |
+| 2 | 몸 쪽으로 당기는 직선이 손 방향 고정이면 76~92 % 만 풀림 → carry 로 접힘 | 손의 수직축 방향(yaw)만 후보(0, ±15, ±30, ±45°)로 돌려 가장 멀리 가는 직선, 되는 데까지만 |
+| 3 | 놓은 뒤 가슴 쪽(carry)을 거쳐 home | 바로 home (방금 놓은 상자도 장애물) |
+| 4 | 들고 있는 자세(상판 + 12.5 cm)가 머리 카메라의 놓을 쪽 작업대를 16.5 % 가림 (분할 렌더 측정) | 손끝 1.00 m·앞 0.28 m·바깥 0.20 m (`HOLD_UP`·`HOLD_FWD`·`HOLD_SIDE`) → 0.2~0.5 %, 놓을 때 같은 높이로 자리 위 → 내려감 |
+| 5 | 몸 앞에 든 상자는 바퀴형 LiDAR(0.26 m)에 안 보임 | 들고 있는 동안 Nav2 외곽 앞쪽을 상자 끝까지 (`set_footprint()`, `/local_costmap/footprint`) |
+| 6 | 이족도 같은 들기 | 이족은 팔을 천천히(`HOLD_VEL`), 동작마다 `wait_still`, Nav2 외곽은 이미 0.45 m 라 그대로. 이족 머리 카메라 가림 측정도 1.00 m 에서 0 % |
+
+결과: 바퀴형 상자 2 개 수평으로 옮김, 이족 집기 기울기 3.0°(carry 때 3.6°), 이족 미션(상자 들고 걷기) 586 s 성공·기울기 3.2°.
+
+## 22. RViz·시험 도구·브리지 문제 (PR #26·#27·이번 브랜치)
+
+| 문제 | 원인 | 고친 곳 |
+|---|---|---|
+| 이족 어깨에 흰 상자 | 상반신 접목 때 OpenArm 원본 몸통 메시를 빼고 은색 상자로 | `tools/mech_fix.py` 6): 원본 검은 브래킷 메시 `body_link0_5` (MJCF·URDF) |
+| MoveIt·내비 RViz 에 어깨·기둥·머리 카메라·마스트가 안 보임 | URDF `openarm_body_link0` 첫 visual 이 투명(알파 0) 충돌 상자 → RViz 가 링크 전체를 투명하게 | `mech_fix.py` 7): 투명 visual 지움 (충돌 형상 34 개 그대로), 4) 손잡이 충돌 중복 방지 |
+| `moveit.rviz` 시작마다 패널 불러오기 오류 | 잘못된 패널 항목 `MotionPlanningFrame` | `moveit.rviz` 에서 지움 |
+| 미션 시험이 '대기 중' 에 멈춤 | `mission_cli.py` 가 명령 토픽 연결 전에 한 번만 보내 버려짐 | 구독자 연결 확인 뒤 보내고 5 s 안에 시작 안 하면 다시 보냄 (최대 3 번) |
+| 상자 위치를 준 집기 시험에서 브리지가 두 번에 한 번꼴 세그멘테이션 오류(−11) | 물리 스레드가 뷰어를 만드는 중(잠금 없이 데이터 읽음)에 메인 스레드가 상자 위치를 바꾸며 `mj_forward` | `bridge_node.py` `_before_physics()` 훅·뷰어 생성을 잠금 안에서, `bridge_biped.py` 상자 위치를 `_before_physics()` 로 — 6 번 띄워 0 번 |
+
+## 23. 이족 Nav2 속도 상향과 보행 재학습
+
+- 미션이 느렸던 원인은 정책이 아니라 Nav2 상한: 배포 정책 v3 는 전진 0.6 m/s 를 96 % 따라감(벽 충돌을 끈 평가). `nav2_params_tron1.yaml` 전진 0.35 → 0.5,
+  후진 −0.2 → −0.3 m/s → 미션 586 → 365 s, 기울기 3.1°.
+- 보행 재학습 v4~v10(발 들기·옆걸음·직진·서서 작업하기·느린 미세 이동)의 판별 보상·결과·문제·소스 코드 변경은 [보행 학습 14절](locomotion-rl.md#14-빠른-걸음옆걸음서서-작업하기-재학습-v4v10).
+  v9 best 는 집기 r1~r8 8/8 이고 r3~r7 은 걸음 0 s 였지만 느린 미세 이동이 부정확(0.05 m/s 전진 17 %)해 v10 학습 중. 배포 정책은 아직 v3.
