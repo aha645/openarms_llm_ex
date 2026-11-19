@@ -690,6 +690,11 @@ final 6/8, best 7/8 (v2 8/8). 실패는 모두 같은 모양 — 그리퍼가 �
 (손 누름 시험은 천천히 커지는 힘이라 이 차이를 못 잡았다). → **v2 유지**. 다음에 하려면 파지처럼 짧고 날카로운
 손 옆 힘(0.2~0.5 s)을 학습·시험에 넣어야 한다.
 
+**다시 평가 → v3 채택** ([검증 기록 16·17절](validation-log.md#16-쥐고-놓을-때마다-하체가-떨리고-발을-디딤--파지-보조-구현-문제)):
+쥐는 순간의 옆 힘은 정책이 아니라 시뮬레이터 파지 보조(손가락 하나만 닿아도 상자 위치를 덮어써 고정)가 만든 것이었다.
+weld 파지 보조로 고친 뒤 같은 r1~r8: v3 seed1 final **8/8**, 평균 99 s, 쥐는 순간 몸통 0.1 cm, 서 있을 때 기울기 평균 2.3°
+(v2: 8/8, 105 s, 0.1 cm, 6~7°). → 배포 정책 = `runs/upright/seed1/final.npz`.
+
 ```bash
 TRON1_HAND_F=25 TRON1_REACH_P=0.35 TRON1_STAND_FEET=5 TRON1_STAND_LOAD=3 TRON1_STAND_TWIST=5 \
 TRON1_STAND_TILT=4 TRON1_EP_S=60 TRON1_STAND_LONG_MAX_S=50 \

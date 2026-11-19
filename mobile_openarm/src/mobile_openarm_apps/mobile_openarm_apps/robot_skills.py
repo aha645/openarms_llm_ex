@@ -717,6 +717,20 @@ class RobotSkills(Node):
             else:
                 self.log("[dock] 작업대 모서리를 깊이로 못 찾음 → 지도 좌표로")
         if self.can_strafe:
+            # 옆 위치: Nav2 '도착' 은 목표에서 0.25 m(xy 허용) + AMCL 오차만큼 옆으로 벗어날 수 있다. 미션 22 에서 스테이션보다
+            # 35 cm 옆에 서서 집을 상자(로봇 오른쪽 0.47 m)가 머리 카메라 시야(옆 ±0.3 m) 밖 → '마커 못 찾음' 으로 실패.
+            # 지도 위 스테이션과의 옆 방향 차이를 '한 번' 재서 그만큼 옆걸음한다 (옆걸음은 odom 폐루프, 한 번에 0.25 m 까지라 나눠서).
+            # 옆걸음마다 AMCL 을 다시 읽어 맞추면 AMCL 이 옆 이동을 잘못 추정해(미션 23) 좌우로 왔다 갔다 하며 0.7 m 어긋났다
+            p = self.robot_pose()
+            sx, sy, syaw = self.locations[station][0], self.locations[station][1], math.radians(self.locations[station][2])
+            lat = 0.0 if p is None else -(p[0] - sx) * math.sin(syaw) + (p[1] - sy) * math.cos(syaw)   # +: 스테이션보다 왼쪽
+            if abs(lat) >= 0.06:
+                self.log(f"[dock] 스테이션보다 옆으로 {lat:+.2f} m → 옆걸음 {-lat:+.2f} m")
+                rest = -float(np.clip(lat, -0.5, 0.5))
+                while abs(rest) >= 0.01:
+                    step = float(np.clip(rest, -0.25, 0.25))
+                    self.strafe_base(step)
+                    rest -= step
             self.set_table(station, pad=self.TRANSIT_PAD)   # 이후 팔 이동 경로가 작업대를 피하도록 먼저 충돌 객체를 넣는다
         # 2) 작업대 앞 모서리까지 DOCK_GAP 이 되도록 직진
         d = self.table_edge_distance(station)
@@ -1590,6 +1604,31 @@ class RobotSkills(Node):
         self.log(f"[pick] 완료: {obj}")
         return side
 
+    def _choose_place(self, side, fwd, lat, edge, top_h, obs):
+        """빈자리 후보(원래 자리에서 가까운 순) 중 쥘 때와 같은 기울기로 IK·직선 접근이 되는 첫 자리 → (target, R, pre, q_pre).
+        놓을 때 손 기울기(pitch, roll)를 쥘 때와 같게: 다르면 쥔 상자도 그만큼 기울어진 채 내려가 모서리부터 닿고
+        넘어지거나 비틀어졌다 (예: 쥘 때 roll −90°, 놓을 때 첫 후보 roll −70° → 상자 20° 기울어짐, 사용자 지적).
+        같은 기울기에서 수평 방향(yaw)만 바꾸면 상자는 수평을 유지한다 → yaw 0, ±10°, ±20° 만 찾는다.
+        후보를 8 개까지 보고, 모두 안 되면 다른 기울기로 첫 후보에."""
+        cands = self._place_candidates(fwd, lat, side, edge, obs)
+        if not cands:
+            raise SkillError(f"놓을 빈자리 없음 (작업대 위 물체 점 {len(obs)} 개)")
+        if abs(cands[0][0] - fwd) > 1e-3 or abs(cands[0][1] - lat) > 1e-3:
+            hit = self._place_blocked(fwd, lat, obs)
+            why = f"물체 {np.round(hit, 2)}" if hit is not None else "범위 밖"
+            self.log(f"[place] 원래 자리 ({fwd:.2f}, {lat:+.2f}) 막힘({why}) → 빈자리 후보 {len(cands)} 개")
+        gt = self._grasp_tilt.get(side)
+        yaws = [0.0] + [math.radians(v) for v in (10, -10, 20, -20)]
+        for fx, ly in (cands[:8] if gt is not None else []):
+            tgt = np.array([fx, ly, top_h + self.box_size / 2 + 0.01])
+            try:
+                return (tgt,) + self._solve_approach(side, tgt + np.array([0, 0, 0.05]), back=0.06, tilt=gt[:2], yaws=yaws)
+            except SkillError:
+                continue
+        tgt = np.array([cands[0][0], cands[0][1], top_h + self.box_size / 2 + 0.01])
+        self.log("[place] 쥘 때와 같은 기울기로 놓을 자세 없음 → 다른 기울기로 (상자가 기울어질 수 있음)")
+        return (tgt,) + self._solve_approach(side, tgt + np.array([0, 0, 0.05]), back=0.06)
+
     def place(self, station=None, side=None, offset=(0.50, None)):
         side = side or next((s for s in ("right", "left") if self.holding[s]), None)
         if side is None:
@@ -1602,32 +1641,7 @@ class RobotSkills(Node):
         lat = offset[1] if offset[1] is not None else (-0.12 if side == "right" else 0.12)
         top_h = self._table_top_seen if (self.can_strafe and self._table_top_seen is not None) else self.table_h
         obs0 = self._place_obstacles(top_h)                # 놓을 자리를 정할 때 본 물체 (팔이 나중에 가려도 기억)
-        cands = self._place_candidates(fwd, lat, side, edge, obs0)
-        if not cands:
-            raise SkillError(f"놓을 빈자리 없음 (작업대 위 물체 점 {len(obs0)} 개)")
-        if abs(cands[0][0] - fwd) > 1e-3 or abs(cands[0][1] - lat) > 1e-3:
-            hit = self._place_blocked(fwd, lat, obs0)
-            why = f"물체 {np.round(hit, 2)}" if hit is not None else "범위 밖"
-            self.log(f"[place] 원래 자리 ({fwd:.2f}, {lat:+.2f}) 막힘({why}) → 빈자리 후보 {len(cands)} 개")
-        # 놓을 때 손 기울기(pitch, roll)를 쥘 때와 같게: 다르면 쥔 상자도 그만큼 기울어진 채 내려가 모서리부터 닿고
-        # 넘어지거나 비틀어졌다 (예: 쥘 때 roll −90°, 놓을 때 첫 후보 roll −70° → 상자 20° 기울어짐, 사용자 지적).
-        # 같은 기울기에서 수평 방향(yaw)만 바꾸면 상자는 수평을 유지한다 → yaw 0, ±10°, ±20° 만 찾는다.
-        # 빈자리 후보를 가까운 순으로 8 개까지 보고, 모두 안 되면 다른 기울기로 첫 후보에
-        gt = self._grasp_tilt.get(side)
-        yaws = [0.0] + [math.radians(v) for v in (10, -10, 20, -20)]
-        sol = None
-        for fx, ly in (cands[:8] if gt is not None else []):
-            tgt = np.array([fx, ly, top_h + self.box_size / 2 + 0.01])
-            try:
-                sol = (tgt,) + self._solve_approach(side, tgt + np.array([0, 0, 0.05]), back=0.06, tilt=gt[:2], yaws=yaws)
-                break
-            except SkillError:
-                continue
-        if sol is None:
-            tgt = np.array([cands[0][0], cands[0][1], top_h + self.box_size / 2 + 0.01])
-            self.log("[place] 쥘 때와 같은 기울기로 놓을 자세 없음 → 다른 기울기로 (상자가 기울어질 수 있음)")
-            sol = (tgt,) + self._solve_approach(side, tgt + np.array([0, 0, 0.05]), back=0.06)
-        target, R, pre, q_pre = sol
+        target, R, pre, q_pre = self._choose_place(side, fwd, lat, edge, top_h, obs0)
         self.log(f"[place] {self.holding[side]} → base {np.round(target, 3)} ({side})")
         # 놓을 자리를 정한 순간의 작업대 위 마커들 (쥔 상자 마커는 손과 같이 움직이므로 뺌)
         held_id = self.objects.get(self.holding[side], {}).get("marker_id")
@@ -1640,14 +1654,26 @@ class RobotSkills(Node):
             # 상자를 쥔 팔을 천천히 옮기는 동안 몸통이 흐를 수 있다 (r6: 바로잡기 걸음으로 옆 0.5 m, 작업대 밖에서 놓음)
             # → 놓기 전에 마커 기준 제자리로 돌아온다
             self.station_keep(place_ref, label=" 놓기 전")
-            # 내려놓기 바로 전에 다시 본다: 팔을 뻗고 기다리는 동안 몸통이 흐르거나(시험: 11 cm·10°) 물체가 옮겨졌으면
-            # 정한 자리가 더는 비어 있지 않다 → 지금 본 물체 + 처음 본 물체로 확인, 막혔으면 놓지 않고 실패로 알린다
-            self.table_edge_seen(wait=1.0)
-            hit = self._place_blocked(target[0], target[1], np.vstack([obs0, self._place_obstacles(top_h)]))
-            if hit is not None:
-                raise SkillError(f"놓기 직전 확인: 놓을 자리 {np.round(target[:2], 3)} 옆 물체 {np.round(hit, 3)} → 놓지 않음")
+            # 내려놓기 바로 전에 다시 본다: 팔을 뻗고 기다리는 동안 몸통이 흐르거나(시험: 11 cm·10°) 물체가 옮겨졌으면,
+            # 또는 자리를 정할 때 상자를 든 팔이 머리 카메라를 가려 못 본 물체가 있으면(v3 시험 r7: 옆 상자 가장자리) 정한 자리가
+            # 비어 있지 않다 → 처음 본 물체 + 지금 본 물체로 자리를 다시 골라 팔을 옮긴다 (2 번까지), 그래도 막히면 놓지 않고 실패
+            for k in range(3):
+                self.table_edge_seen(wait=1.0)
+                obs0 = np.vstack([obs0, self._place_obstacles(top_h)])
+                hit = self._place_blocked(target[0], target[1], obs0)
+                if hit is None:
+                    break
+                if k == 2:
+                    raise SkillError(f"놓기 직전 확인: 놓을 자리 {np.round(target[:2], 3)} 옆 물체 {np.round(hit, 3)} → 놓지 않음")
+                self.log(f"[place] 놓기 직전 확인: 자리 {np.round(target[:2], 3)} 옆 물체 {np.round(hit, 3)} → 자리 다시 고름 {k + 1}/2")
+                target, R, pre, q_pre = self._choose_place(side, fwd, lat, edge, top_h, obs0)
+                self.log(f"[place] {self.holding[side]} → base {np.round(target, 3)} ({side})")
+                self.set_table(station, pad=self.TRANSIT_PAD)
+                self.move_joints(f"{side}_arm", q_pre, vel=self.HOLD_VEL)
+                self.set_table(station)
+                self.station_keep(place_ref, label=" 놓기 전")
         self.cartesian(side, [target], R, avoid_collisions=False)
-        self.open_gripper(side)
+        self.gripper(side, min(0.044, self.box_size / 2 + 0.012))     # 놓기: 옆 물체에 닿지 않게 조금만 연다
         time.sleep(0.5)
         # 놓은 뒤: 접근 반대 방향으로 빼고 위로 들어 올려 작업대·물체와 충분히 떨어뜨림
         try:
@@ -1680,7 +1706,9 @@ class RobotSkills(Node):
     # 접근하며 지나가는 띠(로봇 쪽으로 PLACE_HAND_BACK)까지 비어 있어야 한다. 예전에는 상자 중심끼리 10 cm 만 보고 옆으로만 옮겼다
     PLACE_FRONT = 0.040      # 놓을 자리 중심 → 앞(작업대 안쪽) 여유: 상자 반폭 2.5 + 1.5 cm
     PLACE_HAND_BACK = 0.14   # 놓을 자리 중심 → 뒤(로봇 쪽): 손바닥·손목이 지나가는 길이
-    PLACE_HALF_W = 0.06      # 옆 반폭: 벌린 손가락(±4.4 cm) + 손가락 두께·여유
+    PLACE_HALF_W = 0.07      # 옆 반폭: 놓을 때 여는 손가락(상자 반폭 + 1.2 cm, place) + 손가락 두께 + 돌아간 옆 상자 모서리 여유
+    # 놓을 때 여는 폭 (손가락 하나 이동량): 끝까지(0.044) 열면 벌어지는 손가락이 9 cm 옆 상자(15° 돌아감)에 닿았다 (v3 시험 r1·r7).
+    # 상자 반폭 + 1.2 cm 면 손가락이 상자에서 떨어진다
     PLACE_FWD_RANGE = (0.08, 0.22)   # 앞 모서리에서 안쪽 거리 범위 [m]
     PLACE_LAT_MAX = 0.24
     PLACE_GRID = 0.02
