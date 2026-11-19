@@ -41,6 +41,7 @@ setup(
     entry_points={
         "console_scripts": [
             "mujoco_bridge = mobile_openarm_sim.bridge_node:main",
+            "sim_cameras = mobile_openarm_sim.camera_server:main",   # 머리 RGB-D + 양 손목 카메라 (별도 프로세스)
         ],
     },
 )

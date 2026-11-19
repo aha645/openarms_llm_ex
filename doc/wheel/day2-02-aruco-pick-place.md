@@ -40,7 +40,9 @@
 3. **깊이 보정**: 4 cm 마커는 640×480 영상에서 약 23픽셀이라 PnP만으로는 거리 오차가 5~15%(4.5~11 cm) 납니다. 그래서 RGB-D(Red Green Blue + Depth, 컬러+깊이) 카메라처럼 **깊이 영상**으로 거리를 다시 잽니다. 오차 1~3 mm.
 4. **좌표 변환(TF)**: `head_camera_optical_frame` 기준 → `base_footprint`(로봇 바닥 중심) 기준으로 바꿔 `/aruco/detections` 에 JSON으로 발행합니다.
 
-시뮬레이션에서는 `mujoco_bridge` 가 카메라 렌더·검출을 직접 합니다. 실로봇에서는 `aruco_detector` 노드가 같은 형식으로 대신합니다.
+시뮬레이션에서는 카메라 서버 `sim_cameras`(`camera_server.py`, TRON1 과 같은 코드)가 별도 프로세스에서 **머리 RGB-D 카메라와 양 손목 카메라**를 렌더링·검출합니다(`camera_process:=false` 면 예전처럼 `mujoco_bridge` 가 머리 카메라만). 실로봇에서는 `aruco_detector` 노드가 같은 형식으로 대신합니다.
+
+**손목 카메라**는 손의 바깥쪽(손 −x, 8.5 cm 브래킷)에 달려 손끝 앞 상자를 비스듬히 내려다봅니다. 카메라와 손끝이 한 몸이라 '손끝 기준 상자 위치'(`/wrist_*_camera/aruco/detections` 의 `position_tcp`)를 팔 처짐과 상관없이 바로 잽니다. 집기 앱은 이 검출이 들어오면 접근점·파지 위치에서 손을 상자에 맞추며(`visual_servo`) 들어갑니다.
 
 ### 집기(Pick) 순서 — `robot_skills.py` 의 `pick()`
 
@@ -49,29 +51,31 @@ flowchart TB
   A["① 도킹 dock()<br/>작업대와 정면 + 앞 모서리까지 0.40 m"] --> B["② 작업대를 계획 장면에 추가 set_table()"]
   B --> C["③ 마커 찾기 find_marker()<br/>5번 평균, 상자 중심 = 마커 − 2.5 cm"]
   C --> D["④ 거리 보정<br/>상자가 앞 0.52 m 아니면 바퀴로 미세 이동 후 다시 인식"]
-  D --> E["⑤ 그리퍼 열기 → carry 자세<br/>모든 상자를 장애물로 추가 set_boxes()"]
-  E --> F["⑥ 접근 자세 풀기 _solve_approach()<br/>45° 숙인 손, 손목 회전 70°·−70°·90°… 순서로 IK 시도<br/>상자 10 cm 뒤 지점으로 이동"]
-  F --> G["⑦ 목표 상자만 장면에서 빼고<br/>직선 접근 cartesian(): 상자 중심 + 1 cm"]
+  D --> E["⑤ 그리퍼 열기 (팔은 home 그대로)<br/>모든 상자를 장애물로 추가 set_boxes()"]
+  E --> F["⑥ 접근 자세 풀기 _solve_approach()<br/>45° 숙인 손, 손목 회전: 손목 카메라 있으면 −90°·−70°…, 없으면 0°·±50°…<br/>상자 10 cm 뒤 지점으로 이동"]
+  F --> G["⑦ 목표 상자만 장면에서 빼고<br/>손목 카메라로 손을 맞추며(visual_servo) 직선 접근<br/>손끝은 상판 + 2.9 cm 아래로 내려가지 않음"]
   G --> H["⑧ 그리퍼 닫기 → 손가락 간격 > 6 mm면 성공<br/>(다 닫혔으면 빈손 → 다시 인식해 1회 재시도)"]
-  H --> I["⑨ 10 cm 들어 올리기 → carry 자세"]
+  H --> I["⑨ 10 cm 들어 올리기 → 쥔 손 방향 그대로 몸 쪽으로<br/>(상자 수평, Nav2 외곽을 상자 끝까지 늘림)"]
 ```
 
 왼쪽·오른쪽 팔은 상자가 로봇 중심선의 오른쪽(y < 0)이면 오른팔, 왼쪽이면 왼팔로 자동 선택합니다.
 
 ### 놓기(Place) 순서 — `place()`
 
-도킹 → 작업대 앞 모서리에서 12 cm 안쪽, 손 쪽으로 12 cm 옆 지점 계산 → 그 위 5 cm로 접근 → 직선으로 내려 놓기 → 그리퍼 열기 → 뒤·위로 빼기 → `carry` → `home`.
+도킹 → 작업대 앞 모서리에서 12 cm 안쪽, 손 쪽으로 12 cm 옆 지점(다른 물건이 있으면 피해서 빈 곳) 계산 → 들고 있던 손 방향 그대로 그 위 5 cm로 직선 이동 → 직선으로 내려 놓기 → 그리퍼 열기 → 뒤·위로 빼기 → `carry` → `home`.
+
+**왜 carry 로 접지 않나:** 예전에는 상자를 쥔 뒤 정해진 관절각 `carry` 로 팔을 접었습니다. 그러면 손목이 돌며 상자가 기울고 가슴 쪽으로 붙습니다(물이 든 그릇이면 쏟아짐). 지금은 쥔 손의 방향을 고정한 직선으로 위로 들고 몸 쪽으로 당겨(`_hold_level()`), 쥘 때처럼 수평인 채로 들고 다니고 그대로 내려놓습니다. 몸 앞으로 나온 상자는 바퀴형 LiDAR(0.26 m 높이)에 안 보이므로 들고 있는 동안 Nav2 로봇 외곽(footprint) 앞쪽을 상자 끝까지 늘립니다(`set_footprint()`).
 
 ### 파지 보조(grasp assist)
 
-MuJoCo의 손가락 마찰만으로 5 cm 상자를 들면 가끔 미끄러집니다. 교육용으로 **"그리퍼가 닫혀 있고 상자가 손가락 사이에 닿아 있으면 상자를 손에 고정"** 하는 보조 기능을 켜 두었습니다(`sim_core.py` `_update_attached()`). 끄려면 `sim.launch.py grasp_assist:=false`. 실로봇에는 없는 기능입니다.
+MuJoCo의 손가락 마찰만으로 5 cm 상자를 들면 가끔 미끄러집니다. 교육용으로 **"그리퍼를 닫는 중 두 손가락이 모두 상자에 닿으면 그때의 상대 자세로 손끝↔상자 weld 구속을 켜는"** 보조 기능을 켜 두었습니다(`sim_core.py` `_update_attached()`). 손가락 하나만 닿거나 손가락이 상판에 걸리면 붙지 않으므로, 손 위치가 어긋난 파지는 실패로 드러납니다. 끄려면 `sim.launch.py grasp_assist:=false`. 실로봇에는 없는 기능입니다.
 
 ## 2. 실제로 실행되는 소스
 
 | 순서 | 파일 | 하는 일 |
 |---|---|---|
 | 1 | `mobile_openarm/src/mobile_openarm_sim/launch/sim.launch.py start_x:=2.5 start_y:=2.45 start_yaw:=1.5708` | 로봇을 처음부터 작업대 A 앞(북쪽을 봄, 90° = 1.5708 rad)에 놓고 시작. Nav2는 안 씀 |
-| 1-1 | `mobile_openarm_sim/sim_core.py` `maybe_camera()` + `aruco_utils.py` | 카메라 렌더 → ArUco 검출 → PnP → 깊이 보정 |
+| 1-1 | `mobile_openarm_sim/camera_server.py` (`sim_cameras`) + `aruco_utils.py` | 머리·양 손목 카메라 렌더 → ArUco 검출 → PnP → 깊이 보정 (`camera_process:=false` 면 `sim_core.py` `maybe_camera()`) |
 | 1-2 | `bridge_node.py` `publish_detections()` | `/aruco/detections`(JSON), `/aruco/poses`, `/aruco/markers`(RViz용) 발행 |
 | 2 | `move_group.launch.py` | MoveIt (01장과 같음) |
 | 3 | `mobile_openarm/src/mobile_openarm_apps/mobile_openarm_apps/pick_place.py` | ① Nav2가 없으므로 `map → odom` TF를 시작 위치로 직접 발행(`ensure_map_frame()`) ② `home_arms()` ③ 보이는 마커 출력 ④ `pick(object)` ⑤ `place(offset=(0.48, -0.04))` — 같은 작업대 로봇 정면 중앙에 놓기 |
@@ -171,16 +175,17 @@ map 프레임 없음 → map→odom 정적 TF 발행 (시작 위치 2.5, 2.45, 9
 [arm] left_arm → 'home'
 [arm] right_arm → 'home'
 [pick] box_0(id 0) @ base [ 0.52 -0.12  0.725] → right 팔
-[arm] right_arm → 'carry'
-[ik] right 접근 자세 roll=70°
+[ik] right 접근 자세 pitch=45° roll=-90°, 10 cm 앞에서 직선 접근
+[servo 접근점] 1: 손끝(손목 카메라) [...] → 목표 [...], 오차 [...] cm
 ...
+[pick] 쥔 손 방향 그대로 들기: 손끝 base [...] (상자 수평), Nav2 외곽 앞 0.36 m
 [pick] 완료: box_0
 [place] box_0 → base [0.48 -0.04 0.735] (right)
 [place] 완료: box_0
 pick_place 완료
 ```
 
-MuJoCo 창에서: 오른팔이 몸 쪽(carry)으로 올라옴 → 상자 뒤 위쪽으로 → 직선으로 내려가 손가락이 상자를 감쌈 → 닫고 들어 올림 → 앞쪽 가운데에 내려놓음 → 팔 내림.
+MuJoCo 창에서: 오른팔이 상자 뒤 위쪽으로 → 손목 카메라로 맞추며 직선으로 내려가 손가락이 상자를 감쌈 → 닫고 들어 올려 그 방향 그대로 몸 쪽으로 → 앞쪽 가운데에 내려놓음 → 팔 내림. 손목 카메라 영상은 `ros2 run rqt_image_view rqt_image_view /wrist_right_camera/image_raw/compressed` 로 볼 수 있습니다.
 
 ### 단계 5 — 다른 상자로 반복
 

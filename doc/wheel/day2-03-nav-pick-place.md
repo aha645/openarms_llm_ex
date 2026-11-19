@@ -27,7 +27,7 @@ DAY 1(주행)과 DAY 2-02(조작)를 이어 붙이기만 하면 잘 안 됩니�
 
 | 문제 | 해결 (`robot_skills.py`) |
 |---|---|
-| 팔을 벌린 채 달리면 벽·사람에 부딪힘. Nav2의 footprint는 바닥 사각형만 앎 | 주행 전에 `home_arms()`: 빈손은 `home`, 물건을 들었으면 `carry` (손이 footprint 안) |
+| 팔을 벌린 채 달리면 벽·사람에 부딪힘. Nav2의 footprint는 바닥 사각형만 앎 | 주행 전에 `home_arms()`: 빈손은 `home`. 상자를 들었으면 쥔 손 방향 그대로(상자 수평) 몸 앞에 두고, 그동안 Nav2 footprint 앞쪽을 상자 끝까지 늘림(`set_footprint()`) |
 | Nav2(AMCL) 위치 오차가 ±5 cm. 작업대에 너무 가까이 목표를 주면 Nav2가 비용 지도 팽창 영역 안이라 도착을 못 함 | 스테이션을 작업대 **0.70 m 앞**에 두고 Nav2는 거기까지만. 이후 **도킹** `dock()`: ① 작업대와 정면이 되게 제자리 회전 `rotate_base()` ② 앞 모서리까지 0.40 m가 되게 직진 `nudge_base()` (오도메트리 TF로 거리 확인하며) |
 | 도킹 후에도 남는 오차 | 집기 직전 **카메라로 잰 상자 거리**로 한 번 더 미세 이동 (`IDEAL_REACH = 0.52 m`) — 지도 대신 눈을 믿음 |
 | 출발할 때 작업대에 붙어 있으면 회전하다 부딪힘 | `navigate()` 시작 시 작업대에서 0.7 m까지 뒤로 빠진 뒤 출발 |
@@ -53,10 +53,10 @@ sequenceDiagram
   N->>B: /cmd_vel ... 도착
   P->>B: dock() — 회전·직진 /cmd_vel
   P->>B: /aruco/detections 읽기
-  P->>M: pick(box_0) — 접근·직선·집기·carry
+  P->>M: pick(box_0) — 접근·손목 카메라로 맞추며 직선·집기·수평으로 들기
   P->>N: navigate(place_station) (-2.5, 2.15, 90°)
   P->>B: dock()
-  P->>M: place() — 내려놓기·carry·home
+  P->>M: place() — 그 방향 그대로 내려놓기·carry·home
   P->>N: navigate(home)
 ```
 
@@ -135,8 +135,8 @@ ros2 run mobile_openarm_apps nav_pick_place --ros-args -p object:=box_0
 | `[base] 제자리 회전 +n°` / `[base] 미세 이동 +0.30 m` | 도킹: 정면 맞추고 0.40 m까지 접근 | 로봇이 천천히 작업대 쪽으로 |
 | `[pick] box_0(id 0) @ base […] → right 팔` | 상자 위치 인식, 팔 선택 | |
 | `[pick] 보정 후 상자 위치 base […]` | 카메라 기준 미세 이동 (필요할 때만) | 로봇이 몇 cm 앞뒤로 |
-| `[arm] right_arm → 'carry'`, `[ik] right 접근 자세 roll=70°` | carry 자세, 접근 자세 IK 풀기 | 오른손이 몸 쪽으로 올라왔다가 상자 뒤 위로 |
-| `[pick] 완료: box_0` | 집고 carry 자세 | 오른손이 상자를 들고 몸 쪽으로 |
+| `[ik] right 접근 자세 pitch=45° roll=-90°`, `[servo 접근점] …` | 접근 자세 IK 풀기, 손목 카메라로 손 맞추기 | 오른손이 상자 뒤 위로 |
+| `[pick] 쥔 손 방향 그대로 들기 …`, `[pick] 완료: box_0` | 집고 수평으로 들기 | 오른손이 상자를 수평으로 든 채 몸 쪽으로 |
 | `[base] 미세 이동 -0.xx m`, `[nav] → place_station …` | 작업대에서 물러난 뒤 B로 | 상자를 든 채 서쪽으로 |
 | `[place] box_0 → base […] (right)` / `[place] 완료: box_0` | 내려놓고 팔 내림 | 작업대 B 위에 빨간 상자 |
 | `[nav] → home …`, `nav_pick_place 완료` | 복귀 | |
@@ -179,7 +179,7 @@ ros2 run mobile_openarm_apps nav_pick_place --ros-args \
 ## 6. 확인 질문
 
 1. Nav2 목표를 작업대 바로 앞이 아니라 0.70 m 앞에 둔 이유는? → 비용 지도 팽창 영역 밖이라 Nav2가 확실히 도착할 수 있도록. 마지막 접근은 도킹으로
-2. 운반 중 팔을 `carry` 자세로 하는 이유는? → 손이 로봇 바닥 윤곽 안에 있어야 Nav2의 충돌 검사가 맞음
+2. 운반 중 상자를 몸 앞에 수평으로 들 때 Nav2 footprint 를 늘리는 이유는? → LiDAR(0.26 m)가 든 상자를 못 보고, Nav2 의 충돌 검사는 footprint 만 보기 때문
 3. AMCL 오차를 마지막에 없애는 방법은? → 카메라로 잰 상자 거리로 미세 이동
 
 ## 7. 잘 안 될 때

@@ -55,8 +55,10 @@ from std_srvs.srv import SetBool, Trigger
 from tf2_ros import TransformBroadcaster
 from visualization_msgs.msg import Marker, MarkerArray
 
+from .color_boxes import hide_box_markers
 from .kinematics import mat_to_quat
 from .sim_core import ARM_JOINTS, GRIPPER_JOINT, WHEEL_RADIUS, MobileOpenArmSim
+from .sim_state_shm import StateWriter
 
 BASE_LINK_Z = WHEEL_RADIUS   # base_footprint → base_link
 
@@ -98,6 +100,8 @@ class MujocoBridge(Node):
         p("start_y", 0.0)
         p("start_yaw", 0.0)
         p("publish_odom_tf", True)
+        p("state_shm", "")             # 비어 있지 않으면 카메라 서버(camera_server.py)용 시뮬 상태 공유 메모리 이름
+        p("box_markers", True)         # False: 상자 윗면 마커를 지움 (box_source:=color, 색으로 인식)
         gp = lambda n: self.get_parameter(n).value  # noqa: E731
 
         self.sim = MobileOpenArmSim(
@@ -107,6 +111,15 @@ class MujocoBridge(Node):
             person_speed=gp("person_speed"))
         if gp("start_x") or gp("start_y") or gp("start_yaw"):
             self.sim.set_base_pose(gp("start_x"), gp("start_y"), gp("start_yaw"))
+        # 카메라 별도 프로세스 (camera_server.py): 브리지는 렌더링에 필요한 상태만 공유 메모리에 쓴다.
+        # 이때 sim.launch.py 는 브리지의 camera 를 끈다 (머리·손목 카메라와 ArUco 를 카메라 서버가 대신 낸다).
+        # 물리 스레드(on_tick)가 시작되기 전에 만들어 둔다
+        self._state_writer = StateWriter(self.sim.m, gp("state_shm")) if gp("state_shm") else None
+        if self._state_writer:
+            self.get_logger().info(f"시뮬 상태 공유 메모리 '{gp('state_shm')}' → 카메라 서버")
+        if not gp("box_markers"):
+            # 상자 마커 없이: 뷰어에도 마커 없는 색 상자로 보이게 (카메라 서버도 같은 일을 한다)
+            self.get_logger().info(f"상자 마커 {hide_box_markers(self.sim.m)} 개를 지움 (색으로 인식)")
         self.viewer_enabled = gp("viewer")
         self.publish_image = gp("publish_image")
         self.image_period = 1.0 / max(gp("image_hz"), 0.1)
@@ -235,9 +248,15 @@ class MujocoBridge(Node):
             m.light_castshadow[:] = 0
             m.mat_reflectance[:] = 0
 
+    def _state_tilt(self):
+        """카메라 서버에 넘기는 base_link → base_footprint (높이, pitch, roll). 바퀴형은 높이만 (이족은 덮어씀)."""
+        return (BASE_LINK_Z, 0.0, 0.0)
+
     def on_tick(self, sim):
         if self.stop_event.is_set() or not self.context.ok():
             return
+        if self._state_writer is not None:
+            self._state_writer.write(sim.d, self._state_tilt())
         t = sim.time
         c = Clock()
         c.clock = stamp(t)
@@ -571,6 +590,8 @@ def main():
         pass
     finally:
         node.stop_event.set()
+        if node._state_writer:
+            node._state_writer.close()
         ex.shutdown(wait_for_threads=True)
         node.destroy_node()
         rclpy.try_shutdown()

@@ -13,10 +13,10 @@ import numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, ".."))
 sys.path.insert(0, os.path.join(HERE, "../../../../mobile_openarm/src/mobile_openarm_sim"))
-from tron1_openarm_sim import table_edge  # noqa: E402
+from mobile_openarm_sim import table_edge  # noqa: E402
 from tron1_openarm_sim.arm_poses import POSES  # noqa: E402
 from tron1_openarm_sim.biped_core import BipedOpenArmSim  # noqa: E402
-from tron1_openarm_sim.camera_server import OPT  # noqa: E402
+from mobile_openarm_sim.camera_server import OPT  # noqa: E402
 
 W, H = 960, 720
 EDGE_Y, TABLE_X = 2.85, 2.5          # pick_table 앞 모서리 (월드 y), 중심 x

@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 """MJCF 의 양손(openarm_*_hand)에 손목 카메라를 단다 (그 자리에서 파일 수정, 이미 있으면 건드리지 않음).
-값은 tron1_openarm_sim/wrist_cameras.py. 학습용 모델(*_train.xml)에는 달지 않는다 (카메라를 안 쓰고, MJX 모델을 바꾸지 않으려고).
+값은 mobile_openarm_sim/wrist_cameras.py. 학습용 모델(*_train.xml)에는 달지 않는다 (카메라를 안 쓰고, MJX 모델을 바꾸지 않으려고).
 
+    python3 tools/wrist_cameras.py mjcf/mobile_openarm.xml mjcf/mobile_openarm_light.xml          # 바퀴형
     python3 tools/wrist_cameras.py mjcf/sf/tron1_openarm.xml mjcf/sf/tron1_openarm_light.xml mjcf/tron1_openarm.xml mjcf/tron1_openarm_light.xml
-build_tron1_openarm.py 가 모델을 새로 만들 때도 자동으로 적용한다.
+05_regen_models.sh(바퀴형)·build_tron1_openarm.py(TRON1) 가 모델을 새로 만들 때도 자동으로 적용한다.
 """
 import os
 import re
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
-from tron1_openarm_sim import wrist_cameras as WC  # noqa: E402
+from mobile_openarm_sim import wrist_cameras as WC  # noqa: E402
 
 
 def _f(*v):
@@ -31,8 +32,10 @@ def apply_wrist_cameras(path):
             raise RuntimeError(f"{path}: {WC.HAND_BODY[side]} body 없음")
         indent = re.search(r"\n([ \t]*)[^\n]*$", s[:m.start()]).group(1) + "  "
         ins = (f'\n{indent}<camera name="{name}" pos="{_f(*WC.POS_IN_HAND)}" fovy="{WC.FOVY:g}" xyaxes="{_f(*WC.XYAXES)}" />'
-               f'\n{indent}<geom name="{name}_vis" type="box" size="{_f(*WC.BRACKET_HALF)}" pos="{_f(*WC.POS_IN_HAND)}" '
-               f'rgba="0.1 0.1 0.1 1" contype="0" conaffinity="0" group="2" mass="0" />')
+               f'\n{indent}<geom name="{name}_vis" type="box" size="{_f(*WC.BODY_HALF)}" pos="{_f(*WC.POS_IN_HAND)}" '
+               f'rgba="0.1 0.1 0.1 1" contype="0" conaffinity="0" group="2" mass="0" />'
+               f'\n{indent}  <geom name="{name}_bracket_vis" type="box" size="{_f(*WC.BRACKET_HALF)}" pos="{_f(*WC.BRACKET_POS)}" '
+               f'rgba="0.25 0.25 0.25 1" contype="0" conaffinity="0" group="2" mass="0" />')
         s = s[:m.end()] + ins + s[m.end():]
         added.append(name)
     if added:
