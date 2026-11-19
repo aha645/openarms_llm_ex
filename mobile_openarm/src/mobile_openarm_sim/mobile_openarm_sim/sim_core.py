@@ -421,6 +421,22 @@ class MobileOpenArmSim:
         """상자들의 world 위치 (정답값, 디버깅/채점용)."""
         return {self.m.body(b).name: [round(float(v), 4) for v in self.d.xpos[b]] for b in self.box_bodies}
 
+    ROBOT_PREFIXES = ("openarm_", "base", "left_", "right_")
+
+    def arm_contacts(self):
+        """디버그·채점용: 팔·손이 로봇 밖의 물체(작업대·상자·벽)와 닿아 있는 접촉 목록 ['팔 body-상대 body', ...].
+        시뮬 스레드가 동시에 mj_step 을 돌리므로 잠금 안에서 접촉 쌍만 복사한다."""
+        m, d = self.m, self.d
+        with self.lock:
+            pairs = [(int(d.contact[i].geom1), int(d.contact[i].geom2)) for i in range(d.ncon)]
+        out = set()
+        for g1, g2 in pairs:
+            b1, b2 = m.body(m.geom_bodyid[g1]).name, m.body(m.geom_bodyid[g2]).name
+            for a, b in ((b1, b2), (b2, b1)):
+                if a.startswith("openarm_") and not b.startswith(self.ROBOT_PREFIXES):
+                    out.add(f"{a}-{b or 'world'}")
+        return sorted(out)
+
     def attached_object(self, side):
         a = self.attached[side]
         return None if a is None else self.m.body(a[0]).name

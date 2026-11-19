@@ -270,7 +270,8 @@ class MujocoBridge(Node):
         att.data = json.dumps({s: self.sim.attached_object(s) for s in ("left", "right")})
         self.pub_att.publish(att)
         objs = String()
-        objs.data = json.dumps({"frame": "world", "objects": self.sim.object_poses()})
+        objs.data = json.dumps({"frame": "world", "objects": self.sim.object_poses(),
+                                "arm_contacts": self.sim.arm_contacts()})
         self.pub_objs.publish(objs)
 
     def publish_odom(self, t):
