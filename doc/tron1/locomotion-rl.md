@@ -705,7 +705,7 @@ TRON1_STAND_TILT=4 TRON1_EP_S=60 TRON1_STAND_LONG_MAX_S=50 \
 
 사용자 요청: "다리를 더 들고 보폭을 길게, 앞·뒤·옆으로 빠르면서도 치우치지 않고 넘어지지 않게", 이어서
 "일자로 걷기, 팔을 움직이며 일자로, 서 있을 때 발바닥을 붙이고 발을 구르지 않기". 모두 v3(배포 정책)에서 이어 학습한 미세조정이고,
-결과마다 문제를 찾아 다음 판의 보상·명령 분포를 바꿨다. 학습: `train_mjx.py --impl warp --envs 4096`, RTX 3090, 시드당 45~60 분.
+결과마다 문제를 찾아 다음 판의 보상·명령 분포를 바꿨다. 학습: `train_mjx.py --impl warp --envs 4096`, RTX 3090, 시드당 45~60 분 (판별 실행 스크립트 `tron1_openarm/tools/gait_runs/train_vN.sh`, 절차와 명령은 14-7).
 평가: `rl/eval_policy.py`(배포 조건 SF 월드·2 ms), 집기 시험: `tools/validation/series_run.sh` r1~r8 (`POLICY=` 로 후보 지정).
 학습 과정 보기: `rl/watch_training.py plot|play <runs/폴더>` (그래프·중간 정책 보행 화면).
 
@@ -823,6 +823,69 @@ TRON1_STAND_TILT=4 TRON1_EP_S=60 TRON1_STAND_LONG_MAX_S=50 \
 - **연습을 줄인 능력은 잊는다.** 옆걸음·서기를 늘리느라 느린 미세 이동을 8 % 로 줄였더니 0.05 m/s 를 못 따라갔다(v9). 실제 작업에 쓰는 명령은 모두 분포에 남긴다.
 - **오프라인 지표가 좋아도 집기 시험으로 확인.** v7 best 는 평가에서 서기 방향 변화 −0.2° 였지만 실제 집기에서 31 s 바로잡기 걸음을 했다 — 들고 있는 자세(학습에 없던 자세)·브리지 바로잡기와 같이 돌아야 드러난다.
 - 학습 그래프는 명령 종류별(옆걸음 명령일 때 옆 추종, 직진할 때 방향 오차, 느린 명령 추종)로 봐야 진척이 보인다. 전체 평균은 서기·직진 같은 쉬운 경우가 대부분이다.
+
+### 14-7. 실제로 쓴 학습·시험 절차와 명령
+
+판마다 아래 순서로 했다. 경로는 저장소 루트 기준, GPU PC(RTX 3090)에서 `10_setup_tron1.sh`·`11_train_policy.sh` 로 `.venv-biped` 를 만든 뒤.
+
+**① 학습 실행** — 판별 스크립트 `tron1_openarm/tools/gait_runs/train_vN.sh` (14-5 표의 환경 변수·시작 정책이 들어 있음)
+```bash
+DISPLAY=:1 gnome-terminal --title "보행 학습 v9" -- bash -c "bash tron1_openarm/tools/gait_runs/train_v9.sh; exec bash"
+```
+- 스크립트가 하는 일: `scripts/_gpu_select.sh` 의 `pin_gpu`(가장 빈 GPU 고정) → 공통·판별 `TRON1_*` 환경 변수 →
+  `train_mjx.py --foot sf --init <시작 정책> --init-std <탐색> --impl warp --envs 4096 --minutes <45|60> --seed 1|2 --ck-min 5 --out runs/gait_vN/seed1|2`
+  를 시드 1·2 차례로 → 끝나면 `eval_policy.py` 로 배포 정책·이전 후보·새 best/final 을 함께 평가(`runs/gait_vN/eval.json`·`eval.log`) → `runs/gait_vN/DONE`.
+- 결과물: `runs/gait_vN/seedS/{best.npz, final.npz, ckNNNmin.npz, log.json}`, 학습 출력 `runs/gait_vN/seedS.log` (`runs/` 는 git 에 넣지 않음).
+
+**② 학습 중 보기** (선택, 학습과 같은 PC)
+```bash
+python3 tron1_openarm/rl/watch_training.py plot tron1_openarm/runs/gait_v9   # 그래프: 속도 추종·옆걸음 옆 추종·서기 밀림·넘어짐·직진 방향 오차·느린 추종
+mobile_openarm/.venv-mobile/bin/python tron1_openarm/rl/watch_training.py play tron1_openarm/runs/gait_v9   # 최신 중간 정책 보행 (q 로 끝)
+```
+
+**③ 중간 평가와 중단 판단** — 새 벌점은 다른 능력을 무너뜨릴 수 있어(v8) 20·30 분째 중간 정책을 따로 평가했다. GPU 는 학습이 쓰므로 CPU 로.
+```bash
+cd tron1_openarm/rl
+CUDA_VISIBLE_DEVICES= ../../mobile_openarm/.venv-mobile/bin/python eval_policy.py \
+  ../runs/gait_v9/seed1/best.npz ../runs/gait_v10/seed1/ck030min.npz --out=/tmp/eval_v10ck30.json
+```
+- 시험 항목(정책마다 시드 3 개, 약 25 분): 제자리·직진·회전·팔 동작·밀기·한 팔·빠른 걸음(전진 0.6·후진 0.4·옆 ±0.3)·팔 움직이며 직진·느린 미세 이동 —
+  `eval_policy.py` 머리말. 배포 조건(SF 월드, 물리 2 ms, 상반신 충돌), 바닥 말고는 충돌 끔.
+- 판단: 이전 best 보다 나빠진 항목(옆걸음·서기 기울기·팔 동작 흐름·느린 추종)이 있으면 학습을 멈춤(v8 30 분, v10 30 분).
+
+**④ 학습 환경 ↔ 배포 물리 비교** (결과가 이상할 때만) — 같은 정책·같은 명령을 MJX 학습 환경과 CPU 환경에서 돌려 비교
+```bash
+cd tron1_openarm/rl && ../.venv-biped/bin/python mjx_parity.py --foot sf --policy ../src/tron1_openarm_sim/policies/tron1sf_openarm_policy.npz
+```
+(v3 가 0.31 m/s 만 내는 것처럼 보였을 때 `fast_0.6`·`strafe_0.3` 시나리오로 학습 쪽 0.59 m/s 를 확인 → 평가의 벽 충돌을 찾음, 14-1)
+
+**⑤ 집기 시험 (후보 정책으로)** — 오프라인 평가가 좋아도 실제 앱(MoveIt·브리지 서기 방향 유지·들고 있는 자세)과 같이 돌려야 드러나는 문제가 있다(v7 best).
+```bash
+DISPLAY=:1 gnome-terminal --title "v9 best 집기 r1~r8" -- bash -c \
+  "POLICY=$PWD/tron1_openarm/runs/gait_v9/seed1/best.npz bash tron1_openarm/tools/validation/series_run.sh v9bA_ r1 r2 r3 r4 r5 r6 r7 r8; exec bash"
+```
+- `POLICY=` → `pick_test.sh` 가 `sim.launch.py policy:=<파일>` 로 보행 정책을 바꿈. 배치 r1~r8 은 `series_layouts.txt` (상자 위치·작업대 쪽).
+- 결과: `/tmp/tron1_logs/series_v9bA_.txt` 의 `RESULT 이름 놓기완료수 최종상자위치`, 시험마다 집기 앱 로그 `sfpk_v9bA_rN.log`, 정답 기록 `rec_sf_v9bA_rN.jsonl`.
+
+**⑥ 서 있어야 할 때 걸은 시간** — 발 구르기(방향 바로잡기 걸음)를 숫자로
+```bash
+python3 tron1_openarm/tools/validation/step_time.py /tmp/tron1_logs/rec_sf_v9bA_r*.jsonl
+#  rec_sf_v9bA_r1.jsonl: 전체 125.8 s, 걸음 모드 48.8 s, 방향 바로잡기 6.8 s, 최대 기울기 5.9°
+#  rec_sf_v9bA_r3.jsonl: 전체 108.4 s, 걸음 모드   0.0 s, 방향 바로잡기 0.0 s, 최대 기울기 5.4°
+```
+(걸음 모드 = 정책 서기 모드가 꺼진 시간 — 작업대 앞 위치 맞추기 이동 포함. 방향 바로잡기 = 그중 회전 명령만 있는 시간.
+v7 best r3 31 s, v9 best r3~r7 0 s, r1·r2·r8 은 느린 미세 이동 45~80 s → v10)
+
+**⑦ 미션 시험 (후보 정책으로)** — Nav2·LLM 플래너·작업 관리자까지 전체
+```bash
+DISPLAY=:1 gnome-terminal --title "v5 미션" -- bash -c \
+  "VIEW=1 POLICY=$PWD/tron1_openarm/runs/gait_v5/seed1/final.npz bash tron1_openarm/tools/validation/mission_test.sh sf _v5m; exec bash"
+```
+- 기본 명령 "빨간 상자를 왼쪽 작업대로 옮기고 돌아와". 결과: 미션 시간, 최종 상자 위치(정답), 최대 기울기, 팔 접촉. 기록 `/tmp/tron1_logs/mrec_sf_v5m.jsonl`.
+- Nav2 속도 상향(14-1)도 같은 명령으로 정책 v3 그대로 586 → 365 s 를 확인.
+
+**⑧ 배포** (아직 안 함, 배포 정책은 v3) — 후보를 `tron1_openarm/src/tron1_openarm_sim/policies/tron1sf_openarm_policy.npz` 로 바꾸고,
+`eval_policy.py` 결과를 `tron1_openarm/policies/eval_results.json` 에, 문서 갱신 뒤 PR.
 
 ## 확인 질문
 
