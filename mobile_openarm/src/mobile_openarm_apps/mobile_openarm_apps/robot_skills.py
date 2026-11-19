@@ -1692,8 +1692,13 @@ class RobotSkills(Node):
 
     # 바퀴형: 쥔 상자를 들고 다니는 자세 — 상자가 쥘 때처럼 수평인 채 위로 들고 몸 쪽으로 당긴다.
     # 예전에는 정해진 관절각 carry 로 접어 손목이 돌며 상자가 기울고 가슴에 붙었다 (사용자 지적: 물이 든 그릇이면 쏟아진다).
-    HOLD_UP = 0.15                  # 상판 위 손끝 높이 [m]
-    HOLD_FWD = 0.30                 # 몸 쪽으로 당길 목표: 몸 앞 손끝 거리 [m] (Nav2 외곽 앞 0.28 m 근처)
+    # 머리 카메라를 가리지 않는 높이·자리 (시뮬 분할 렌더로 잼: 놓기 작업대 앞 0.40·0.58 m 에서 작업대 상판·다른 상자 화소 중
+    # 팔·쥔 상자에 가려지는 비율). 상판 + 12.5 cm·앞 0.30 m(시험 8 자세)는 16.5 % — 놓을 쪽(쥔 팔 쪽) 상판이 안 보였다.
+    # 손끝 높이 1.00 m(상판 + 30 cm)에서는 카메라 시야 위로 빠져 앞 0.28 m·옆 0.20 m 에서 0.2~0.5 %, 몸 쪽으로 다 못 당겨
+    # 앞 0.45~0.52 m 에 남아도 3~9 %. 몸·머리와 닿는 자세 없음
+    HOLD_UP = 0.30                  # 상판 위 손끝 높이 [m] (작업대 0.70 m → 1.00 m)
+    HOLD_FWD = 0.28                 # 몸 쪽으로 당길 목표: 몸 앞 손끝 거리 [m]
+    HOLD_SIDE = 0.20                # 바깥쪽으로: 몸 중심에서 손끝 옆 거리 최소 [m] (가운데 머리 카메라 시야를 비킴)
     HOLD_YAWS = (0, 15, -15, 30, -30, 45, -45)   # 당길 때 손 수평 방향(수직축 둘레) 후보 [°] — 상자 수평과 무관
     BASE_FOOTPRINT = [(0.28, 0.26), (0.28, -0.26), (-0.27, -0.26), (-0.27, 0.26)]   # config/nav2_params.yaml 과 같은 값
 
@@ -1707,8 +1712,8 @@ class RobotSkills(Node):
 
     def _hold_level(self, side):
         """쥔 상자를 수평으로 유지한 채 들어 올리고 몸 쪽으로 당긴다. 앞뒤로 옮기거나 접을 때 손이 기울지 않는다.
-        ① 손 방향 그대로 수직으로 들어 올림 (손끝 = 상판 + HOLD_UP)
-        ② 몸 쪽(앞 HOLD_FWD)으로 직선. 상자가 수평이려면 손의 숙임·기울기만 지키면 되고 수직축 둘레 방향(yaw)은 돌아도 된다 →
+        ① 손 방향 그대로 수직으로 들어 올림 (손끝 = 상판 + HOLD_UP, 머리 카메라 시야 위)
+        ② 몸 쪽(앞 HOLD_FWD)·바깥쪽(옆 HOLD_SIDE)으로 직선. 상자가 수평이려면 손의 숙임·기울기만 지키면 되고 수직축 둘레 방향(yaw)은 돌아도 된다 →
            yaw 후보마다 직선이 얼마나 되는지 미리 재서 가장 멀리 가는 방향으로, 되는 데까지만 간다.
            (손 방향을 완전히 고정하면 팔 관절 한계로 76~92 % 만 풀렸다: 바퀴형 시험 7. 시작·끝 방향이 수직축 회전만 다르므로
             직선 경로 중간의 손 방향 보간도 수직축 회전 → 상자는 내내 수평)"""
@@ -1725,7 +1730,8 @@ class RobotSkills(Node):
         tf = self._tf_matrix(TCP[side])
         if tf is not None and tf[0][0] > self.HOLD_FWD + 0.01:
             p, R = tf
-            goal = np.array([self.HOLD_FWD, p[1], p[2]])
+            sgn = -1.0 if side == "right" else 1.0
+            goal = np.array([self.HOLD_FWD, sgn * max(abs(float(p[1])), self.HOLD_SIDE), p[2]])
             q = {n: self._joints[n] for n in ARM_JOINTS[side] if n in self._joints}
             best = None
             for deg in self.HOLD_YAWS:
@@ -1796,8 +1802,11 @@ class RobotSkills(Node):
         moved = False
         if not self.can_strafe:
             # 바퀴형: 들고 있던 손 방향 그대로 놓을 자리 위 접근점까지 직선 (손 방향은 수평 방향만 조금 돌 수 있음 → 상자 수평 유지)
+            # 들고 있던 높이 그대로 놓을 자리 위로 → 접근점까지 내려감 (두 구간 직선, 손 방향은 수직축 회전만)
+            tf = self._tf_matrix(TCP[side])
+            hz = max(float(pre[2]), float(tf[0][2])) if tf is not None else float(pre[2])
             try:
-                self.cartesian(side, [pre], R, vel=0.15, min_fraction=0.95)
+                self.cartesian(side, [np.array([pre[0], pre[1], hz]), pre], R, vel=0.15, min_fraction=0.95)
                 moved = True
             except SkillError as e:
                 self.log(f"[place] 접근점까지 직선 불가({e}) → 관절 이동")
