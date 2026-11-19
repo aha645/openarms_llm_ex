@@ -51,8 +51,8 @@ def plot(run):
     import matplotlib
     matplotlib.use("TkAgg")
     import matplotlib.pyplot as plt
-    keys = [("lin_track", "속도 추종 (1 = 명령대로)"), ("vy_track", "옆 방향 추종 (치우침·옆걸음)"), ("clear", "발 들기 부족 [cm²] (작을수록 높이 듦)"),
-            ("fall_rate", "넘어짐 비율"), ("heading", "직진 방향 오차 (3° = 1, 작을수록 일자)"), ("liftoff", "서 있을 때 발 뗀 비율")]
+    keys = [("lin_track", "속도 추종 (1 = 명령대로)"), ("side_vy", "옆걸음 명령일 때 옆 추종"), ("clear_walk", "걷는 중 발 들기 부족 [cm²]"),
+            ("fall_rate", "넘어짐 비율"), ("head_straight", "직진할 때 방향 오차 (3° = 1)"), ("liftoff", "서 있을 때 발 뗀 비율")]
     for f in ("NanumGothic", "Noto Sans CJK KR", "Noto Sans CJK JP", "UnDotum"):
         try:
             matplotlib.font_manager.findfont(f, fallback_to_default=False)

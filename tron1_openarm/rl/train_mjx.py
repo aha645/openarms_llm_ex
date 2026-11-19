@@ -72,6 +72,18 @@ def critic_input(obs, lin, cmd, est):
     return jnp.concatenate([obs, lin, cmd, est], -1)
 
 
+def split_stats(tr):
+    """명령 종류별 평균 — 전체 평균은 서기·직진처럼 쉬운 경우가 대부분이라 옆걸음·발 들기 진척이 가려졌다 (v6 그래프).
+    tr["cmd"] = 정책 명령 벡터 (vx·2, vy·2, wz·0.25, 높이, 서기)."""
+    c = tr["cmd"]
+    moving = (c[..., -1] < 0.5) & (jnp.hypot(c[..., 0], c[..., 1]) / 2.0 > 0.05)
+    side = jnp.abs(c[..., 1]) / 2.0 > 0.05
+    straight = moving & (jnp.abs(c[..., 2]) / 0.25 < 0.05)
+    avg = lambda x, m: jnp.sum(x * m) / jnp.maximum(jnp.sum(m), 1.0)  # noqa: E731
+    return dict(side_vy=avg(tr["vy_track"], side), head_straight=avg(tr["heading"], straight),
+                clear_walk=avg(tr["feet_clear"], moving))
+
+
 def main():
     a = parse()
     os.makedirs(a.out, exist_ok=True)
@@ -166,6 +178,7 @@ def main():
                      stand_twist=tr["stand_twist"].sum() / jnp.maximum(tr["standing"].sum(), 1.0),
                      stand_tilt=tr["stand_tilt"].sum() / jnp.maximum(tr["standing"].sum(), 1.0), standing=tr["standing"].mean(),
                      clear=tr["feet_clear"].mean(), vy_track=tr["vy_track"].mean(), heading=tr["heading"].mean(),
+                     **split_stats(tr),
                      liftoff=tr["liftoff"].sum() / jnp.maximum(tr["standing"].sum(), 1.0))
         return states, tr, stats, key
 
@@ -273,7 +286,10 @@ def main():
                    stand_twist=round(float(st["stand_twist"]), 4), stand_tilt=round(float(st["stand_tilt"]), 4),
                    standing=round(float(st["standing"]), 3), clear=round(float(st["clear"]) * 1e4, 3),   # 발 들기 부족 [cm²]
                    vy_track=round(float(st["vy_track"]), 3), heading=round(float(st["heading"]), 4),   # 직진 방향 오차 (3° = 1)
-                   liftoff=round(float(st["liftoff"]), 4))   # 서 있을 때 한 발이 떨어진 비율
+                   liftoff=round(float(st["liftoff"]), 4),   # 서 있을 때 한 발이 떨어진 비율
+                   # 명령 종류별 (v7): 옆걸음 명령일 때 옆 추종, 직진(회전 0)할 때 방향 오차, 걷는 중 발 들기 부족 [cm²]
+                   side_vy=round(float(st["side_vy"]), 3), head_straight=round(float(st["head_straight"]), 4),
+                   clear_walk=round(float(st["clear_walk"]) * 1e4, 3))
         log.append(rec)
         if it % 5 == 0 or it == 1:
             print(json.dumps(rec, ensure_ascii=False), flush=True)

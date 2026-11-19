@@ -65,6 +65,14 @@ STAND_LIFT_F = 5.0             # [N]
 # 옆걸음 보폭: 두 발 사이 최소 거리 벌점(feet_distance −100)이 옆걸음에서 발을 모았다 벌리는 동작을 막아 보폭이 작았다 →
 # 옆걸음 명령(|vy| > 0.05)일 때만 이 배율로 줄인다
 FD_SIDE_SCALE = float(os.environ.get("TRON1_FD_SIDE", 1.0))
+# v7 명령 분포 (TRON1_CMD_MIX=v7). 예전 분포는 일반 명령이 10 % 뿐이고 옆 성분(VY_P)은 그 안에서만 붙어, 0.3 m/s 급 옆걸음이
+# 전체의 약 6 % 였다 → v6 에서 연습이 많은 직진은 방향 유지가 좋아졌지만(팔 움직이며 직진 13.5° → −1.8°) 드문 후진·옆걸음은
+# 오히려 더 돌았다(−33°, −35°). 옆걸음·대각선을 따로 둔다:
+#   서기 20 / 직진(앞·뒤) 15 / 옆걸음 15 / 대각선 10 / 느린 미세 이동 10 / 제자리 회전 15 / 일반 15 %
+CMD_MIX = os.environ.get("TRON1_CMD_MIX", "")
+# 발 들기 목표를 걸음 속도에 맞춘다 (TRON1_CLEAR_ADAPT=1): 고정 0.12 m 는 느린 걸음·제자리 걸음에서 닿을 수 없어 늘 벌점이
+# 남았다(평가: 0.3 m/s 직진 7~8 cm, 0.6 m/s 10~12 cm) → 목표 = 0.06 + 0.07 × |명령 속도| (0.3 m/s 8.1 cm, 0.6 m/s 10.2 cm), 상한 0.12
+CLEAR_ADAPT = os.environ.get("TRON1_CLEAR_ADAPT", "0") == "1"
 
 # ── SF 서기 버티기 (보행 학습 13절) ─────────────────────────────────────────────────────────────────────
 # 실제 집기에서 손이 상자·작업대에 막혀 팔이 계속 밀면 손에 수십 N 이 걸리고, 서기 정책이 버티지 못해 한 발에 하중이 쏠리면
@@ -296,7 +304,7 @@ class Tron1MjxEnv:
         return jnp.clip(q, self.arm_lo, self.arm_hi)
 
     def _sample_cmd(self, key):
-        k = jax.random.split(key, 14)
+        k = jax.random.split(key, 20)
         r = CMD_RANGES
         c = jnp.array([jax.random.uniform(k[0], minval=r["vx"][0], maxval=r["vx"][1]),
                        jax.random.uniform(k[1], minval=r["vy"][0], maxval=r["vy"][1]) * (jax.random.uniform(k[2]) < VY_P),
@@ -312,6 +320,17 @@ class Tron1MjxEnv:
                               jax.random.uniform(k[8], minval=-0.08, maxval=0.08) * (jax.random.uniform(k[9]) < 0.5),
                               jax.random.uniform(k[10], minval=-0.3, maxval=0.3) * (jax.random.uniform(k[11]) < 0.5)])
             c = jnp.where((z >= 0.6) & (z < 0.75), slow, c)
+            if CMD_MIX == "v7":
+                gen = jnp.array([jax.random.uniform(k[0], minval=r["vx"][0], maxval=r["vx"][1]),
+                                 jax.random.uniform(k[1], minval=r["vy"][0], maxval=r["vy"][1]) * (jax.random.uniform(k[2]) < VY_P),
+                                 jax.random.uniform(k[3], minval=r["wz"][0], maxval=r["wz"][1])])
+                vy_max = r["vy"][1]
+                side = jnp.array([0.0, jax.random.uniform(k[14], minval=0.1, maxval=vy_max)
+                                  * jnp.where(jax.random.uniform(k[15]) < 0.5, -1.0, 1.0), 0.0])
+                diag = jnp.array([jax.random.uniform(k[16], minval=r["vx"][0], maxval=r["vx"][1]),
+                                  jax.random.uniform(k[17], minval=r["vy"][0], maxval=r["vy"][1]), 0.0])
+                c = jnp.select([z < 0.20, z < 0.35, z < 0.50, z < 0.60, z < 0.70, z < 0.85],
+                               [jnp.zeros(3), gen * jnp.array([1.0, 0.0, 0.0]), side, diag, slow, turn], gen)
             c = jnp.where(jnp.abs(c) < 0.015, 0.0, c)
             want_still = jnp.all(c == 0) & (jax.random.uniform(k[12]) < 0.8)
             k13a, k13b = jax.random.split(k[13])
@@ -523,6 +542,7 @@ class Tron1MjxEnv:
         Rb = d.xmat[self.base_bid].reshape(3, 3)
         p_b = (d.xpos[self.foot_bid] - d.xpos[self.base_bid]) @ Rb          # (2, 3) 몸통 기준 = 정기구학
         fz = (p_b @ quat_to_mat(self._sens(d, "imu_quat")).T)[:, 2]
+        clear_h = (jnp.clip(0.06 + 0.07 * jnp.linalg.norm(s.cmd[:2]), 0.06, self.GAIT[3]) if CLEAR_ADAPT else self.GAIT[3])
         fvxy = jnp.array([jnp.linalg.norm(self._sens(d, "foot_L_vel")[:2]), jnp.linalg.norm(self._sens(d, "foot_R_vel")[:2])])
         settled = (s.standing & (s.stand_t >= STAND_YAW_SETTLE)).astype(jnp.float32)
         des = desired_contacts(s.gait_index, self.GAIT)
@@ -551,7 +571,7 @@ class Tron1MjxEnv:
             stand_twist=settled * jnp.mean(1 - jnp.exp(-(d.cvel[self.foot_bid, 2] / STAND_TWIST_SIGMA) ** 2)),
             stand_load=settled * jnp.clip((STAND_LOAD_MIN - jnp.min(F) / jnp.maximum(jnp.sum(F), 1.0)) / STAND_LOAD_MIN, 0.0, 1.0),
             stand_tilt=settled * jnp.clip((jnp.linalg.norm(grav[:2]) - STAND_TILT_FREE) / STAND_TILT_REF, 0.0, 2.0),
-            feet_clearance=jnp.sum((1 - des) * jnp.clip(self.GAIT[3] - (fz - jnp.min(fz)), 0.0, None) ** 2),
+            feet_clearance=jnp.sum((1 - des) * jnp.clip(clear_h - (fz - jnp.min(fz)), 0.0, None) ** 2),
             tracking_vy=jnp.exp(-(s.cmd[1] - lin[1]) ** 2 / TRACK_VY_SIGMA),
             walk_heading=(~s.standing & (jnp.abs(s.cmd[2]) < 0.05)).astype(jnp.float32)
             * jnp.minimum(jnp.abs(_wrap(_yaw(quat) - s.walk_yaw)) / WALK_HEADING_REF, 2.0),
