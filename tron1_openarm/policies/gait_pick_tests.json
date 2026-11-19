@@ -367,5 +367,165 @@
   "walk_mode_s": 261.0,
   "yaw_fix_s": 52.6,
   "max_tilt": 3.1
+ },
+ "pick_Fv3": {
+  "policy": "배포 v3",
+  "date": "2026-11-20 최종 비교 (같은 코드·같은 날)",
+  "runs": {
+   "r1": {
+    "placed": 1,
+    "final": "final box [2.539 2.965 0.725]",
+    "total_s": 130.6,
+    "walk_mode_s": 4.0,
+    "yaw_fix_s": 1.4,
+    "max_tilt": 3.2
+   },
+   "r2": {
+    "placed": 1,
+    "final": "final box [2.434 2.946 0.725]",
+    "total_s": 127.8,
+    "walk_mode_s": 5.4,
+    "yaw_fix_s": 2.0,
+    "max_tilt": 3.1
+   },
+   "r3": {
+    "placed": 1,
+    "final": "final box [2.504 2.948 0.725]",
+    "total_s": 111.4,
+    "walk_mode_s": 4.0,
+    "yaw_fix_s": 2.6,
+    "max_tilt": 3.3
+   },
+   "r4": {
+    "placed": 1,
+    "final": "final box [2.452 2.969 0.725]",
+    "total_s": 92.0,
+    "walk_mode_s": 2.0,
+    "yaw_fix_s": 0.2,
+    "max_tilt": 3.3
+   },
+   "r5": {
+    "placed": 1,
+    "final": "final box [2.526 2.969 0.725]",
+    "total_s": 107.2,
+    "walk_mode_s": 5.0,
+    "yaw_fix_s": 3.4,
+    "max_tilt": 3.4
+   },
+   "r6": {
+    "placed": 1,
+    "final": "final box [2.438 2.937 0.725]",
+    "total_s": 119.6,
+    "walk_mode_s": 3.6,
+    "yaw_fix_s": 2.0,
+    "max_tilt": 3.3
+   },
+   "r7": {
+    "placed": 1,
+    "final": "final box [2.534 2.96  0.725]",
+    "total_s": 120.4,
+    "walk_mode_s": 1.2,
+    "yaw_fix_s": 0.4,
+    "max_tilt": 3.1
+   },
+   "r8": {
+    "placed": 1,
+    "final": "final box [2.403 2.949 0.725]",
+    "total_s": 125.4,
+    "walk_mode_s": 6.4,
+    "yaw_fix_s": 2.8,
+    "max_tilt": 3.1
+   }
+  }
+ },
+ "pick_Fv9": {
+  "policy": "runs/gait_v9/seed1/best.npz",
+  "date": "2026-11-20 최종 비교 (같은 코드·같은 날)",
+  "runs": {
+   "r1": {
+    "placed": 1,
+    "final": "final box [2.542 2.967 0.725]",
+    "total_s": 114.6,
+    "walk_mode_s": 6.4,
+    "yaw_fix_s": 1.8,
+    "max_tilt": 5.9
+   },
+   "r2": {
+    "placed": 1,
+    "final": "final box [2.468 2.999 0.725]",
+    "total_s": 127.8,
+    "walk_mode_s": 47.8,
+    "yaw_fix_s": 3.6,
+    "max_tilt": 5.9
+   },
+   "r3": {
+    "placed": 1,
+    "final": "final box [2.525 2.949 0.725]",
+    "total_s": 110.4,
+    "walk_mode_s": 0.0,
+    "yaw_fix_s": 0.0,
+    "max_tilt": 5.4
+   },
+   "r4": {
+    "placed": 1,
+    "final": "final box [2.457 2.971 0.725]",
+    "total_s": 113.4,
+    "walk_mode_s": 35.2,
+    "yaw_fix_s": 2.4,
+    "max_tilt": 5.2
+   },
+   "r5": {
+    "placed": 1,
+    "final": "final box [2.527 2.95  0.725]",
+    "total_s": 115.6,
+    "walk_mode_s": 0.0,
+    "yaw_fix_s": 0.0,
+    "max_tilt": 5.4
+   },
+   "r6": {
+    "placed": 1,
+    "final": "final box [2.456 2.957 0.725]",
+    "total_s": 117.8,
+    "walk_mode_s": 0.0,
+    "yaw_fix_s": 0.0,
+    "max_tilt": 5.7
+   },
+   "r7": {
+    "placed": 1,
+    "final": "final box [2.546 2.949 0.725]",
+    "total_s": 125.4,
+    "walk_mode_s": 0.0,
+    "yaw_fix_s": 0.0,
+    "max_tilt": 5.4
+   },
+   "r8": {
+    "placed": 1,
+    "final": "final box [2.477 2.985 0.725]",
+    "total_s": 133.2,
+    "walk_mode_s": 49.0,
+    "yaw_fix_s": 3.6,
+    "max_tilt": 6.0
+   }
+  }
+ },
+ "mission_Fv3m": {
+  "policy": "배포 v3",
+  "date": "2026-11-20",
+  "mission_s": 436,
+  "on_place_table": true,
+  "total_s": 436.6,
+  "walk_mode_s": 312.4,
+  "yaw_fix_s": 47.6,
+  "max_tilt": 3.1
+ },
+ "mission_Fv9m": {
+  "policy": "runs/gait_v9/seed1/best.npz",
+  "date": "2026-11-20",
+  "mission_s": 372,
+  "on_place_table": true,
+  "total_s": 369.6,
+  "walk_mode_s": 278.0,
+  "yaw_fix_s": 7.4,
+  "max_tilt": 6.0
  }
 }
