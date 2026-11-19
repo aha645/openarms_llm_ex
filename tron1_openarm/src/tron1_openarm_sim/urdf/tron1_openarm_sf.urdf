@@ -497,12 +497,12 @@
       </material>
     </visual>
     <visual>
-      <origin xyz="0 0 0.697" rpy="0 0 0" />
+      <origin xyz="0 0 0" rpy="0 0 0" />
       <geometry>
-        <box size="0.1 0.06 0.13" />
+        <mesh filename="package://tron1_openarm_sim/mjcf/sf/meshes/visual/body/body_link0_5.obj" scale="0.001 0.001 0.001" />
       </geometry>
       <material name="openarm_shoulder_bracket_vis_mat">
-        <color rgba="0.796078 0.796078 0.796078 1" />
+        <color rgba="0.247059 0.247059 0.247059 1" />
       </material>
     </visual>
     <visual>
