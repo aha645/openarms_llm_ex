@@ -736,10 +736,9 @@ class RobotSkills(Node):
         """현재 자세 기준 작업대 앞 모서리까지의 전방 거리. 머리 카메라 깊이로 잰 값이 있으면 그것(정확, ±0.1 cm),
         없으면 map TF 와 지도 좌표 (AMCL 오차 5~10 cm)."""
         station = station or self.current_station
-        if self.can_strafe:
-            e = self.table_edge_seen()
-            if e is not None:
-                return float(e["dist"])
+        e = self.table_edge_seen()          # 카메라 서버가 /table/edge 를 낼 때 (바퀴형·이족 camera_process)
+        if e is not None:
+            return float(e["dist"])
         table = self.station_table.get(station)
         pose = self.robot_pose()
         if table is None or pose is None:
@@ -758,15 +757,14 @@ class RobotSkills(Node):
         # 1) 작업대와 정면으로 마주 보도록 yaw 보정 (Nav2 yaw 허용오차 ±7° 보정)
         want = math.radians(self.locations[station][2])
         self.rotate_base(math.atan2(math.sin(want - pose[2]), math.cos(want - pose[2])))
-        if self.can_strafe:
-            # 지도 방향으로 돈 뒤 남은 어긋남(AMCL 방향 오차 수 °)은 깊이로 잰 작업대 모서리로 바로잡는다
-            e = self.table_edge_seen()
-            if e is not None:
-                self.log(f"[dock] 작업대 모서리(깊이) 거리 {e['dist']:.3f} m, 방향 {math.degrees(e['yaw']):+.1f}°, "
-                         f"상판 {e['height']:.3f} m")
-                self.rotate_base(float(e["yaw"]))
-            else:
-                self.log("[dock] 작업대 모서리를 깊이로 못 찾음 → 지도 좌표로")
+        # 지도 방향으로 돈 뒤 남은 어긋남(AMCL 방향 오차 수 °)은 깊이로 잰 작업대 모서리로 바로잡는다 (바퀴형·이족)
+        e = self.table_edge_seen()
+        if e is not None:
+            self.log(f"[dock] 작업대 모서리(깊이) 거리 {e['dist']:.3f} m, 방향 {math.degrees(e['yaw']):+.1f}°, "
+                     f"상판 {e['height']:.3f} m")
+            self.rotate_base(float(e["yaw"]))
+        else:
+            self.log("[dock] 작업대 모서리를 깊이로 못 찾음 → 지도 좌표로")
         if self.can_strafe:
             # 옆 위치: Nav2 '도착' 은 목표에서 0.25 m(xy 허용) + AMCL 오차만큼 옆으로 벗어날 수 있다. 미션 22 에서 스테이션보다
             # 35 cm 옆에 서서 집을 상자(로봇 오른쪽 0.47 m)가 머리 카메라 시야(옆 ±0.3 m) 밖 → '마커 못 찾음' 으로 실패.
@@ -1080,9 +1078,10 @@ class RobotSkills(Node):
             if edge != edge_map:
                 local = np.array([local[0] + edge - edge_map, local[1]])
         tbl_yaw = -pose[2]                 # 작업대 축은 map 축과 평행
-        e = self._edge_recent() if self.can_strafe else None
+        e = self._edge_recent()
         if e is not None and station in self.locations:
-            # 이족: 머리 카메라 깊이로 잰 앞 모서리(거리·방향)로 작업대를 놓는다 — 지도·오도메트리 어긋남(5~10 cm, 수 °)을 없앰.
+            # 머리 카메라 깊이로 잰 앞 모서리(거리·방향)로 작업대를 놓는다 — 지도·오도메트리 어긋남(5~10 cm, 수 °)을 없앰.
+            # 바퀴형도 같다: 지도(AMCL)로 놓은 작업대가 실제보다 2.5 cm 멀어 3 cm 여유로 겨우 덮였다 (바퀴형 회귀 시험 4 비교)
             # 모서리 위의 점 (dist, 0) 에서 작업대 안쪽 법선 n = (cos θ, sin θ) 으로 깊이/2, 모서리 방향 위치는 지도 값
             th = float(e["yaw"])
             n_in, e_dir = np.array([math.cos(th), math.sin(th)]), np.array([-math.sin(th), math.cos(th)])
@@ -1091,7 +1090,8 @@ class RobotSkills(Node):
             s_lat = c if c is not None else float((np.asarray(local) - p_edge) @ e_dir)
             local = p_edge + n_in * (t["size"][1] / 2) + e_dir * s_lat
             tbl_yaw = th - math.radians(self.locations[station][2])
-            if self._table_top_seen is None:
+            if self._table_top_seen is None and self.can_strafe:
+                # 이족만: 잰 상판 높이 + 0.5 cm. 바퀴형은 위의 '상판 − 1.2 cm' 그대로 (접근 자세 계산이 그 높이에 맞춰져 있음)
                 h = float(e["height"]) + 0.005 + pad
         box.dimensions = [float(t["size"][0]) + 2 * pad, float(t["size"][1]) + 2 * pad, float(h)]
         p = Pose()
@@ -1858,7 +1858,7 @@ class RobotSkills(Node):
         ② 색·마커로 아는 상자 윗면 5 cm (팔에 가려 깊이로 안 보이는 곳 보완)"""
         pts = []
         tcps = [tf[0][:2] for tf in (self._tf_matrix(TCP[s]) for s in ("left", "right") if self.holding[s]) if tf]
-        e = self._edge_recent(2.0) if self.can_strafe else None
+        e = self._edge_recent(2.0)
         for c in (e or {}).get("occ", []):
             c = np.asarray(c, float)
             if all(np.linalg.norm(c - t) > 0.08 for t in tcps):
