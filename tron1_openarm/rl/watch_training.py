@@ -6,7 +6,7 @@
     python3 watch_training.py play <학습 폴더> --full   # 전체 메시 모델 (학습이 GPU 를 다 쓰는 동안에는 느림)
     (학습 폴더 = train_mjx.py --out. 중간 정책은 --ck-min 분마다 ckNNNmin.npz 로 저장됨)
 
-play: 전진 0.6 → 후진 0.4 → 왼쪽 0.3 → 오른쪽 0.3 m/s (각 6 s, 사이 2 s 서기)를 반복하고, 한 바퀴가 끝날 때 새 중간 정책이
+play: (OpenCV 창, q 로 끝내기) 전진 0.6 → 후진 0.4 → 왼쪽 0.3 → 오른쪽 0.3 m/s (각 6 s, 사이 2 s 서기)를 반복하고, 한 바퀴가 끝날 때 새 중간 정책이
 있으면 바꿔 끼운다. 화면 왼쪽 위: 정책 파일, 명령, 실제 속도(몸통 기준, 1 s 평균), 발 들기(두 발 높이 차, 관절 각도 정기구학
 + IMU 자세 — 실로봇에서도 같은 방법). 배포와 같은 조건(SF 월드, 물리 2 ms, 상반신 충돌 켜짐)이라 학습 화면이 아니라
 '지금 정책을 꺼내 쓰면 이렇게 걷는다' 를 보여 준다.
@@ -88,25 +88,31 @@ VIEW_HZ = 10.0     # 뷰어 갱신 [Hz]. 매 정책 스텝(50 Hz)마다 2560x144
 
 
 def play(run, full=False):
+    """화면 밖 렌더러(mujoco.Renderer)로 그려 OpenCV 창에 띄운다. MuJoCo 뷰어(launch_passive)는 그리기 스레드와 잠금을 따로 써서,
+    학습이 GPU 를 다 쓰는 동안 그리기 스레드가 잠금을 기다리며 멈추고 시뮬도 같이 멈췄다 (두 번 모두 '왼쪽 옆걸음' 중, 시뮬 시간 고정)."""
+    import cv2
     import mujoco
-    import mujoco.viewer
     from tron1_openarm_sim.locomotion_policy import LocomotionPolicy
     m = mujoco.MjModel.from_xml_path(os.path.join(ROOT, "src/tron1_openarm_sim/mjcf/sf", "world.xml" if full else "world_light.xml"))
     d = mujoco.MjData(m)
     b = m.body("base_link").id
     feet = [m.body(n).id for n in ("ankle_L_Link", "ankle_R_Link")]
     dec = int(round(0.02 / m.opt.timestep))
-    for i in range(m.nu):
-        if "finger" in m.actuator(i).name:
-            d.ctrl[i] = 0.044
-    d.mocap_pos[m.body_mocapid[m.body("person").id]] = [-4.5, -3.5, 0]
+    W, H = min(640, m.vis.global_.offwidth), min(480, m.vis.global_.offheight)
+    r = mujoco.Renderer(m, H, W)
+    cam = mujoco.MjvCamera()
+    cam.distance, cam.elevation, cam.azimuth = 3.0, -15, 135
+    win = "TRON1 학습 중 정책 보행 (q: 끝내기)"
+    cv2.namedWindow(win, cv2.WINDOW_NORMAL)
+    cv2.resizeWindow(win, 960, 720)
     state = {"path": None, "pol": None}
 
     def load():
         p = latest_policy(run)
         while p is None:
             print(f"{run} 에 아직 중간 정책이 없음 — 기다리는 중", flush=True)
-            time.sleep(10)
+            if cv2.waitKey(10000) & 0xFF == ord("q"):
+                sys.exit(0)
             p = latest_policy(run)
         if p != state["path"]:
             state["path"], state["pol"] = p, LocomotionPolicy(p)
@@ -126,48 +132,49 @@ def play(run, full=False):
         mujoco.mj_forward(m, d)
         return pol, jq, jv, act
 
-    with mujoco.viewer.launch_passive(m, d) as v:
-        v.cam.distance, v.cam.elevation, v.cam.azimuth = 3.0, -15, 135
-        last_view, rt0, st0 = 0.0, time.time(), 0.0
-        while v.is_running():
-            pol, jq, jv, act = load()
-            vel = []
-            for name, cmd, sec in SCHEDULE:
-                pol.stand_still = all(c == 0 for c in cmd)
-                lift = []
-                for k in range(int(sec / 0.02)):
-                    t0 = time.time()
-                    tgt = pol.act(d.sensor("imu_gyro").data, d.sensor("imu_quat").data, d.qpos[jq], d.qvel[jv], cmd)
-                    d.ctrl[act] = tgt
-                    for _ in range(dec):
-                        mujoco.mj_step(m, d)
-                    R = d.xmat[b].reshape(3, 3)
-                    vel = (vel + [R.T @ d.qvel[0:3]])[-50:]
-                    Ri = np.zeros(9)
-                    mujoco.mju_quat2Mat(Ri, d.sensor("imu_quat").data)
-                    fz = (((d.xpos[feet] - d.xpos[b]) @ R) @ Ri.reshape(3, 3).T)[:, 2]
-                    lift = (lift + [abs(fz[0] - fz[1])])[-100:]
+    last_view, rt0, st0 = 0.0, time.time(), 0.0
+    while True:
+        pol, jq, jv, act = load()
+        vel = []
+        for name, cmd, sec in SCHEDULE:
+            pol.stand_still = all(c == 0 for c in cmd)
+            lift = []
+            for k in range(int(sec / 0.02)):
+                t0 = time.time()
+                d.ctrl[act] = pol.act(d.sensor("imu_gyro").data, d.sensor("imu_quat").data, d.qpos[jq], d.qvel[jv], cmd)
+                for _ in range(dec):
+                    mujoco.mj_step(m, d)
+                R = d.xmat[b].reshape(3, 3)
+                vel = (vel + [R.T @ d.qvel[0:3]])[-50:]
+                Ri = np.zeros(9)
+                mujoco.mju_quat2Mat(Ri, d.sensor("imu_quat").data)
+                fz = (((d.xpos[feet] - d.xpos[b]) @ R) @ Ri.reshape(3, 3).T)[:, 2]
+                lift = (lift + [abs(fz[0] - fz[1])])[-100:]
+                fell = d.xpos[b][2] < 0.45
+                if time.time() - last_view >= 1.0 / VIEW_HZ or fell:
                     vm = np.mean(vel, 0)
-                    fell = d.xpos[b][2] < 0.45
-                    if time.time() - last_view < 1.0 / VIEW_HZ and not fell:
-                        time.sleep(max(0.0, 0.02 - (time.time() - t0)))
-                        continue
                     rtf = (d.time - st0) / max(time.time() - rt0, 1e-3)
                     last_view, rt0, st0 = time.time(), time.time(), d.time
-                    with v.lock():
-                        v.cam.lookat[:] = d.xpos[b]
-                        v.set_texts((None, mujoco.mjtGridPos.mjGRID_TOPLEFT,
-                                     "policy\ncommand\nvelocity\nfoot lift\nsim time",
-                                     f"{os.path.relpath(state['path'], os.path.dirname(run))}\n{name}\n"
-                                     f"fwd {vm[0]:+.2f}  side {vm[1]:+.2f} m/s\n{100 * max(lift):.1f} cm\n"
-                                     f"{d.time:.1f} s  (x{rtf:.2f} real time)"
-                                     + ("\nFELL - restart" if fell else "")))
-                    v.sync()
-                    if not v.is_running() or fell:
+                    cam.lookat[:] = d.xpos[b]
+                    r.update_scene(d, camera=cam)
+                    img = cv2.cvtColor(r.render(), cv2.COLOR_RGB2BGR)
+                    img = cv2.resize(img, (960, 720))
+                    lines = [f"policy  {os.path.relpath(state['path'], os.path.dirname(run))}", f"command {name}",
+                             f"velocity fwd {vm[0]:+.2f}  side {vm[1]:+.2f} m/s", f"foot lift {100 * max(lift):.1f} cm",
+                             f"sim time {d.time:.1f} s  (x{rtf:.2f} real time)"] + (["FELL - restart"] if fell else [])
+                    for i, t in enumerate(lines):
+                        cv2.putText(img, t, (12, 28 + 26 * i), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 4, cv2.LINE_AA)
+                        cv2.putText(img, t, (12, 28 + 26 * i), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 1, cv2.LINE_AA)
+                    cv2.imshow(win, img)
+                    if (cv2.waitKey(1) & 0xFF) == ord("q") or cv2.getWindowProperty(win, cv2.WND_PROP_VISIBLE) < 1:
+                        r.close()
+                        cv2.destroyAllWindows()
+                        return
+                    if fell:
                         break
-                    time.sleep(max(0.0, 0.02 - (time.time() - t0)))
-                if not v.is_running() or d.xpos[b][2] < 0.45:
-                    break
+                time.sleep(max(0.0, 0.02 - (time.time() - t0)))
+            if d.xpos[b][2] < 0.45:
+                break
 
 
 if __name__ == "__main__":
