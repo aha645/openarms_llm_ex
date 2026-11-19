@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """보행 정책 평가 — 학습에 쓰지 않은 '배포 조건'(실습 월드, 물리 2 ms, 상반신 충돌 켜짐)에서 시험.
 
-    python3 eval_policy.py ../policies/limx_pf_tron1a_pretrained.npz ../policies/tron1_openarm_policy.npz
+    python3 eval_policy.py ../src/tron1_openarm_sim/policies/tron1sf_openarm_policy.npz ../src/tron1_openarm_sim/policies/tron1_openarm_policy.npz
+      (배포 정책 SF·PF 는 src/tron1_openarm_sim/policies/, ../policies/ 에는 LimX 사전학습 정책과 이 평가 기록만 있다)
 
 시험 항목 (각 정책, 시드 3개)
   1. 제자리 30 s (명령 0)           : 넘어짐, 흐름(drift) 속도 [m/s], 회전 흐름 [rad/s]
