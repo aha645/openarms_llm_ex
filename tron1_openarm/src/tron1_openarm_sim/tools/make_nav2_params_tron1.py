@@ -4,7 +4,7 @@
     python3 make_nav2_params_tron1.py --src <mobile_openarm_sim>/config/nav2_params.yaml --out ../config/nav2_params_tron1.yaml
 
 바퀴형과 달라지는 것 (이유)
-  * 속도 한계  vx 0.40→0.35, 후진 -0.25→-0.20, wz 1.2→0.8 : 보행 정책이 안정적으로 따라가는 범위 (rl/eval_policy.py 결과)
+  * 속도 한계  vx 0.40→0.5, 후진 -0.25→-0.30, wz 1.2→0.8 : 보행 정책이 안정적으로 따라가는 범위 (rl/eval_policy.py 결과)
   * 가속 한계  ax 2.0→0.8, az 2.5→1.5 : 보행은 발을 디딜 때만 힘을 낼 수 있어 급가속을 못 따라감
   * 도착 허용  xy 0.12→0.15 m, yaw 0.15→0.20 rad : 제자리 걸음 중에도 몸통이 좌우로 ±2~3 cm 흔들림
   * footprint 0.55x0.52→0.46x0.90 m : TRON1 몸통·다리 + 바깥으로 벌려 내린 팔. home 손끝은 좌우 ±0.41 m 지만 손·손가락 형상은
@@ -62,15 +62,17 @@ f = c["FollowPath"]
 f["CostCritic"]["consider_footprint"] = True
 # 이족은 옆걸음 가능 (/cmd_vel linear.y, biped_core VY_LIMIT 0.15 안) → 좁은 곳·도킹 직전 옆으로 비켜 맞춤
 f.update(motion_model="Omni", vy_max=0.12, vy_std=0.08, ay_max=0.5, ay_min=-0.5)
-f.update(vx_max=0.35, vx_min=-0.20, wz_max=0.5, ax_max=0.8, ax_min=-1.0, az_max=1.0, vx_std=0.15, wz_std=0.2)
+# 전진 0.35 → 0.5, 후진 −0.2 → −0.3 m/s: 배포 정책(SF v3)은 0.6 m/s 명령을 96 %, −0.4 를 87 % 따라감 (벽 충돌을 끈 eval_policy.py).
+# 예전 평가는 실습 월드 벽에 막혀 0.31 m/s 로 잘못 나와 0.35 로 묶었었다. 옆(vy)은 0.3 명령에 0.1 m/s 라 그대로
+f.update(vx_max=0.5, vx_min=-0.30, wz_max=0.5, ax_max=0.8, ax_min=-1.0, az_max=1.0, vx_std=0.2, wz_std=0.2)
 for cm in ("local_costmap", "global_costmap"):
     cp = p[cm][cm]["ros__parameters"]
     cp["footprint"] = FOOTPRINT
     cp["inflation_layer"]["inflation_radius"] = 0.55
     cp["inflation_layer"]["cost_scaling_factor"] = 4.0
 vs = p["velocity_smoother"]["ros__parameters"]
-vs["max_velocity"] = [0.35, 0.12, 0.8]
-vs["min_velocity"] = [-0.20, -0.12, -0.8]
+vs["max_velocity"] = [0.5, 0.12, 0.8]
+vs["min_velocity"] = [-0.30, -0.12, -0.8]
 vs["max_accel"] = [0.8, 0.5, 1.5]
 vs["max_decel"] = [-1.0, -0.5, -1.5]
 bs = p["behavior_server"]["ros__parameters"]

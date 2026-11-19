@@ -33,7 +33,60 @@ ACTION_SCALE = 0.25
 POLICY_DT = 0.02
 CMD_SCALE = jnp.array([2.0, 2.0, 0.25], jnp.float32)
 BASE_HEIGHT_TARGET = {"pf": 0.68, "sf": SF_BASE_HEIGHT_CMD}
-CMD_RANGES = dict(vx=(-0.35, 0.6), vy=(-0.2, 0.2), wz=(-0.9, 0.9))
+# 속도 명령 범위 (환경 변수로 넓힐 수 있음, 기본은 v3 까지와 같음). 빠른 걸음 학습(v4): TRON1_VX=-0.5,0.8 TRON1_VY=0.35
+def _rng(name, default):
+    v = os.environ.get(name)
+    if not v:
+        return default
+    a = [float(x) for x in v.split(",")]
+    return (a[0], a[1]) if len(a) == 2 else (-a[0], a[0])
+
+
+CMD_RANGES = dict(vx=_rng("TRON1_VX", (-0.35, 0.6)), vy=_rng("TRON1_VY", (-0.2, 0.2)), wz=(-0.9, 0.9))
+VY_P = float(os.environ.get("TRON1_VY_P", 0.3))      # 일반 명령 중 옆걸음 성분을 넣는 비율
+# 발 들기 (v4): 걸을 때 발을 거의 끌어(보상에 발 높이 항이 없음) 걸음이 느렸다 → 들어야 하는 구간(기대 접지 1 − des)에
+# '디딘 발보다 걸음 설정 4번째 값(SF 0.12 m) 위' 에 못 미치는 만큼 제곱 벌점. 발 높이는 발 위치 센서(시뮬 정답)가 아니라
+# 관절 각도 정기구학 + IMU 자세로 구한다 (실로봇에서도 얻을 수 있는 값)
+CLEAR_SCALE = float(os.environ.get("TRON1_CLEAR", 0.0))
+# 옆 방향 추종 (v5): tracking_lin_vel 은 앞뒤·옆 오차를 합쳐 보므로 빠른 전진에서 옆 오차가 묻힌다 — v3 는 앞으로 걸으며
+# 걷는 속도의 16~19 % 만큼 옆으로 흘렀고 옆걸음은 0.3 m/s 명령에 0.1 m/s. 옆 속도 오차만 따로 좁은 폭으로 본다
+TRACK_VY_SCALE = float(os.environ.get("TRON1_TRACK_VY", 0.0))
+TRACK_VY_SIGMA = 0.02
+# v6 (모두 기본 꺼짐, 사용자 요청: 일자로 걷기·팔을 움직여도 일자로·서 있을 때 발바닥 붙이기·옆걸음 보폭)
+# 직진 방향 유지: 회전 명령 없이 걸을 때 걷기 시작한 방향(walk_yaw)에서 틀어진 각도에 벌점 (3° 에서 1, 상한 2).
+#   팔은 걷는 중에도 3~6 s 마다 다른 자세로 움직이므로 '팔을 움직이며 일자로' 도 같이 배운다.
+#   기준은 STAND_YAW_TAU 로 천천히 따라가 밀려서 돈 몫은 잊고, 정책 자신의 꾸준한 회전만 벌점으로 남긴다
+WALK_HEADING_SCALE = float(os.environ.get("TRON1_WALK_HEADING", 0.0))
+WALK_HEADING_REF = 0.05
+# v8: 상한 2(=6°)에서 벌점이 더 안 커져 한 번 많이 돌면 되돌릴 이유가 없었다(v7 final: 직진 20 s 에 −66°) → 상한을 10(30°)으로
+WALK_HEADING_CAP = float(os.environ.get("TRON1_WALK_HEADING_CAP", 2.0))
+# v8 직진 중 회전 속도 벌점: 회전 추종 보상(허용 폭 0.25)은 직진 중 0.057 rad/s(3 °/s) 회전에 보상이 1.3 % 만 줄어 사실상 벌점이 없었다
+# → 회전 명령 0 으로 걸을 때 (몸통 회전 속도 / 0.05 rad/s)² 벌점, 상한 4
+WALK_YAWRATE_SCALE = float(os.environ.get("TRON1_WALK_YAWRATE", 0.0))
+# 서 있을 때 발바닥: 서기 안정 구간에 한 발이라도 접촉력이 STAND_LIFT_F 아래면 벌점, 두 발 모두 붙고 미끄러지지 않으면 보상
+STAND_LIFT_SCALE = float(os.environ.get("TRON1_STAND_LIFT", 0.0))
+STAND_PLANTED_SCALE = float(os.environ.get("TRON1_STAND_PLANTED", 0.0))
+STAND_LIFT_F = 5.0             # [N]
+# 옆걸음 보폭: 두 발 사이 최소 거리 벌점(feet_distance −100)이 옆걸음에서 발을 모았다 벌리는 동작을 막아 보폭이 작았다 →
+# 옆걸음 명령(|vy| > 0.05)일 때만 이 배율로 줄인다
+FD_SIDE_SCALE = float(os.environ.get("TRON1_FD_SIDE", 1.0))
+# v7 명령 분포 (TRON1_CMD_MIX=v7). 예전 분포는 일반 명령이 10 % 뿐이고 옆 성분(VY_P)은 그 안에서만 붙어, 0.3 m/s 급 옆걸음이
+# 전체의 약 6 % 였다 → v6 에서 연습이 많은 직진은 방향 유지가 좋아졌지만(팔 움직이며 직진 13.5° → −1.8°) 드문 후진·옆걸음은
+# 오히려 더 돌았다(−33°, −35°). 옆걸음·대각선을 따로 둔다:
+#   서기 20 / 직진(앞·뒤) 15 / 옆걸음 15 / 대각선 10 / 느린 미세 이동 10 / 제자리 회전 15 / 일반 15 %
+CMD_MIX = os.environ.get("TRON1_CMD_MIX", "")
+# 발 들기 목표를 걸음 속도에 맞춘다 (TRON1_CLEAR_ADAPT=1): 고정 0.12 m 는 느린 걸음·제자리 걸음에서 닿을 수 없어 늘 벌점이
+# 남았다(평가: 0.3 m/s 직진 7~8 cm, 0.6 m/s 10~12 cm) → 목표 = 0.06 + 0.07 × |명령 속도| (0.3 m/s 8.1 cm, 0.6 m/s 10.2 cm), 상한 0.12
+CLEAR_ADAPT = os.environ.get("TRON1_CLEAR_ADAPT", "0") == "1"
+# v9 서 있을 때 몸통 밀림: 서기 안정 구간에 기준 위치(서기 시작 위치, STAND_YAW_TAU 로 천천히 따라감)에서 수평으로 밀린 거리에 벌점
+# (3 cm 에서 1, 상한 2). v7 best 는 팔을 움직일 때 몸통이 15.8 cm 밀렸고(v3 8.4 cm), 집기 중 방향 바로잡기 걸음이 31 s 이어졌다
+STAND_SWAY_SCALE = float(os.environ.get("TRON1_STAND_SWAY", 0.0))
+STAND_SWAY_REF = 0.03
+# v10 느린 명령 추종: 작업대 앞 미세 이동·마커 기준 제자리 복귀는 0.02~0.06 m/s 명령을 쓴다. 절대 오차 추종 보상(폭 0.05)에서는
+# 0.05 m/s 명령을 전혀 못 따라가도 보상이 95 % 남아, v9 best 는 전진 0.05 에 17 %, 후진 0.05 에 187 % 로 위치 맞추기에 45~80 s 걸렸다
+# → 느린 명령(0 < |명령| < 0.15)에서 0.5 s 평균 속도(걸음마다 출렁임 제거)의 '명령 대비 비율 오차' 로 보상
+TRACK_SLOW_SCALE = float(os.environ.get("TRON1_TRACK_SLOW", 0.0))
+SLOW_TAU = 0.5
 
 # ── SF 서기 버티기 (보행 학습 13절) ─────────────────────────────────────────────────────────────────────
 # 실제 집기에서 손이 상자·작업대에 막혀 팔이 계속 밀면 손에 수십 N 이 걸리고, 서기 정책이 버티지 못해 한 발에 하중이 쏠리면
@@ -75,6 +128,13 @@ REACH_R = [[-0.538, 2.972, 0.732, 2.148, 0.282, 0.702, -0.799], [-1.201, 2.998, 
            [-1.167, 2.819, 0.603, 1.656, -0.056, 0.356, -0.824], [-0.805, 2.799, 0.607, 1.709, 0.037, 0.445, -0.57],
            [-0.469, 2.362, 0.509, 2.284, -0.07, 0.622, -0.673], [-1.178, 2.58, 0.615, 1.685, -0.293, 0.357, -0.715],
            [-0.781, 2.598, 0.557, 1.736, -0.173, 0.425, -0.456]]
+# v9: 상자를 수평으로 들어 머리 카메라 시야 밖(손끝 앞 0.28 m·옆 0.20 m·높이 1.00 m)에 둔 자세 (robot_skills._hold_level).
+# 실제 작업은 이 자세로 서 있고 걷는데 학습 팔 자세에 없었다. 집기 자세(REACH_R)에서 손 방향을 지키며 1 cm 씩 이어 푼 역기구학의 도착점
+HOLD_R = [[0.843, 2.431, 0.285, 1.969, -0.62, 0.462, 1.056], [0.836, 2.399, 0.308, 1.97, -0.642, 0.492, 1.071],
+          [0.828, 2.374, 0.329, 1.971, -0.667, 0.507, 1.087], [0.852, 2.434, 0.273, 1.975, -0.368, 0.754, 0.903],
+          [0.837, 2.41, 0.302, 1.972, -0.405, 0.774, 0.927], [0.834, 2.388, 0.315, 1.97, -0.422, 0.785, 0.937]]
+if os.environ.get("TRON1_HOLD", "0") == "1":
+    REACH_R = REACH_R + HOLD_R * 2        # 집기 자세 17 + 들기 자세 12 (두 번 넣어 비율을 맞춤)
 
 
 class EnvState(NamedTuple):
@@ -88,6 +148,9 @@ class EnvState(NamedTuple):
     standing: jax.Array
     stand_t: jax.Array       # SF: 서기 시작 뒤 경과 시간 [s]
     yaw0: jax.Array          # SF: 서기 방향 기준
+    walk_yaw: jax.Array      # SF: 직진 방향 기준 (v6 walk_heading)
+    stand_xy: jax.Array      # SF: 서기 위치 기준 (v9 stand_sway)
+    v_avg: jax.Array         # 몸통 수평 속도 0.5 s 평균 (v10 느린 명령 추종)
     cmd_until: jax.Array     # 다음 명령 재설정 스텝
     hist: jax.Array
     obs: jax.Array           # 마지막 관측 (잡음 포함, hist 의 마지막 항목과 같음)
@@ -178,6 +241,14 @@ class Tron1MjxEnv:
             self.rs["stand_tilt"] = -STAND_TILT_SCALE
         else:
             self.rs["stand_feet"] = self.rs["stand_load"] = self.rs["stand_twist"] = self.rs["stand_tilt"] = 0.0
+        self.rs["feet_clearance"] = -CLEAR_SCALE
+        self.rs["tracking_vy"] = TRACK_VY_SCALE
+        self.rs["walk_heading"] = -WALK_HEADING_SCALE
+        self.rs["walk_yawrate"] = -WALK_YAWRATE_SCALE
+        self.rs["stand_liftoff"] = -STAND_LIFT_SCALE
+        self.rs["stand_sway"] = -STAND_SWAY_SCALE
+        self.rs["tracking_slow"] = TRACK_SLOW_SCALE
+        self.rs["stand_planted"] = STAND_PLANTED_SCALE
         # 랜덤화 대상 인덱스
         self.base_bid = m.body("base_link").id
         self.contact_geoms = jnp.array([g for g in range(m.ngeom) if m.geom_contype[g] or m.geom_conaffinity[g]])
@@ -259,10 +330,10 @@ class Tron1MjxEnv:
         return jnp.clip(q, self.arm_lo, self.arm_hi)
 
     def _sample_cmd(self, key):
-        k = jax.random.split(key, 14)
+        k = jax.random.split(key, 20)
         r = CMD_RANGES
         c = jnp.array([jax.random.uniform(k[0], minval=r["vx"][0], maxval=r["vx"][1]),
-                       jax.random.uniform(k[1], minval=r["vy"][0], maxval=r["vy"][1]) * (jax.random.uniform(k[2]) < 0.3),
+                       jax.random.uniform(k[1], minval=r["vy"][0], maxval=r["vy"][1]) * (jax.random.uniform(k[2]) < VY_P),
                        jax.random.uniform(k[3], minval=r["wz"][0], maxval=r["wz"][1])])
         z = jax.random.uniform(k[4])
         c = jnp.where(z < 0.25, 0.0, c)
@@ -275,6 +346,23 @@ class Tron1MjxEnv:
                               jax.random.uniform(k[8], minval=-0.08, maxval=0.08) * (jax.random.uniform(k[9]) < 0.5),
                               jax.random.uniform(k[10], minval=-0.3, maxval=0.3) * (jax.random.uniform(k[11]) < 0.5)])
             c = jnp.where((z >= 0.6) & (z < 0.75), slow, c)
+            if CMD_MIX in ("v7", "v9", "v10"):
+                gen = jnp.array([jax.random.uniform(k[0], minval=r["vx"][0], maxval=r["vx"][1]),
+                                 jax.random.uniform(k[1], minval=r["vy"][0], maxval=r["vy"][1]) * (jax.random.uniform(k[2]) < VY_P),
+                                 jax.random.uniform(k[3], minval=r["wz"][0], maxval=r["wz"][1])])
+                vy_max = r["vy"][1]
+                side = jnp.array([0.0, jax.random.uniform(k[14], minval=0.1, maxval=vy_max)
+                                  * jnp.where(jax.random.uniform(k[15]) < 0.5, -1.0, 1.0), 0.0])
+                diag = jnp.array([jax.random.uniform(k[16], minval=r["vx"][0], maxval=r["vx"][1]),
+                                  jax.random.uniform(k[17], minval=r["vy"][0], maxval=r["vy"][1]), 0.0])
+                c = jnp.select([z < 0.20, z < 0.35, z < 0.50, z < 0.60, z < 0.70, z < 0.85],
+                               [jnp.zeros(3), gen * jnp.array([1.0, 0.0, 0.0]), side, diag, slow, turn], gen)
+            if CMD_MIX == "v10":  # 느린 미세 이동 15 % 로 되돌림 (v9 8 %), 서기 25 %
+                c = jnp.select([z < 0.25, z < 0.35, z < 0.48, z < 0.57, z < 0.72, z < 0.85],
+                               [jnp.zeros(3), gen * jnp.array([1.0, 0.0, 0.0]), side, diag, slow, turn], gen)
+            if CMD_MIX == "v9":   # 서기 비율을 다시 30 % 로 (서서 작업하는 안정성), 옆걸음·대각선은 v7 그대로
+                c = jnp.select([z < 0.30, z < 0.42, z < 0.57, z < 0.67, z < 0.75, z < 0.87],
+                               [jnp.zeros(3), gen * jnp.array([1.0, 0.0, 0.0]), side, diag, slow, turn], gen)
             c = jnp.where(jnp.abs(c) < 0.015, 0.0, c)
             want_still = jnp.all(c == 0) & (jax.random.uniform(k[12]) < 0.8)
             k13a, k13b = jax.random.split(k[13])
@@ -326,6 +414,7 @@ class Tron1MjxEnv:
         z = jnp.zeros(self.nj, jnp.float32)
         s = EnvState(d=d, last_action=z, last_action2=z, last_target=self.q_def, gait_index=jnp.array(0.0),
                      cmd=cmd, want_still=still, standing=jnp.array(False), stand_t=jnp.array(0.0), yaw0=jnp.array(0.0),
+                     walk_yaw=_yaw(q[3:7]), stand_xy=q[0:2], v_avg=jnp.zeros(2, jnp.float32),
                      cmd_until=dur, hist=jnp.zeros(self.HIST * self.obs_dim, jnp.float32),
                      obs=jnp.zeros(self.obs_dim, jnp.float32),
                      t=jnp.array(0, jnp.int32), delay=delay, arm_from=arm, arm_to=arm, arm_t0=jnp.array(0.0),
@@ -463,7 +552,13 @@ class Tron1MjxEnv:
             yaw = _yaw(s.d.qpos[3:7])
             follow = POLICY_DT / STAND_YAW_TAU if STAND_YAW_TAU > 0 else 0.0
             yaw0 = jnp.where(stand_t < STAND_YAW_SETTLE, yaw, s.yaw0 + follow * _wrap(yaw - s.yaw0))
-            return s._replace(gait_index=g, standing=standing, stand_t=stand_t, yaw0=yaw0)
+            straight = ~standing & (jnp.abs(s.cmd[2]) < 0.05)
+            walk_yaw = jnp.where(straight, s.walk_yaw + follow * _wrap(yaw - s.walk_yaw), yaw)
+            xy = s.d.qpos[0:2]
+            stand_xy = jnp.where(stand_t < STAND_YAW_SETTLE, xy, s.stand_xy + follow * (xy - s.stand_xy))
+            v_avg = s.v_avg + (POLICY_DT / SLOW_TAU) * (self._sens(s.d, "base_linvel")[:2] - s.v_avg)
+            return s._replace(gait_index=g, standing=standing, stand_t=stand_t, yaw0=yaw0, walk_yaw=walk_yaw, stand_xy=stand_xy,
+                              v_avg=v_avg)
         return s._replace(gait_index=(g + POLICY_DT * self.GAIT[0]) % 1.0)
 
     def _reward(self, s, a):
@@ -478,6 +573,12 @@ class Tron1MjxEnv:
         F = jnp.array([self._sens(d, "foot_L_touch")[0], self._sens(d, "foot_R_touch")[0]])
         fv = jnp.array([jnp.linalg.norm(self._sens(d, "foot_L_vel")), jnp.linalg.norm(self._sens(d, "foot_R_vel"))])
         fp = self._sens(d, "foot_L_pos")[:2] - self._sens(d, "foot_R_pos")[:2]
+        # 발 높이: 실제 로봇에는 발 위치 센서가 없다 → 관절 각도의 정기구학(몸통 기준 발 위치, 몸통의 실제 위치·자세와 무관)을
+        # IMU 자세로 돌려 '세계 위쪽' 높이로. 두 발의 차이만 쓰므로 발 원점이 발바닥보다 조금 위인 것은 상쇄된다
+        Rb = d.xmat[self.base_bid].reshape(3, 3)
+        p_b = (d.xpos[self.foot_bid] - d.xpos[self.base_bid]) @ Rb          # (2, 3) 몸통 기준 = 정기구학
+        fz = (p_b @ quat_to_mat(self._sens(d, "imu_quat")).T)[:, 2]
+        clear_h = (jnp.clip(0.06 + 0.07 * jnp.linalg.norm(s.cmd[:2]), 0.06, self.GAIT[3]) if CLEAR_ADAPT else self.GAIT[3])
         fvxy = jnp.array([jnp.linalg.norm(self._sens(d, "foot_L_vel")[:2]), jnp.linalg.norm(self._sens(d, "foot_R_vel")[:2])])
         settled = (s.standing & (s.stand_t >= STAND_YAW_SETTLE)).astype(jnp.float32)
         des = desired_contacts(s.gait_index, self.GAIT)
@@ -495,7 +596,7 @@ class Tron1MjxEnv:
             action_smooth=jnp.sum((a - 2 * s.last_action + s.last_action2) ** 2),
             orientation=jnp.sum(grav[:2] ** 2),
             dof_pos_limits=jnp.sum(jnp.clip(self.jlo - q, 0, None) + jnp.clip(q - self.jhi, 0, None)),
-            feet_distance=jnp.clip(0.115 - jnp.linalg.norm(fp), 0, 1),
+            feet_distance=jnp.clip(0.115 - jnp.linalg.norm(fp), 0, 1) * jnp.where(jnp.abs(s.cmd[1]) > 0.05, FD_SIDE_SCALE, 1.0),
             contact_force=jnp.mean((1 - des) * (1 - jnp.exp(-F ** 2 / 25.0))),
             contact_vel=jnp.mean(des * (1 - jnp.exp(-fv ** 2 / 0.25))),
             stand_drift=s.standing * (1 - jnp.exp(-(gyro[2] / STAND_DRIFT_SIGMA[0]) ** 2
@@ -506,6 +607,18 @@ class Tron1MjxEnv:
             stand_twist=settled * jnp.mean(1 - jnp.exp(-(d.cvel[self.foot_bid, 2] / STAND_TWIST_SIGMA) ** 2)),
             stand_load=settled * jnp.clip((STAND_LOAD_MIN - jnp.min(F) / jnp.maximum(jnp.sum(F), 1.0)) / STAND_LOAD_MIN, 0.0, 1.0),
             stand_tilt=settled * jnp.clip((jnp.linalg.norm(grav[:2]) - STAND_TILT_FREE) / STAND_TILT_REF, 0.0, 2.0),
+            feet_clearance=jnp.sum((1 - des) * jnp.clip(clear_h - (fz - jnp.min(fz)), 0.0, None) ** 2),
+            tracking_vy=jnp.exp(-(s.cmd[1] - lin[1]) ** 2 / TRACK_VY_SIGMA),
+            walk_heading=(~s.standing & (jnp.abs(s.cmd[2]) < 0.05)).astype(jnp.float32)
+            * jnp.minimum(jnp.abs(_wrap(_yaw(quat) - s.walk_yaw)) / WALK_HEADING_REF, WALK_HEADING_CAP),
+            walk_yawrate=(~s.standing & (jnp.abs(s.cmd[2]) < 0.05)).astype(jnp.float32)
+            * jnp.minimum((gyro[2] / 0.05) ** 2, 4.0),
+            stand_liftoff=settled * (jnp.min(F) < STAND_LIFT_F).astype(jnp.float32),
+            stand_sway=settled * jnp.minimum(jnp.linalg.norm(d.qpos[0:2] - s.stand_xy) / STAND_SWAY_REF, 2.0),
+            tracking_slow=((~s.standing) & (jnp.linalg.norm(s.cmd[:2]) > 0.005) & (jnp.linalg.norm(s.cmd[:2]) < 0.15)).astype(jnp.float32)
+            * jnp.exp(-(jnp.linalg.norm(s.cmd[:2] - s.v_avg) / jnp.maximum(jnp.linalg.norm(s.cmd[:2]), 0.03)) ** 2 / 0.25),
+            stand_planted=settled * (jnp.min(F) >= STAND_LIFT_F).astype(jnp.float32)
+            * jnp.mean(jnp.exp(-(fvxy / STAND_FEET_SIGMA) ** 2)),
         )
         r = sum(self.rs[k] * v for k, v in t.items()) * POLICY_DT
         return r, t
@@ -517,6 +630,14 @@ def _yaw(q):
 
 def _wrap(a):
     return (a + jnp.pi) % (2 * jnp.pi) - jnp.pi
+
+
+def quat_to_mat(q):
+    """q (wxyz) → 3×3 회전 행렬."""
+    w, x, y, z = q[0], q[1], q[2], q[3]
+    return jnp.array([[1 - 2 * (y * y + z * z), 2 * (x * y - z * w), 2 * (x * z + y * w)],
+                      [2 * (x * y + z * w), 1 - 2 * (x * x + z * z), 2 * (y * z - x * w)],
+                      [2 * (x * z - y * w), 2 * (y * z + x * w), 1 - 2 * (x * x + y * y)]])
 
 
 def quat_rot_inv(q, v):

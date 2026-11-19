@@ -166,6 +166,7 @@ class MujocoBridge(Node):
                 execute_callback=lambda gh, s=side: self.exec_gripper_cmd(gh, s),
                 cancel_callback=lambda gh: CancelResponse.ACCEPT, callback_group=cb))
 
+        self._before_physics()
         self.stop_event = threading.Event()
         # SIGINT may invalidate the ROS context before main() reaches finally.
         self.context.on_shutdown(self.stop_event.set)
@@ -173,14 +174,20 @@ class MujocoBridge(Node):
         self.thread.start()
         self.get_logger().info("MuJoCo bridge started (viewer=%s, camera=%s)" % (self.viewer_enabled, gp("camera")))
 
+    def _before_physics(self):
+        """물리 스레드를 시작하기 전에 시뮬 상태를 바꿀 일 (하위 클래스: 이족 상자 위치). 스레드가 돌기 시작한 뒤 메인 스레드에서
+        mj_forward 로 상태를 바꾸면, 물리 스레드가 뷰어를 만드는 중(launch_passive, 잠금 없이 데이터를 읽음)과 겹쳐
+        브리지가 세그멘테이션 오류(−11)로 죽었다 (이족 연속 집기 시험 box_poses, 두 번에 한 번꼴)."""
+
     # ------------------------------------------------------------ physics thread
     def physics_loop(self):
         viewer = None
         if self.viewer_enabled:
             try:
                 import mujoco.viewer
-                viewer = mujoco.viewer.launch_passive(self.sim.m, self.sim.d,
-                                                      show_left_ui=False, show_right_ui=False)
+                with self.sim.lock:         # 뷰어가 처음 장면을 만드는 동안 다른 스레드가 데이터를 바꾸지 않게
+                    viewer = mujoco.viewer.launch_passive(self.sim.m, self.sim.d,
+                                                          show_left_ui=False, show_right_ui=False)
                 self._track_robot(viewer)
             except Exception as e:  # noqa: BLE001
                 self.get_logger().warn(f"viewer 를 열 수 없음 → headless 로 계속: {e}")

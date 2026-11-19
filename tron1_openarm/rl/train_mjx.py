@@ -45,6 +45,7 @@ def parse():
     ap.add_argument("--init-std", type=float, default=0.1)
     ap.add_argument("--critic-warmup", type=int, default=20)
     ap.add_argument("--seed", type=int, default=1)
+    ap.add_argument("--ck-min", type=int, default=10, help="중간 정책 저장 간격 [분] (watch_training.py 가 새로 저장될 때마다 보여 줌)")
     ap.add_argument("--max-difficulty", type=float, default=0.5)
     ap.add_argument("--payload-start", type=float, default=1.0)
     ap.add_argument("--train-encoder", type=int, default=1)
@@ -69,6 +70,19 @@ def log_prob(mean, log_std, a):
 
 def critic_input(obs, lin, cmd, est):
     return jnp.concatenate([obs, lin, cmd, est], -1)
+
+
+def split_stats(tr):
+    """명령 종류별 평균 — 전체 평균은 서기·직진처럼 쉬운 경우가 대부분이라 옆걸음·발 들기 진척이 가려졌다 (v6 그래프).
+    tr["cmd"] = 정책 명령 벡터 (vx·2, vy·2, wz·0.25, 높이, 서기)."""
+    c = tr["cmd"]
+    moving = (c[..., -1] < 0.5) & (jnp.hypot(c[..., 0], c[..., 1]) / 2.0 > 0.05)
+    side = jnp.abs(c[..., 1]) / 2.0 > 0.05
+    straight = moving & (jnp.abs(c[..., 2]) / 0.25 < 0.05)
+    avg = lambda x, m: jnp.sum(x * m) / jnp.maximum(jnp.sum(m), 1.0)  # noqa: E731
+    slow = moving & (jnp.hypot(c[..., 0], c[..., 1]) / 2.0 < 0.15)
+    return dict(side_vy=avg(tr["vy_track"], side), head_straight=avg(tr["heading"], straight),
+                clear_walk=avg(tr["feet_clear"], moving), slow_track=avg(tr["slow"], slow))
 
 
 def main():
@@ -138,6 +152,9 @@ def main():
                        stand_drift=info["terms"]["stand_drift"], stand_yaw=info["terms"]["stand_yaw"],
                        stand_feet=info["terms"]["stand_feet"], stand_load=info["terms"]["stand_load"],
                        stand_twist=info["terms"]["stand_twist"], stand_tilt=info["terms"]["stand_tilt"],
+                       feet_clear=info["terms"]["feet_clearance"], vy_track=info["terms"]["tracking_vy"],
+                       heading=info["terms"]["walk_heading"], liftoff=info["terms"]["stand_liftoff"],
+                       sway=info["terms"]["stand_sway"], slow=info["terms"]["tracking_slow"],
                        standing=st.standing.astype(jnp.float32))
             return (st, key), out
         (states, key), tr = jax.lax.scan(body, (states, key), None, length=T)
@@ -161,7 +178,11 @@ def main():
                      stand_feet=tr["stand_feet"].sum() / jnp.maximum(tr["standing"].sum(), 1.0),
                      stand_load=tr["stand_load"].sum() / jnp.maximum(tr["standing"].sum(), 1.0),
                      stand_twist=tr["stand_twist"].sum() / jnp.maximum(tr["standing"].sum(), 1.0),
-                     stand_tilt=tr["stand_tilt"].sum() / jnp.maximum(tr["standing"].sum(), 1.0), standing=tr["standing"].mean())
+                     stand_tilt=tr["stand_tilt"].sum() / jnp.maximum(tr["standing"].sum(), 1.0), standing=tr["standing"].mean(),
+                     clear=tr["feet_clear"].mean(), vy_track=tr["vy_track"].mean(), heading=tr["heading"].mean(),
+                     **split_stats(tr),
+                     liftoff=tr["liftoff"].sum() / jnp.maximum(tr["standing"].sum(), 1.0),
+                     sway=tr["sway"].sum() / jnp.maximum(tr["standing"].sum(), 1.0))
         return states, tr, stats, key
 
     @partial(jax.jit, static_argnums=(7,))
@@ -266,14 +287,22 @@ def main():
                    stand_drift=round(float(st["stand_drift"]), 4), stand_yaw=round(float(st["stand_yaw"]), 4),
                    stand_feet=round(float(st["stand_feet"]), 4), stand_load=round(float(st["stand_load"]), 4),
                    stand_twist=round(float(st["stand_twist"]), 4), stand_tilt=round(float(st["stand_tilt"]), 4),
-                   standing=round(float(st["standing"]), 3))
+                   standing=round(float(st["standing"]), 3), clear=round(float(st["clear"]) * 1e4, 3),   # 발 들기 부족 [cm²]
+                   vy_track=round(float(st["vy_track"]), 3), heading=round(float(st["heading"]), 4),   # 직진 방향 오차 (3° = 1)
+                   liftoff=round(float(st["liftoff"]), 4),   # 서 있을 때 한 발이 떨어진 비율
+                   sway=round(float(st["sway"]), 4),         # 서 있을 때 몸통 밀림 (3 cm = 1)
+                   # 명령 종류별 (v7): 옆걸음 명령일 때 옆 추종, 직진(회전 0)할 때 방향 오차, 걷는 중 발 들기 부족 [cm²]
+                   side_vy=round(float(st["side_vy"]), 3), head_straight=round(float(st["head_straight"]), 4),
+                   clear_walk=round(float(st["clear_walk"]) * 1e4, 3),
+                   slow_track=round(float(st["slow_track"]), 3))   # 느린 명령일 때 비율 오차 추종 (1 = 명령대로)
         log.append(rec)
         if it % 5 == 0 or it == 1:
             print(json.dumps(rec, ensure_ascii=False), flush=True)
         score = rec["lin_track"] + 0.5 * rec["ang_track"] - 50 * fr + 0.5 * difficulty - 10 * (1 - payload)
-        if actor_on and (time.time() - t_start) // 600 > ck_done[0]:      # 10 분마다 중간 정책 (서기 버티기 시험으로 고르려고)
-            ck_done[0] = int((time.time() - t_start) // 600)
-            np.savez(os.path.join(a.out, f"ck{ck_done[0] * 10:03d}min.npz"), **P.to_npz_dict(params["encoder"], "encoder"),
+        ck_s = a.ck_min * 60
+        if actor_on and (time.time() - t_start) // ck_s > ck_done[0]:      # ck_min 분마다 중간 정책 (서기 버티기 시험으로 고르려고)
+            ck_done[0] = int((time.time() - t_start) // ck_s)
+            np.savez(os.path.join(a.out, f"ck{ck_done[0] * a.ck_min:03d}min.npz"), **P.to_npz_dict(params["encoder"], "encoder"),
                      **P.to_npz_dict(params["policy"], "policy"))
         if it % 25 == 0:
             with open(os.path.join(a.out, "last.pkl"), "wb") as fp:
