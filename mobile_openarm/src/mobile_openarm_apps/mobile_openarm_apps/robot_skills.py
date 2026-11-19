@@ -1118,6 +1118,8 @@ class RobotSkills(Node):
     DOCK_GAP = 0.40         # 도킹 후 base_footprint 원점 ~ 작업대 앞 모서리 거리 [m] (범퍼 앞 여유 약 12cm)
     APPROACH_PITCH = 45.0
     GRASP_DEPTH = 0.01      # 상자 중심보다 접근방향으로 더 들어가는 거리 [m]
+    FINGER_TIP_BELOW = 0.020   # 손가락 끝이 TCP 보다 접근 방향으로 나온 길이 [m] (시뮬 접촉 기록으로 맞춤)
+    FINGER_HALF_T = 0.012      # 손가락 반두께 (접근 방향에 수직) [m]
     WRIST_MID_BACK = 0.05   # 손목 카메라가 있을 때 직선 접근 중간 보정 위치: 상자 중심 앞 [m] (손가락 끝이 상자에 닿기 전)
     IDEAL_REACH = 0.52      # base_footprint 기준 상자까지 이상적 전방 거리 [m]
     REACH_TOL = 0.03        # 이 안이면 미세 이동 안 함 (이족은 생성자에서 0.04: 미세 이동 한 번에 7~10 s, 0.54~0.57 m 에서도 집기 성공)
@@ -1481,7 +1483,11 @@ class RobotSkills(Node):
                 # 시각 피드백 1단계 (접근점): 팔 처짐·몸통 반동으로 손이 접근점에서 몇 cm 벗어나 있다.
                 # 손목 마커와 상자 마커를 함께 재서 '상자 기준' 접근점에 손을 맞춘 뒤 직선으로 들어간다.
                 top = self._table_top_seen if self._table_top_seen is not None else self.table_h
-                floor_z = top + 0.02                           # 손끝을 상판 2 cm 아래로는 내리지 않음 (손가락 두께)
+                # 손끝(TCP)을 내릴 수 있는 가장 낮은 높이: 손가락 가장 낮은 곳 = 손가락 끝 길이·sin(pitch) + 반두께·cos(pitch) 아래.
+                # 예전 고정값 '상판 + 2 cm' 는 거의 수평(pitch 20°) 접근 기준이라, 옆 상자에 막혀 가파르게(55°) 들어가면
+                # 손가락 끝이 상판에 닿았다 (놓을 자리 막힘 시험 p2, TCP 상판 + 2.3 cm 에서 접촉). → pitch 20° 2.4 cm, 55° 2.9 cm
+                s_p = max(0.0, -float(R[2, 2]))
+                floor_z = top + self.FINGER_TIP_BELOW * s_p + self.FINGER_HALF_T * math.sqrt(1.0 - s_p * s_p) + 0.006
                 self.set_boxes(exclude_id=mid)
                 pre_goal, center = self.visual_servo(side, mid, R, pre.copy(), center, pre - center,
                                                      floor_z=floor_z, label=" 접근점")
@@ -1673,7 +1679,12 @@ class RobotSkills(Node):
                 self.set_table(station)
                 self.station_keep(place_ref, label=" 놓기 전")
         self.cartesian(side, [target], R, avoid_collisions=False)
-        self.gripper(side, min(0.044, self.box_size / 2 + 0.012))     # 놓기: 옆 물체에 닿지 않게 조금만 연다
+        # 놓기: 옆 물체에 닿지 않게 조금만 연다 — 지금 손가락 벌림 + 1.2 cm (최소 상자 반폭 + 1.2 cm, 최대 끝까지).
+        # 고정값(상자 반폭 + 1.2 cm)만 열면, 가파르게(pitch 55°, roll −50°) 쥐어 상자를 대각선(7.1 cm)으로 문 경우 빠지지 않아
+        # 상자가 손에 붙은 채 home 까지 따라가 바닥에 떨어졌다 (시험 p2)
+        held = self._joints.get(f"openarm_{side}_finger_joint1")
+        opening = max(self.box_size / 2, held if held is not None else 0.0) + 0.012
+        self.gripper(side, min(0.044, opening))
         time.sleep(0.5)
         # 놓은 뒤: 접근 반대 방향으로 빼고 위로 들어 올려 작업대·물체와 충분히 떨어뜨림
         try:
