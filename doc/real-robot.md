@@ -94,7 +94,7 @@ ros2 launch openarm_bringup openarm.bimanual.launch.py arm_type:=v1.0 use_fake_h
    - 다리: limxsdk 로 RobotState/ImuData 를 받아 정책 실행 (LimX 배포 코드) + `/joint_states`(다리), `/odom`(다리 오도메트리), TF 발행 노드
    - 팔: `openarm_bringup` (CAN-FD) — 바퀴형 실로봇 안내와 같음
    - LiDAR·RGB-D 카메라 드라이버, `aruco_detector` (바퀴형과 같음)
-7. Nav2 는 속도를 더 낮춰(0.2 m/s) 시작. `config/nav2_params_tron1.yaml` 은 `tools/make_nav2_params_tron1.py` 가 생성한 파일이라 `10_setup_tron1.sh` 를 다시 실행하면 덮어써집니다. 계속 쓰려면 생성기(또는 실로봇용 별도 파라미터 파일)를 고치세요
+7. Nav2 는 속도를 더 낮춰(0.2 m/s) 시작. `config/nav2_params_tron1.yaml` 은 `tools/make_nav2_params_tron1.py` 가 생성한 파일이라 `13_regen_tron1_models.sh` 를 실행하면 덮어써집니다. 계속 쓰려면 생성기(또는 실로봇용 별도 파라미터 파일)를 고치세요
 
 ## 5. 바퀴형 vs 이족, 언제 무엇을 쓰나
 

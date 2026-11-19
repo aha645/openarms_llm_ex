@@ -83,11 +83,11 @@ ros2 pkg prefix mobile_openarm_apps
 `04_setup_workspace.sh`가 하는 일 (경로는 `mobile_openarm/` 기준):
 
 1. `scripts/setup_venv_mobile.sh`로 Python 가상환경 `.venv-mobile` 생성(`--system-site-packages`) 후 MuJoCo 3.5.0 / OpenAI / Pydantic 2 / Flask 설치. NumPy는 ROS(apt) 버전으로 고정
-2. `third_party/openarm_mujoco`에 OpenArm 에셋 clone 및 메시 복사
-3. venv의 Python으로 휠+OpenArm MJCF, 월드, URDF, SRDF, 지도 생성
-4. EGL/OSMesa로 자체 점검 시도
-5. rosdep 후 venv의 Python으로 `python -m colcon build --symlink-install --base-paths src` → `ros2 run` 실행 파일이 `.venv-mobile`의 Python으로 실행됨
-6. `~/.bashrc`에 `source <저장소>/mobile_openarm/install/setup.bash` 추가
+2. 저장소에 들어 있는 모델(휠+OpenArm MJCF, 월드, URDF, SRDF, 지도, OpenArm 메시)이 있는지 확인 — 인터넷으로 원본을 받거나 다시 만들지 않음
+   (OpenArm 원본에서 다시 만들 때만 `bash mobile_openarm/scripts/05_regen_models.sh`)
+3. EGL/OSMesa로 자체 점검 시도
+4. rosdep 후 venv의 Python으로 `python -m colcon build --symlink-install --base-paths src` → `ros2 run` 실행 파일이 `.venv-mobile`의 Python으로 실행됨
+5. `~/.bashrc`에 `source <저장소>/mobile_openarm/install/setup.bash` 추가
 
 `.venv-mobile`은 SLAM·Nav2·MoveIt 연동 노드, LLM 계획기, Flask 대시보드가 함께 쓰는 ROS 실행용 환경입니다. 자세한 구성은 [Python 가상환경](python-venv.md)을 참고하세요. `ros2 launch`/`ros2 run`은 활성화 없이도 이 venv를 쓰지만, `python3`로 도구를 직접 실행할 때는 위처럼 `activate`가 필요합니다.
 

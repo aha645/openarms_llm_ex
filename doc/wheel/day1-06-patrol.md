@@ -167,7 +167,7 @@ ros2 run mobile_openarm_apps patrol --ros-args -p loops:=1 -p mode:=through
    source install/setup.bash
    ```
 
-   주의: `locations.yaml` 은 `tools/build_world.py` 가 만든 파일이라, `04_setup_workspace.sh` 를 다시 돌리면 원래대로 덮어써집니다. 계속 쓰려면 `build_world.py` 의 `LOCATIONS` 도 같이 고치세요.
+   주의: `locations.yaml` 은 `tools/build_world.py` 가 만든 파일이라, `05_regen_models.sh`(모델 재생성)를 돌리면 원래대로 덮어써집니다 (`04_setup_workspace.sh` 는 덮어쓰지 않음). 계속 쓰려면 `build_world.py` 의 `LOCATIONS` 도 같이 고치세요.
 3. T1을 재시작할 필요는 없습니다. T2에서 순찰을 다시 실행하고 `waypoint n/5` 로 바뀌었는지 확인합니다.
 
 ## 5. 미션 체크리스트

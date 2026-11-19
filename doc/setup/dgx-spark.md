@@ -217,7 +217,10 @@ mobile_openarm/.venv-mobile/bin/python -c 'import numpy, cv2, mujoco, openai, py
 
 > **터미널:** 앞 절과 **같은 터미널**에서 이어서 진행합니다. 새 터미널이라면 먼저 `cd ~/Documents/openarms_llm_ex && export PYTHONNOUSERSITE=1` 을 입력하세요.
 
-### 5-1. OpenArm 에셋
+> **모델은 저장소에 들어 있습니다.** MJCF·URDF·SRDF·지도·OpenArm 메시가 git 에 포함되어 있으므로 **5-1·5-2 는 건너뛰고 5-3 으로** 가면 됩니다.
+> 5-1·5-2 는 OpenArm 원본에서 모델을 다시 만들 때만 씁니다 (한 번에: `bash mobile_openarm/scripts/05_regen_models.sh`). [실행 안내](../tron1/run-guide.md)
+
+### 5-1. (선택) OpenArm 에셋
 
 ```bash
 mkdir -p mobile_openarm/third_party && touch mobile_openarm/third_party/COLCON_IGNORE
@@ -231,7 +234,7 @@ git clone --depth 1 https://github.com/enactic/openarm_mujoco mobile_openarm/thi
 rm -rf mobile_openarm/src/mobile_openarm_sim/mjcf/meshes && cp -r mobile_openarm/third_party/openarm_mujoco/v1/meshes mobile_openarm/src/mobile_openarm_sim/mjcf/meshes
 ```
 
-### 5-2. 모델 생성 (MJCF → URDF → SRDF, 지도)
+### 5-2. (선택) 모델 생성 (MJCF → URDF → SRDF, 지도)
 
 패키지 폴더로 이동하고, 가상환경의 Python 을 변수로 둡니다. `PY` 는 **이 터미널에서만** 유효합니다. 5-2·5-3 도중 새 터미널을 열었다면 아래 줄을 다시 입력하세요(빼먹으면 `$PY` 가 비어 `tools/...: Permission denied` 가 납니다).
 
@@ -344,6 +347,10 @@ ros2 topic pub --once /task/command std_msgs/msg/String "{data: '순찰하고 �
 원격(SSH)으로 접속해 화면이 없으면 `viewer:=false` 를 붙이고 대시보드(포트 8080)로 봅니다. 여기까지 되면 [휠형 교육](../wheel/README.md)으로 넘어갑니다.
 
 ## 7. (TRON1) 모델 생성·overlay 빌드
+
+> **TRON1 모델·메시·정책도 저장소에 들어 있습니다.** 아래 모델 생성 블록(third_party clone ~ Nav2 파라미터)은 건너뛰고,
+> 이 절의 자체 점검·빌드 부분만 하면 됩니다 (한 번에: `bash tron1_openarm/scripts/10_setup_tron1.sh`).
+> 원본(LimX TRON1·OpenArm)에서 다시 만들 때만 생성 블록을 씁니다 (한 번에: `bash tron1_openarm/scripts/13_regen_tron1_models.sh`). [실행 안내](../tron1/run-guide.md)
 
 `tron1_openarm/scripts/10_setup_tron1.sh` 를 나눈 것입니다. 5절까지 끝난 상태에서 시작합니다. 6절의 full_system 은 `Ctrl+C` 로 끈 뒤, 그 터미널(또는 새 터미널)에서 7절을 **끝까지 한 터미널로** 진행합니다. 아래 셋째 블록이 정하는 `PY W D M` 변수는 그 터미널에서만 유효하므로, 중간에 새 터미널을 열었다면 첫 블록과 셋째 블록을 다시 입력하세요.
 

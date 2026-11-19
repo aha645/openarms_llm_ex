@@ -14,6 +14,7 @@
 | [day2.md](day2.md) | **교육 2일차** — 이족 MoveIt·카메라 집기·운반·LLM·Task Manager·통합 미션 |
 | [design.md](design.md) | 무엇을 새로 구성했고 왜 그랬나, LimX description → xacro → URDF → MJCF, 상반신 장착 높이·위치와 설계 변경 이력 |
 | [locomotion-rl.md](locomotion-rl.md) | 두 발로 서고 걷기: LimX 사전학습 정책 + PPO 미세조정(팔을 움직이는 상태), 보상·버전 이력, 브리지 제어 흐름 |
+| [run-guide.md](run-guide.md) | **실행 안내** — 다른 컴퓨터에서 받아 설치, 전체 미션·집기 시험 실행과 판정, 다른 정책 시험, (선택) 원본에서 모델 다시 만들기 |
 | [validation-log.md](validation-log.md) | 시험·검증 기록(날짜순): SLAM·Nav2·집기 시험, 흔들림 원인 분석, 손목 마커 시각 피드백, SF 전체 미션 완주 |
 | [../real-robot.md](../real-robot.md) | 검증 범위·한계, 실로봇으로 갈 때의 순서 (휠형과 공통) |
 
@@ -26,7 +27,7 @@
 ```bash
 cd ~/openarm_mobile_ws
 bash mobile_openarm/scripts/04_setup_workspace.sh               # 바퀴형 (OpenArm 에셋·의존성)
-bash tron1_openarm/scripts/10_setup_tron1.sh     # TRON1 description 받기 → 모델 생성 → 자체점검 → 빌드(overlay)
+bash tron1_openarm/scripts/10_setup_tron1.sh     # 저장소의 모델·정책 확인 → 자체점검 → 빌드(overlay)
 source tron1_openarm/install/setup.bash          # 바퀴형 mobile_openarm underlay 포함
 ros2 launch tron1_openarm_sim full_system.launch.py foot:=sf planner:=offline world:=world_light.xml rviz:=false    # → http://localhost:8080
 ```
@@ -39,8 +40,8 @@ ros2 launch tron1_openarm_sim full_system.launch.py foot:=sf planner:=offline wo
 
 ```
 tron1_openarm/
-├── scripts/10_setup_tron1.sh, 11_train_policy.sh, setup_venv_biped.sh
-├── third_party/                    (스크립트가 clone, git 에 안 올라감) tron1-robot-description, tron1-mujoco-sim
+├── scripts/10_setup_tron1.sh, 11_train_policy.sh, 12_train_mjx.sh, 13_regen_tron1_models.sh(선택), setup_venv_biped.sh
+├── third_party/                    (13 재생성 때만 clone, git 에 안 올라감) tron1-robot-description — 메시·모델은 src/ 에 포함
 ├── .venv-biped/                    (setup_venv_biped.sh 가 생성, git 제외) PPO 학습용 JAX·MuJoCo
 ├── build/ install/ log/            (colcon 산출물, mobile_openarm/install 위 overlay)
 ├── src/
@@ -49,7 +50,8 @@ tron1_openarm/
 │   │   ├── tools/build_tron1_openarm.py    ← xacro→URDF→MJCF + OpenArm 접목
 │   │   ├── tools/build_world_tron1.py, make_urdf_tron1.py, make_nav2_params_tron1.py, selftest_tron1.py
 │   │   ├── tron1_openarm_sim/locomotion_policy.py, biped_core.py, bridge_biped.py
-│   │   ├── policies/tron1_openarm_policy.npz (미세조정), limx_pf_tron1a_pretrained.npz (LimX 원본)
+│   │   ├── mjcf/ (모델·메시, MESHES_NOTICE.md 에 출처), urdf/
+│   │   ├── policies/tron1sf_openarm_policy.npz (SF v3, 교육 기준), tron1_openarm_policy.npz (PF), limx_pf_tron1a_pretrained.npz (LimX 원본)
 │   │   └── launch/sim, slam, nav, full_system
 │   └── tron1_openarm_moveit_config/  MoveIt (다리 포함 URDF·SRDF, 팔 설정은 바퀴형과 동일)
 ├── rl/                             강화학습: tron1_env.py, train_ppo.py, eval_policy.py, export_onnx.py
