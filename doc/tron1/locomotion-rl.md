@@ -751,7 +751,70 @@ TRON1_STAND_TILT=4 TRON1_EP_S=60 TRON1_STAND_LONG_MAX_S=50 \
 | 팔 동작 몸통 흐름 | 8.4 cm | 19.8 cm | 20.7 cm | 15.8 cm | 8.0 cm |
 | 느린 전진 / 후진 0.05 m/s | 103 / 75 % | 122 / 77 % | — | 60 / 151 % | 17 / 187 % |
 
-### 14-4. 배운 것
+### 14-4. 소스 코드 변경 (파일·함수별, 커밋)
+
+**`tron1_openarm/rl/tron1_mjx_env.py`** (MJX 학습 환경 — 새 항목은 모두 환경 변수로 켜고 기본은 꺼짐, v3 까지의 학습을 그대로 재현)
+
+| 판 | 위치 | 바꾼 것 | 커밋 |
+|---|---|---|---|
+| v4 | 모듈 상수 | `_rng()`·`CMD_RANGES`(`TRON1_VX`·`TRON1_VY`), `VY_P`(`TRON1_VY_P`), `CLEAR_SCALE`(`TRON1_CLEAR`) | 127be28 |
+| v4 | `_reward()` | `feet_clearance` 항: 발 높이 `fz` = 몸통 기준 발 위치(관절 각도 정기구학) × IMU 자세(`quat_to_mat` 새 함수). 발 위치 센서(`framepos`)는 쓰지 않음 | 127be28 |
+| v4 | `_sample_cmd()` | 옆 성분 비율 0.3 → `VY_P` | 127be28 |
+| v5 | 상수·`_reward()`·`__init__` | `TRACK_VY_SCALE`·`TRACK_VY_SIGMA`, `tracking_vy` 항, `self.rs["tracking_vy"]` | 46a67ee |
+| v6 | 상수 | `WALK_HEADING_SCALE/REF`, `STAND_LIFT_SCALE`, `STAND_PLANTED_SCALE`, `STAND_LIFT_F`, `FD_SIDE_SCALE` | 151e0f8 |
+| v6 | `EnvState`·`reset()`·`_advance_clock()` | `walk_yaw` 필드(직진 방향 기준, 회전 명령·서기 중엔 현재 방향, 직진 중엔 `STAND_YAW_TAU` 로 천천히 따라감) | 151e0f8 |
+| v6 | `_reward()` | `walk_heading`·`stand_liftoff`·`stand_planted` 항, `feet_distance` 에 옆걸음 배율 | 151e0f8 |
+| v7 | 상수 | `CMD_MIX`(`TRON1_CMD_MIX`), `CLEAR_ADAPT` | e53c2a1 |
+| v7 | `_sample_cmd()` | 난수 키 14 → 20, `CMD_MIX == "v7"` 이면 `jnp.select` 로 서기·직진·옆걸음(`side`)·대각선(`diag`)·느린·회전·일반 | e53c2a1 |
+| v7 | `_reward()` | `feet_clearance` 목표 높이 `clear_h` = 0.06 + 0.07·\|명령\| (상한 걸음 설정 0.12) | e53c2a1 |
+| v8 | 상수·`_reward()` | `WALK_HEADING_CAP`, `WALK_YAWRATE_SCALE`, `walk_yawrate` 항 (v8 은 버림, 코드는 기본 꺼짐으로 남김) | 50639af |
+| v9 | 상수 | `HOLD_R`(들기 자세 6 개, `TRON1_HOLD=1` 이면 `REACH_R` 에 덧붙임), `STAND_SWAY_SCALE/REF` | 592d965 |
+| v9 | `EnvState`·`reset()`·`_advance_clock()` | `stand_xy` 필드(서기 위치 기준) | 592d965 |
+| v9 | `_reward()`·`_sample_cmd()` | `stand_sway` 항, `CMD_MIX == "v9"` 분포 | 592d965 |
+| v10 | 상수 | `TRACK_SLOW_SCALE`, `SLOW_TAU` | 4408667 |
+| v10 | `EnvState`·`reset()`·`_advance_clock()` | `v_avg` 필드(몸통 수평 속도 0.5 s 평균) | 4408667 |
+| v10 | `_reward()`·`_sample_cmd()` | `tracking_slow` 항, `CMD_MIX == "v10"` 분포 | 4408667 |
+
+**`tron1_openarm/rl/train_mjx.py`** (PPO 학습)
+- `--ck-min`: 중간 정책 저장 간격(기본 10 분, 학습 보기용으로 5 분) — 127be28
+- 학습 로그 항목 추가: `clear`(127be28), `vy_track`(46a67ee), `heading`·`liftoff`(151e0f8), `sway`(592d965), `slow`(4408667)
+- `split_stats()` 새 함수: 명령 종류별 평균 `side_vy`(옆걸음 명령일 때 옆 추종)·`head_straight`(직진할 때 방향 오차)·`clear_walk`(걷는 중 발 들기)·`slow_track`(느린 명령 추종) — e53c2a1, 4408667
+
+**`tron1_openarm/rl/eval_policy.py`** (배포 조건 평가)
+- `Runner.__init__`: 발 링크 id, **벽·기둥·작업대 충돌 끔**(바닥만, 4f48691)
+- `Runner.run()`: 발 들기(정기구학 + IMU), 두 발 중 작은 접촉력 기록
+- `stats()`: `lift`·`liftoff`·`yaw_deg`·`track`·`drift`
+- `evaluate()`: 시험 `fast`·`back`·`side_l`·`side_r`(127be28), `walk_arms`(151e0f8), `slow_f`·`slow_b`·`slow_s`(4408667)
+
+**`tron1_openarm/rl/mjx_parity.py`**: 학습 환경 비교 시나리오 `fast_0.6`·`strafe_0.3` (4f48691)
+
+**`tron1_openarm/rl/watch_training.py`** (새 파일, 127be28 → 3ce54ae → 974e172)
+- `plot`: 학습 지표 그래프(10 s 마다 `log.json` 다시 그림), `current_run()` 이 지금 학습 중인 시드 폴더를 따라감
+- `play`: 최신 중간 정책으로 전진·후진·옆걸음 반복. 처음엔 MuJoCo 뷰어(`launch_passive`)였으나 학습이 GPU 를 다 쓸 때 멈춰서
+  화면 밖 렌더러(`mujoco.Renderer`) + OpenCV 창으로 바꿈 (10 Hz, 가벼운 모델, `--full` 로 전체 메시)
+
+**학습 밖에서 같이 고친 것**
+- `tron1_openarm_sim/config/nav2_params_tron1.yaml`, `tools/make_nav2_params_tron1.py`: 전진 0.35 → 0.5, 후진 −0.2 → −0.3 m/s, `vx_std` 0.2 (46a67ee)
+- `mobile_openarm_sim/bridge_node.py`: `_before_physics()` 훅(물리 스레드 시작 전 상태 변경), 뷰어 생성을 시뮬 잠금 안에서 /
+  `tron1_openarm_sim/bridge_biped.py`: 상자 위치(`box_poses`) 설정을 `_before_physics()` 로 — 상자 위치를 준 집기 시험에서 두 번에 한 번꼴 세그멘테이션 오류 (a589995)
+- `tools/validation/pick_test.sh`·`mission_test.sh`: `POLICY=` 로 후보 보행 정책 시험 (a589995)
+
+### 14-5. 판별 학습 명령
+
+공통 (v3 설정): `TRON1_HAND_F=25 TRON1_REACH_P=0.35 TRON1_STAND_FEET=5 TRON1_STAND_LOAD=3 TRON1_STAND_TWIST=5 TRON1_STAND_TILT=4 TRON1_EP_S=60 TRON1_STAND_LONG_MAX_S=50`.
+`rl/` 에서 `../.venv-biped/bin/python train_mjx.py --foot sf --impl warp --envs 4096 --seed <1|2> --ck-min 5 --out ../runs/gait_vN/seed<1|2>` 에 아래를 더한다.
+
+| 판 | 추가 환경 변수 | `--init` | 기타 |
+|---|---|---|---|
+| v4 | `TRON1_VX=-0.5,0.8 TRON1_VY=0.35 TRON1_VY_P=0.5 TRON1_CLEAR=200` | (배포 v3) | `--minutes 45` |
+| v5 | `TRON1_VY=0.3 TRON1_VY_P=0.5 TRON1_CLEAR=100 TRON1_TRACK_VY=3` | (배포 v3) | `--minutes 45` |
+| v6 | v5 + `TRON1_VY_P=0.6 TRON1_WALK_HEADING=2 TRON1_STAND_LIFT=2 TRON1_STAND_PLANTED=1 TRON1_FD_SIDE=0.3` | v5 seed1 final | `--minutes 45` |
+| v7 | v6 + `TRON1_VY=0.35 TRON1_CLEAR_ADAPT=1 TRON1_CMD_MIX=v7` | v6 seed1 final | `--minutes 60 --init-std 0.15` |
+| v8 | v7 + `TRON1_WALK_HEADING_CAP=10 TRON1_WALK_YAWRATE=2`, `TRON1_STAND_TILT=8` | v7 seed1 best | `--minutes 60 --init-std 0.12` (버림) |
+| v9 | v7 + `TRON1_CMD_MIX=v9 TRON1_HOLD=1 TRON1_STAND_SWAY=1 TRON1_STAND_YAW=6` | v7 seed1 best | `--minutes 60 --init-std 0.1` |
+| v10 | v9 + `TRON1_CMD_MIX=v10 TRON1_TRACK_SLOW=3` | v9 seed1 best | `--minutes 60 --init-std 0.1` |
+
+### 14-6. 배운 것
 
 - **평가가 틀리면 학습 방향이 틀린다.** 벽에 막힌 속도를 정책 한계로 읽고 v4 를 '빠르게' 학습했다. 이상한 결과는 학습 환경(MJX)과 배포 조건을 같은 명령으로 비교하고(`mjx_parity.py`), 위치 기록을 본다.
 - **보상 가중치보다 명령 분포가 먼저.** 옆걸음 보상을 아무리 올려도 연습 비율이 6 % 면 늘지 않았다(v5·v6). 명령 종류를 따로 두니 한 판에 34 → 98 % (v7).
