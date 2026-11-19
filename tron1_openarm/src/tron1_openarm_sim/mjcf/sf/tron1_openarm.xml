@@ -380,7 +380,7 @@
           </body>
           <geom name="openarm_column_collision" type="box" size="0.03 0.03 0.064" pos="0 0 0.698" group="3" rgba="0 0 0 0" contype="1" conaffinity="1" />
           <geom name="openarm_column_vis" type="box" size="0.03 0.03 0.064" pos="0 0 0.698" material="matte_black" contype="0" conaffinity="0" group="2" mass="0" />
-          <geom name="openarm_shoulder_bracket_vis" type="box" size="0.05 0.03 0.065" pos="0 0 0.697" material="metal_silver" contype="0" conaffinity="0" group="2" mass="0" />
+          <geom name="openarm_shoulder_bracket_vis" type="mesh" mesh="body_link0_5.obj" material="matte_black" contype="0" conaffinity="0" group="2" mass="0" />
           <camera name="head_camera" pos="0.1 0 0.937" fovy="55" xyaxes="0 -1 0 0.776046 0 0.630676" />
           <geom name="head_camera_vis" type="box" size="0.02 0.05 0.02" pos="0.08 0 0.937" rgba="0.1 0.1 0.1 1" contype="0" conaffinity="0" group="2" mass="0" />
           <geom name="head_mast_vis" type="cylinder" size="0.012 0.0875" pos="0.05 0 0.8495" rgba="0.3 0.3 0.3 1" contype="0" conaffinity="0" group="2" mass="0" />
