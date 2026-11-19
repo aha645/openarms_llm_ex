@@ -56,7 +56,7 @@ sequenceDiagram
   P->>M: pick(box_0) — 접근·손목 카메라로 맞추며 직선·집기·수평으로 들기
   P->>N: navigate(place_station) (-2.5, 2.15, 90°)
   P->>B: dock()
-  P->>M: place() — 그 방향 그대로 내려놓기·carry·home
+  P->>M: place() — 그 방향 그대로 내려놓기·home
   P->>N: navigate(home)
 ```
 

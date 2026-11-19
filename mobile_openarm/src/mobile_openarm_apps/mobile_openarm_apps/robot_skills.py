@@ -1505,7 +1505,7 @@ class RobotSkills(Node):
             # 손가락이 상판에 걸려 몸통이 22° 기울었다 (전체 미션 18). 상자를 쥔 뒤 carry 로 접는 것(fold_carry)은 그대로
             # 바퀴형도 같다: 작업대 앞(모서리 0.38 m)에서 home→carry 는 팔을 앞으로 크게 휘둘러 손목·손가락이 상판 모서리를 쳤다
             # (바퀴형 회귀 시험 3·4 접촉 기록, 시뮬 재현: 모서리 0.50 m 에서도 닿음) → 바퀴형도 home 에서 바로 접근
-            # (그래서 fold_carry 는 이제 '쥔 뒤 carry 로 접기'·'놓은 뒤 carry 를 거쳐 home' 에만 쓰인다)
+            # (fold_carry 는 이제 이족이 '쥔 뒤 carry 로 접기' 에만 쓴다. 바퀴형은 쥔 뒤 수평으로 들기, 놓은 뒤 바로 home)
             self.set_boxes()                                   # 계획 중에는 모든 상자가 장애물
             self.set_table()                                   # 접근 자세 계산은 실제 상판 높이로
             try:
@@ -1853,14 +1853,11 @@ class RobotSkills(Node):
             self._held_level[side] = False
             if not any(self._held_level.values()):
                 self.set_footprint(None)          # 들고 있던 상자를 놓았으면 Nav2 외곽을 원래대로
-        # 'ready'(손이 작업대 위)를 거치면 방금 놓은 상자를 칠 수 있으므로, 몸 쪽 carry 를 거쳐 home 으로
         self.set_table(station, pad=self.TRANSIT_PAD)
-        if self.fold_carry and not self.can_strafe:   # 이족은 놓은 뒤 바로 home (carry 를 거치는 계획이 작업대 위로 손을 휘두름, 미션 18)
-            self.move_named(f"{side}_arm", "carry")
-            self.move_named(f"{side}_arm", "home")
-        else:
-            self.set_boxes()                    # 방금 놓은 상자도 장애물로 두고 home 까지 한 번에
-            self.move_named(f"{side}_arm", "home", tuck=False)
+        # 놓은 뒤 바로 home (바퀴형·이족). carry 를 거치면 손이 가슴 쪽으로 갔다가 내려와 불필요하고(사용자 지적),
+        # 이족은 그 계획이 작업대 위로 손을 휘둘렀다 (미션 18) → 방금 놓은 상자도 장애물로 두고 home 까지 한 번에
+        self.set_boxes()
+        self.move_named(f"{side}_arm", "home", tuck=False)
         self.log(f"[place] 완료: {obj}")
         return obj
 
