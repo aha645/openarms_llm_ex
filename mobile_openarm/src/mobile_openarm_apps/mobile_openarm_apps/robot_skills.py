@@ -22,7 +22,7 @@ from action_msgs.msg import GoalStatus
 from ament_index_python.packages import get_package_share_directory
 from builtin_interfaces.msg import Duration
 from control_msgs.action import FollowJointTrajectory
-from geometry_msgs.msg import Pose, PoseStamped, Twist
+from geometry_msgs.msg import Point32, Polygon, Pose, PoseStamped, Twist
 from moveit_msgs.action import ExecuteTrajectory, MoveGroup
 from moveit_msgs.msg import (CollisionObject, Constraints, JointConstraint, MoveItErrorCodes,
                              PlanningScene, RobotState, RobotTrajectory)
@@ -39,7 +39,7 @@ from std_msgs.msg import String
 from tf2_ros import Buffer, TransformListener
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 
-from .geometry import approach_rotation, mat_to_quat_xyzw, quat_to_yaw, se2_inverse_apply, yaw_to_quat
+from .geometry import approach_rotation, mat_to_quat_xyzw, quat_to_yaw, rot_axis, se2_inverse_apply, yaw_to_quat
 
 try:    # 이족(TRON1) 패키지가 있으면 손목 마커 정의를 쓴다 — 바퀴형 작업공간에는 없어도 된다
     from tron1_openarm_sim import wrist_markers as WRIST
@@ -136,9 +136,12 @@ class RobotSkills(Node):
         self._joints = {}
         self.create_subscription(JointState, "/joint_states", self._on_js, 10, callback_group=cb)
         self.status_pub = self.create_publisher(String, "/task/log", 10)
+        # Nav2 장애물 지도의 로봇 외곽을 바꾸는 토픽 (costmap 이 'footprint' 를 구독) — 상자를 몸 앞에 들고 다닐 때 늘림
+        self._fp_pubs = [self.create_publisher(Polygon, f"/{c}/footprint", 10) for c in ("local_costmap", "global_costmap")]
         self.cmd_pub = self.create_publisher(Twist, "/cmd_vel", 10)
         self.holding = {"left": None, "right": None}
         self._grasp_tilt = {"left": None, "right": None}     # 쥘 때 손 (pitch, roll, yaw) — place 에서 수평 유지
+        self._held_level = {"left": False, "right": False}   # 바퀴형: 쥔 손 방향 그대로 들고 있음 (_hold_level, carry 로 접지 않음)
         # True: 집기 전후 팔을 carry(몸 쪽으로 접은 자세)로 옮긴다 — 상자를 든 채 걸어서 다른 곳으로 갈 때 필요.
         # 같은 작업대에서 집어 바로 놓을 때(pick_place)는 False: home → 접근 → 파지 → 살짝 들기 → 놓기 → home.
         # carry 를 거치면 팔 이동 4 번(약 3.5 분, 무작위 배치 r8 기록)이 더 들었다
@@ -556,10 +559,11 @@ class RobotSkills(Node):
         w = self._measure_box_wrist(side, box_id)
         if w is not None:
             return w[0], w[1], w[0], "손목 카메라"
-        if WRIST is None:
+        if WRIST is None and not allow_fk:
             raise SkillError("손목 마커 정의(tron1_openarm_sim.wrist_markers) 없음")
         tcps, boxes, seen, t0 = [], [], set(), time.time()
-        while len(tcps) < samples and time.time() - t0 < timeout:
+        # 손목 마커 정의가 없으면(바퀴형) 손목 마커로 재지 않고 바로 아래 정기구학 손끝 + 머리 카메라 상자로
+        while WRIST is not None and len(tcps) < samples and time.time() - t0 < timeout:
             with self._det_lock:
                 items = dict(self._detections)
             tf7 = self._tf_matrix(f"openarm_{side}_link7")
@@ -586,7 +590,7 @@ class RobotSkills(Node):
         if not tcps:
             with self._det_lock:
                 ages = {i: round(time.time() - v[0], 1) for i, v in self._detections.items()}
-            raise SkillError(f"{side} 손목 마커가 카메라에 안 보임 (최근 검출 id:경과초 {ages}, link7 TF {'있음' if tf7 is not None else '없음'})")
+            raise SkillError(f"{side} 손목 마커가 카메라에 안 보임 (최근 검출 id:경과초 {ages}, 정기구학 손끝 TF 없음)")
         fk = self._tf_matrix(TCP[side])
         return (np.median(np.array(tcps), axis=0), np.median(np.array(boxes), axis=0) if boxes else None,
                 None if fk is None else fk[0], "손목 마커")
@@ -732,10 +736,9 @@ class RobotSkills(Node):
         """현재 자세 기준 작업대 앞 모서리까지의 전방 거리. 머리 카메라 깊이로 잰 값이 있으면 그것(정확, ±0.1 cm),
         없으면 map TF 와 지도 좌표 (AMCL 오차 5~10 cm)."""
         station = station or self.current_station
-        if self.can_strafe:
-            e = self.table_edge_seen()
-            if e is not None:
-                return float(e["dist"])
+        e = self.table_edge_seen()          # 카메라 서버가 /table/edge 를 낼 때 (바퀴형·이족 camera_process)
+        if e is not None:
+            return float(e["dist"])
         table = self.station_table.get(station)
         pose = self.robot_pose()
         if table is None or pose is None:
@@ -754,15 +757,14 @@ class RobotSkills(Node):
         # 1) 작업대와 정면으로 마주 보도록 yaw 보정 (Nav2 yaw 허용오차 ±7° 보정)
         want = math.radians(self.locations[station][2])
         self.rotate_base(math.atan2(math.sin(want - pose[2]), math.cos(want - pose[2])))
-        if self.can_strafe:
-            # 지도 방향으로 돈 뒤 남은 어긋남(AMCL 방향 오차 수 °)은 깊이로 잰 작업대 모서리로 바로잡는다
-            e = self.table_edge_seen()
-            if e is not None:
-                self.log(f"[dock] 작업대 모서리(깊이) 거리 {e['dist']:.3f} m, 방향 {math.degrees(e['yaw']):+.1f}°, "
-                         f"상판 {e['height']:.3f} m")
-                self.rotate_base(float(e["yaw"]))
-            else:
-                self.log("[dock] 작업대 모서리를 깊이로 못 찾음 → 지도 좌표로")
+        # 지도 방향으로 돈 뒤 남은 어긋남(AMCL 방향 오차 수 °)은 깊이로 잰 작업대 모서리로 바로잡는다 (바퀴형·이족)
+        e = self.table_edge_seen()
+        if e is not None:
+            self.log(f"[dock] 작업대 모서리(깊이) 거리 {e['dist']:.3f} m, 방향 {math.degrees(e['yaw']):+.1f}°, "
+                     f"상판 {e['height']:.3f} m")
+            self.rotate_base(float(e["yaw"]))
+        else:
+            self.log("[dock] 작업대 모서리를 깊이로 못 찾음 → 지도 좌표로")
         if self.can_strafe:
             # 옆 위치: Nav2 '도착' 은 목표에서 0.25 m(xy 허용) + AMCL 오차만큼 옆으로 벗어날 수 있다. 미션 22 에서 스테이션보다
             # 35 cm 옆에 서서 집을 상자(로봇 오른쪽 0.47 m)가 머리 카메라 시야(옆 ±0.3 m) 밖 → '마커 못 찾음' 으로 실패.
@@ -1076,9 +1078,10 @@ class RobotSkills(Node):
             if edge != edge_map:
                 local = np.array([local[0] + edge - edge_map, local[1]])
         tbl_yaw = -pose[2]                 # 작업대 축은 map 축과 평행
-        e = self._edge_recent() if self.can_strafe else None
+        e = self._edge_recent()
         if e is not None and station in self.locations:
-            # 이족: 머리 카메라 깊이로 잰 앞 모서리(거리·방향)로 작업대를 놓는다 — 지도·오도메트리 어긋남(5~10 cm, 수 °)을 없앰.
+            # 머리 카메라 깊이로 잰 앞 모서리(거리·방향)로 작업대를 놓는다 — 지도·오도메트리 어긋남(5~10 cm, 수 °)을 없앰.
+            # 바퀴형도 같다: 지도(AMCL)로 놓은 작업대가 실제보다 2.5 cm 멀어 3 cm 여유로 겨우 덮였다 (바퀴형 회귀 시험 4 비교)
             # 모서리 위의 점 (dist, 0) 에서 작업대 안쪽 법선 n = (cos θ, sin θ) 으로 깊이/2, 모서리 방향 위치는 지도 값
             th = float(e["yaw"])
             n_in, e_dir = np.array([math.cos(th), math.sin(th)]), np.array([-math.sin(th), math.cos(th)])
@@ -1087,7 +1090,8 @@ class RobotSkills(Node):
             s_lat = c if c is not None else float((np.asarray(local) - p_edge) @ e_dir)
             local = p_edge + n_in * (t["size"][1] / 2) + e_dir * s_lat
             tbl_yaw = th - math.radians(self.locations[station][2])
-            if self._table_top_seen is None:
+            if self._table_top_seen is None and self.can_strafe:
+                # 이족만: 잰 상판 높이 + 0.5 cm. 바퀴형은 위의 '상판 − 1.2 cm' 그대로 (접근 자세 계산이 그 높이에 맞춰져 있음)
                 h = float(e["height"]) + 0.005 + pad
         box.dimensions = [float(t["size"][0]) + 2 * pad, float(t["size"][1]) + 2 * pad, float(h)]
         p = Pose()
@@ -1225,7 +1229,7 @@ class RobotSkills(Node):
         carry → 접근점을 관절 공간 직선으로 바로 가면 손끝이 곡선을 그리고 손목이 −90° 까지 돌며 들어가
         손목 카메라 화면에서 상자가 흔들리거나 벗어났다. 대기점부터는 카메라가 상자를 계속 같은 방향에서 본다."""
         group = f"{side}_arm"
-        if not self.can_strafe:
+        if not (self.can_strafe or self.wrist_cameras):     # 손목 카메라 없는 바퀴형은 바로
             self.move_joints(group, q_pre)
             return
         stage = pre - R[:, 2] * self.STAGE_BACK + np.array([0.0, 0.0, self.STAGE_UP])
@@ -1286,7 +1290,11 @@ class RobotSkills(Node):
             # roll 0° (손가락이 접근 방향과 같은 수직면에서 벌어져 상자 윗면·앞면을 잡음)는 시험 3 재시도·시험 5 에서 첫 시도에 성공.
             # 예전 파지 보조는 손가락 하나만 닿아도 상자를 붙여 이 문제를 가렸다 → 작은 roll 부터
             rolls = sorted(rolls, key=abs)
-        if self.wrist_cameras:
+        if self.wrist_cameras and not self.can_strafe:
+            # 바퀴형 + 손목 카메라: 카메라가 위에서 상자를 보려면 roll 이 음수여야 한다. −90° 는 손가락이 정확히 수평으로 벌어져
+            # 손끝 하한 계산과 맞고(위 ±70° 문제 없음), 손가락이 상자 옆면을 잡는다. 안 되면 −70°, 그다음 위 순서
+            rolls = [-90, -70] + [r for r in rolls if r not in (-90, -70)]
+        elif self.wrist_cameras:
             # 손목 카메라는 손의 −x 쪽에 있어 roll 이 음수(−70~−90°)일 때 위에서 상자를 내려다본다 → 음수 roll 먼저
             rolls = [r for r in rolls if r < 0] + [r for r in rolls if r == 0] + [r for r in rolls if r > 0]
         if tilt is not None:
@@ -1497,7 +1505,7 @@ class RobotSkills(Node):
             # 손가락이 상판에 걸려 몸통이 22° 기울었다 (전체 미션 18). 상자를 쥔 뒤 carry 로 접는 것(fold_carry)은 그대로
             # 바퀴형도 같다: 작업대 앞(모서리 0.38 m)에서 home→carry 는 팔을 앞으로 크게 휘둘러 손목·손가락이 상판 모서리를 쳤다
             # (바퀴형 회귀 시험 3·4 접촉 기록, 시뮬 재현: 모서리 0.50 m 에서도 닿음) → 바퀴형도 home 에서 바로 접근
-            # (그래서 fold_carry 는 이제 '쥔 뒤 carry 로 접기'·'놓은 뒤 carry 를 거쳐 home' 에만 쓰인다)
+            # (fold_carry 는 이제 이족이 '쥔 뒤 carry 로 접기' 에만 쓴다. 바퀴형은 쥔 뒤 수평으로 들기, 놓은 뒤 바로 home)
             self.set_boxes()                                   # 계획 중에는 모든 상자가 장애물
             self.set_table()                                   # 접근 자세 계산은 실제 상판 높이로
             try:
@@ -1517,7 +1525,9 @@ class RobotSkills(Node):
                 self.set_boxes()
                 R, pre, q_pre = self._solve_approach(side, center, exclude_id=mid, yaw=box_yaw)
             self.set_table(pad=self.TRANSIT_PAD)               # carry → 접근점 이동도 여유를 두고
-            servo = self.can_strafe and (WRIST is not None or self.wrist_cameras)
+            # 시각 피드백(visual_servo): 손목 카메라가 있으면 바퀴형·이족 모두 (손끝 기준 상자 위치로 손을 맞추며 들어감).
+            # 손목 카메라 없이 머리 카메라로 손목 마커를 보는 방식(WRIST)은 이족만
+            servo = self.wrist_cameras or (self.can_strafe and WRIST is not None)
             station_ref = None
             if servo:
                 # 접근 자세를 푸는 동안(수십 초) 몸통이 흘러 있다 → 팔이 상자를 가리기 전에 상자를 한 번 더 잰다
@@ -1674,9 +1684,71 @@ class RobotSkills(Node):
                 self.move_named(f"{side}_arm", "carry", vel=self.HOLD_VEL)
                 self.wait_still(timeout=8.0)
         else:
-            self.move_named(f"{side}_arm", "carry")
+            # 바퀴형: carry 로 접지 않는다 — 관절 공간으로 접으면 손목이 돌아 상자가 회전·기울었다 (바퀴형 시험 7)
+            self._hold_level(side)
+            self._held_level[side] = True
         self.log(f"[pick] 완료: {obj}")
         return side
+
+    # 바퀴형: 쥔 상자를 들고 다니는 자세 — 상자가 쥘 때처럼 수평인 채 위로 들고 몸 쪽으로 당긴다.
+    # 예전에는 정해진 관절각 carry 로 접어 손목이 돌며 상자가 기울고 가슴에 붙었다 (사용자 지적: 물이 든 그릇이면 쏟아진다).
+    HOLD_UP = 0.15                  # 상판 위 손끝 높이 [m]
+    HOLD_FWD = 0.30                 # 몸 쪽으로 당길 목표: 몸 앞 손끝 거리 [m] (Nav2 외곽 앞 0.28 m 근처)
+    HOLD_YAWS = (0, 15, -15, 30, -30, 45, -45)   # 당길 때 손 수평 방향(수직축 둘레) 후보 [°] — 상자 수평과 무관
+    BASE_FOOTPRINT = [(0.28, 0.26), (0.28, -0.26), (-0.27, -0.26), (-0.27, 0.26)]   # config/nav2_params.yaml 과 같은 값
+
+    def set_footprint(self, front=None):
+        """Nav2 로봇 외곽 앞쪽을 front [m] 까지 늘린다 (None: 원래대로). 바퀴형 LiDAR(0.26 m)는 몸 앞에 든 상자(0.8 m 높이)를
+        못 보고, Nav2 는 외곽 밖으로 나온 상자를 모른 채 벽·작업대 가까이 돌 수 있다."""
+        pts = [((max(x, front) if (front is not None and x > 0) else x), y) for x, y in self.BASE_FOOTPRINT]
+        msg = Polygon(points=[Point32(x=float(x), y=float(y), z=0.0) for x, y in pts])
+        for pub in self._fp_pubs:
+            pub.publish(msg)
+
+    def _hold_level(self, side):
+        """쥔 상자를 수평으로 유지한 채 들어 올리고 몸 쪽으로 당긴다. 앞뒤로 옮기거나 접을 때 손이 기울지 않는다.
+        ① 손 방향 그대로 수직으로 들어 올림 (손끝 = 상판 + HOLD_UP)
+        ② 몸 쪽(앞 HOLD_FWD)으로 직선. 상자가 수평이려면 손의 숙임·기울기만 지키면 되고 수직축 둘레 방향(yaw)은 돌아도 된다 →
+           yaw 후보마다 직선이 얼마나 되는지 미리 재서 가장 멀리 가는 방향으로, 되는 데까지만 간다.
+           (손 방향을 완전히 고정하면 팔 관절 한계로 76~92 % 만 풀렸다: 바퀴형 시험 7. 시작·끝 방향이 수직축 회전만 다르므로
+            직선 경로 중간의 손 방향 보간도 수직축 회전 → 상자는 내내 수평)"""
+        tf = self._tf_matrix(TCP[side])
+        if tf is None:
+            return
+        p, R = tf
+        z = max(float(p[2]), self.table_h + self.HOLD_UP)
+        if z - p[2] > 0.005:
+            try:
+                self.cartesian(side, [np.array([p[0], p[1], z])], R, vel=0.15, min_fraction=0.0)
+            except SkillError as e:
+                self.log(f"[pick] 더 들어 올리기 생략: {e}")
+        tf = self._tf_matrix(TCP[side])
+        if tf is not None and tf[0][0] > self.HOLD_FWD + 0.01:
+            p, R = tf
+            goal = np.array([self.HOLD_FWD, p[1], p[2]])
+            q = {n: self._joints[n] for n in ARM_JOINTS[side] if n in self._joints}
+            best = None
+            for deg in self.HOLD_YAWS:
+                Ry = rot_axis([0.0, 0.0, 1.0], math.radians(deg)) @ R
+                try:
+                    f = self._cart_fraction(side, q, Ry, goal)
+                except SkillError:
+                    continue
+                if best is None or f > best[0] + 0.02:
+                    best = (f, deg, Ry)
+                if f >= 0.99:
+                    break
+            if best is not None and best[0] > 0.05:
+                try:
+                    self.cartesian(side, [goal], best[2], vel=0.15, min_fraction=0.0)
+                    self.log(f"[pick] 수평 유지하며 몸 쪽으로 (손 수평 방향 {best[1]:+d}°, 직선 {best[0] * 100:.0f} %)")
+                except SkillError as e:
+                    self.log(f"[pick] 몸 쪽으로 당기기 생략: {e}")
+        tf = self._tf_matrix(TCP[side])
+        tip = tf[0] if tf is not None else p
+        front = float(tip[0]) + self.box_size * 0.75 + 0.02      # 손끝(상자 중심) + 상자 반 대각선 + 여유
+        self.set_footprint(front)
+        self.log(f"[pick] 쥔 상자 수평으로 들기: 손끝 base {np.round(tip, 3)}, Nav2 외곽 앞 {front:.2f} m")
 
     def _choose_place(self, side, fwd, lat, edge, top_h, obs):
         """빈자리 후보(원래 자리에서 가까운 순) 중 쥘 때와 같은 기울기로 IK·직선 접근이 되는 첫 자리 → (target, R, pre, q_pre).
@@ -1721,7 +1793,16 @@ class RobotSkills(Node):
         held_id = self.objects.get(self.holding[side], {}).get("marker_id")
         place_ref = self._other_markers(exclude=held_id) if self.can_strafe else None
         self.set_table(station, pad=self.TRANSIT_PAD)
-        self.move_joints(f"{side}_arm", q_pre, vel=self.HOLD_VEL if self.can_strafe else 0.3)
+        moved = False
+        if not self.can_strafe:
+            # 바퀴형: 들고 있던 손 방향 그대로 놓을 자리 위 접근점까지 직선 (손 방향은 수평 방향만 조금 돌 수 있음 → 상자 수평 유지)
+            try:
+                self.cartesian(side, [pre], R, vel=0.15, min_fraction=0.95)
+                moved = True
+            except SkillError as e:
+                self.log(f"[place] 접근점까지 직선 불가({e}) → 관절 이동")
+        if not moved:
+            self.move_joints(f"{side}_arm", q_pre, vel=self.HOLD_VEL if self.can_strafe else 0.3)
         self.set_table(station)
         if self.can_strafe:
             # 상자를 쥔 팔을 천천히 옮기는 동안 몸통이 흐를 수 있다 (r6: 바로잡기 걸음으로 옆 0.5 m, 작업대 밖에서 놓음)
@@ -1768,14 +1849,15 @@ class RobotSkills(Node):
                 self.log(f"[place] 위로 들기도 일부만 가능: {e2}")
         obj = self.holding[side]
         self.holding[side] = None
-        # 'ready'(손이 작업대 위)를 거치면 방금 놓은 상자를 칠 수 있으므로, 몸 쪽 carry 를 거쳐 home 으로
+        if self._held_level[side]:
+            self._held_level[side] = False
+            if not any(self._held_level.values()):
+                self.set_footprint(None)          # 들고 있던 상자를 놓았으면 Nav2 외곽을 원래대로
         self.set_table(station, pad=self.TRANSIT_PAD)
-        if self.fold_carry and not self.can_strafe:   # 이족은 놓은 뒤 바로 home (carry 를 거치는 계획이 작업대 위로 손을 휘두름, 미션 18)
-            self.move_named(f"{side}_arm", "carry")
-            self.move_named(f"{side}_arm", "home")
-        else:
-            self.set_boxes()                    # 방금 놓은 상자도 장애물로 두고 home 까지 한 번에
-            self.move_named(f"{side}_arm", "home", tuck=False)
+        # 놓은 뒤 바로 home (바퀴형·이족). carry 를 거치면 손이 가슴 쪽으로 갔다가 내려와 불필요하고(사용자 지적),
+        # 이족은 그 계획이 작업대 위로 손을 휘둘렀다 (미션 18) → 방금 놓은 상자도 장애물로 두고 home 까지 한 번에
+        self.set_boxes()
+        self.move_named(f"{side}_arm", "home", tuck=False)
         self.log(f"[place] 완료: {obj}")
         return obj
 
@@ -1796,7 +1878,7 @@ class RobotSkills(Node):
         ② 색·마커로 아는 상자 윗면 5 cm (팔에 가려 깊이로 안 보이는 곳 보완)"""
         pts = []
         tcps = [tf[0][:2] for tf in (self._tf_matrix(TCP[s]) for s in ("left", "right") if self.holding[s]) if tf]
-        e = self._edge_recent(2.0) if self.can_strafe else None
+        e = self._edge_recent(2.0)
         for c in (e or {}).get("occ", []):
             c = np.asarray(c, float)
             if all(np.linalg.norm(c - t) > 0.08 for t in tcps):
@@ -1834,6 +1916,8 @@ class RobotSkills(Node):
 
     def home_arms(self):
         for s in ("left", "right"):
+            if self.holding[s] and self._held_level.get(s):
+                continue                        # 쥔 손 방향 그대로 들고 있음 (_hold_level) → 상자가 기울지 않게 그대로 둔다
             if self.holding[s]:
                 self.move_named(f"{s}_arm", "carry")
             else:

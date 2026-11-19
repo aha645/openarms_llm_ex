@@ -39,5 +39,5 @@ setup(
     description="TRON1 (point-foot / sole-foot) + OpenArm MuJoCo simulation and ROS 2 bridge",
     license="Apache-2.0",
     entry_points={"console_scripts": ["tron1_bridge = tron1_openarm_sim.bridge_biped:main",
-                                    "tron1_cameras = tron1_openarm_sim.camera_server:main"]},
+                                    "tron1_cameras = mobile_openarm_sim.camera_server:main"]},
 )

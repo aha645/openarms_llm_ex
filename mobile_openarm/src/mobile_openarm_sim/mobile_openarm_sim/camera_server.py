@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
-"""TRON1 카메라 서버 — 머리 카메라 + 양 손목 카메라를 물리와 다른 프로세스에서 렌더링·검출·압축 발행.
+"""카메라 서버 (바퀴형·TRON1 공통) — 머리 RGB-D 카메라 + 양 손목 카메라를 물리와 다른 프로세스에서 렌더링·검출·압축 발행.
 
-    ros2 run tron1_openarm_sim tron1_cameras --ros-args -p mjcf:=<world.xml>
-(sim.launch.py 가 camera_process:=true(기본)일 때 브리지와 함께 띄운다)
+    ros2 run mobile_openarm_sim sim_cameras --ros-args -p mjcf:=<world.xml>      # 바퀴형
+    ros2 run tron1_openarm_sim tron1_cameras --ros-args -p mjcf:=<world.xml>     # TRON1 (같은 코드)
+(두 로봇의 sim.launch.py 가 camera_process:=true(기본)일 때 브리지와 함께 띄운다)
 
 왜 별도 프로세스인가
   예전에는 브리지의 물리 스레드가 머리 카메라를 그리고 ArUco 를 검출했다. 그동안 GIL 을 쥐어 물리가 멈추고,
   카메라가 3 대가 되면 시뮬이 실시간을 못 따라간다. 여기서는 브리지가 공유 메모리에 쓰는 상태(sim_state_shm.py)를 읽어
   같은 MJCF 장면을 다시 만들고(운동학만), 카메라마다 렌더 → ArUco → JPEG 압축까지 한다.
+  base_link → base_footprint: 브리지가 공유 메모리에 함께 쓰는 (높이, pitch, roll). 바퀴형은 (0.08, 0, 0) 고정,
+  이족은 몸통이 숙여진 만큼 (biped_core.base_tilt).
 
 발행
   머리   /aruco/detections, /aruco/poses, /aruco/markers   (브리지가 내던 것과 같은 형식, base_footprint)
@@ -118,8 +121,8 @@ class Cam:
 
 
 class CameraServer(Node):
-    def __init__(self):
-        super().__init__("tron1_cameras")
+    def __init__(self, node_name="sim_cameras"):
+        super().__init__(node_name)
         p = self.declare_parameter
         p("mjcf", "")
         p("state_shm", DEFAULT_NAME)
@@ -384,7 +387,7 @@ class CameraServer(Node):
 
 def main():
     rclpy.init()
-    node = CameraServer()
+    node = CameraServer()        # launch 의 name:= 이 노드 이름을 덮어쓴다 (TRON1: tron1_cameras)
     try:
         rclpy.spin(node)
     except (KeyboardInterrupt, ExternalShutdownException):

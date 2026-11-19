@@ -590,6 +590,24 @@
       <mass value="0.172311" />
       <inertia ixx="0.000290609" iyy="0.000251645" izz="5.48914e-05" ixy="0" ixz="0" iyz="0" />
     </inertial>
+    <visual>
+      <origin xyz="-0.085 0 -0.01" rpy="0 0 0" />
+      <geometry>
+        <box size="0.024 0.04 0.02" />
+      </geometry>
+      <material name="wrist_left_camera_vis_mat">
+        <color rgba="0.1 0.1 0.1 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="-0.0505 0 -0.005" rpy="0 0 0" />
+      <geometry>
+        <box size="0.045 0.03 0.012" />
+      </geometry>
+      <material name="wrist_left_camera_bracket_vis_mat">
+        <color rgba="0.25 0.25 0.25 1" />
+      </material>
+    </visual>
     <collision>
       <origin xyz="0 0 -0.6586" rpy="0 0 0" />
       <geometry>
@@ -1056,6 +1074,24 @@
       <mass value="0.172311" />
       <inertia ixx="0.000290609" iyy="0.000251645" izz="5.48914e-05" ixy="0" ixz="0" iyz="0" />
     </inertial>
+    <visual>
+      <origin xyz="-0.085 0 -0.01" rpy="0 0 0" />
+      <geometry>
+        <box size="0.024 0.04 0.02" />
+      </geometry>
+      <material name="wrist_right_camera_vis_mat">
+        <color rgba="0.1 0.1 0.1 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="-0.0505 0 -0.005" rpy="0 0 0" />
+      <geometry>
+        <box size="0.045 0.03 0.012" />
+      </geometry>
+      <material name="wrist_right_camera_bracket_vis_mat">
+        <color rgba="0.25 0.25 0.25 1" />
+      </material>
+    </visual>
     <collision>
       <origin xyz="0 0 -0.6586" rpy="0 0 0" />
       <geometry>
