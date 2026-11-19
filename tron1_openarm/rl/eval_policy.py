@@ -12,6 +12,8 @@
   5. 밀기: 제자리에서 2 s 마다 0.3 m/s 옆으로 밀기 10 회 : 넘어짐
   6. 한 팔만 carry (오른팔 carry, 왼팔 home) 제자리 20 s : 흐름 — DAY2 앱은 한 팔씩 움직인다
   7. 빠른 걸음 (v4 학습 범위 확인, 각 15 s): fast 전진 0.6 / back 후진 −0.4 / side_l 왼쪽 0.3 / side_r 오른쪽 −0.3 m/s
+  8. walk_arms: 팔을 2.5 s 마다 다른 자세로 바꾸며 직진 0.3 m/s 15 s — 팔을 움직여도 일자로 걷는가 (yaw_deg: 방향 변화 [도])
+  (서 있는 항목: liftoff = 한 발이라도 접촉력 5 N 아래인 시간 비율 — 발바닥을 붙이고 서 있는가)
   (걷는 항목: lift = 두 발 높이 차이의 95 백분위 [m] — 발을 얼마나 드는가. 관절 각도 정기구학 + IMU 자세로 구함,
    실로봇에서도 같은 방법. track = 명령 방향 실제 속도 / 명령 속도, drift = 명령에 수직인 흐름 / 명령 속도)
   (모든 항목: 몸통 평균 높이 h, 기울기 tilt[도] — 기울면 머리 카메라·팔 좌표가 틀어진다)
@@ -97,7 +99,8 @@ class Runner:
             pb = (d.xpos[self.feet] - d.xpos[self.b]) @ R
             fz = (pb @ Ri.reshape(3, 3).T)[:, 2]
             log.append([d.time, d.qpos[0], d.qpos[1], np.arctan2(R[1, 0], R[0, 0]), v[0], v[1], d.qvel[5], d.xpos[self.b][2],
-                        np.degrees(np.arccos(min(1.0, R[2, 2]))), abs(fz[0] - fz[1])])
+                        np.degrees(np.arccos(min(1.0, R[2, 2]))), abs(fz[0] - fz[1]),
+                        min(d.sensor("foot_L_touch").data[0], d.sensor("foot_R_touch").data[0])])
             if d.xpos[self.b][2] < 0.45:
                 self.fell = True
                 break
@@ -117,7 +120,8 @@ def stats(log, skip=1.0, cmd=None):
     # sway: 그 구간 동안 몸통 위치가 움직인 범위(앞뒤·좌우 중 큰 쪽) [m] — 조작 중 '가만히 서 있는가' 의 지표
     out = dict(v_fwd=fwd / T, v_side=side / T, w=(dyaw[-1] - dyaw[0]) / T, h=float(L[:, 7].mean()),
                h_std=float(L[:, 7].std()), tilt=float(L[:, 8].mean()),
-               sway=float(max(np.ptp(L[:, 1]), np.ptp(L[:, 2]))), lift=float(np.percentile(L[:, 9], 95)))
+               sway=float(max(np.ptp(L[:, 1]), np.ptp(L[:, 2]))), lift=float(np.percentile(L[:, 9], 95)),
+               liftoff=float(np.mean(L[:, 10] < 5.0)), yaw_deg=float(np.degrees(dyaw[-1] - dyaw[0])))
     if cmd is not None and np.hypot(cmd[0], cmd[1]) > 0:
         u = np.array(cmd[:2]) / np.hypot(cmd[0], cmd[1])
         v = np.array([out["v_fwd"], out["v_side"]])
@@ -127,8 +131,9 @@ def stats(log, skip=1.0, cmd=None):
 
 
 def evaluate(npz, seeds=(0, 1, 2)):
-    res = {k: [] for k in ("stand", "walk", "turn", "arms", "push", "one_arm", "fast", "back", "side_l", "side_r")}
-    CMDS = {"walk": (0.3, 0, 0), "fast": (0.6, 0, 0), "back": (-0.4, 0, 0), "side_l": (0, 0.3, 0), "side_r": (0, -0.3, 0)}
+    res = {k: [] for k in ("stand", "walk", "turn", "arms", "push", "one_arm", "fast", "back", "side_l", "side_r", "walk_arms")}
+    CMDS = {"walk": (0.3, 0, 0), "fast": (0.6, 0, 0), "back": (-0.4, 0, 0), "side_l": (0, 0.3, 0), "side_r": (0, -0.3, 0),
+            "walk_arms": (0.3, 0, 0)}
     falls = {k: 0 for k in res}
     for s in seeds:
         tests = [("stand", lambda r: r.run(30, (0, 0, 0))),
@@ -138,9 +143,19 @@ def evaluate(npz, seeds=(0, 1, 2)):
                  ("one_arm", lambda r: (r.arm_to("home", "carry"), r.run(3, (0, 0, 0)), r.run(20, (0, 0, 0)))[2])]
         for nm in ("fast", "back", "side_l", "side_r"):
             tests.append((nm, lambda r, c=CMDS[nm]: (r.run(2, (0, 0, 0)), r.run(15, c))[1]))
+        tests.append(("walk_arms", None))
         for name, fn in tests:
             r = Runner(npz, s)
-            if name == "arms":
+            if name == "walk_arms":
+                r.run(2, (0, 0, 0))
+                logs = []
+                for pl, pr in (("ready", "home"), ("carry", "carry"), ("home", "ready"), ("hands_up", "hands_up"), ("carry", "home"), ("home", "home")):
+                    if r.fell:
+                        break
+                    r.arm_to(pl, pr)
+                    logs.append(r.run(2.5, (0.3, 0, 0)))
+                log = np.concatenate([x for x in logs if len(x)])
+            elif name == "arms":
                 logs = [r.run(2, (0, 0, 0))]
                 for p in ("ready", "carry", "hands_up", "home", "carry", "home"):
                     if r.fell:

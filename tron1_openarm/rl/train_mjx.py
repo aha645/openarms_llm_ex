@@ -140,6 +140,7 @@ def main():
                        stand_feet=info["terms"]["stand_feet"], stand_load=info["terms"]["stand_load"],
                        stand_twist=info["terms"]["stand_twist"], stand_tilt=info["terms"]["stand_tilt"],
                        feet_clear=info["terms"]["feet_clearance"], vy_track=info["terms"]["tracking_vy"],
+                       heading=info["terms"]["walk_heading"], liftoff=info["terms"]["stand_liftoff"],
                        standing=st.standing.astype(jnp.float32))
             return (st, key), out
         (states, key), tr = jax.lax.scan(body, (states, key), None, length=T)
@@ -164,7 +165,8 @@ def main():
                      stand_load=tr["stand_load"].sum() / jnp.maximum(tr["standing"].sum(), 1.0),
                      stand_twist=tr["stand_twist"].sum() / jnp.maximum(tr["standing"].sum(), 1.0),
                      stand_tilt=tr["stand_tilt"].sum() / jnp.maximum(tr["standing"].sum(), 1.0), standing=tr["standing"].mean(),
-                     clear=tr["feet_clear"].mean(), vy_track=tr["vy_track"].mean())
+                     clear=tr["feet_clear"].mean(), vy_track=tr["vy_track"].mean(), heading=tr["heading"].mean(),
+                     liftoff=tr["liftoff"].sum() / jnp.maximum(tr["standing"].sum(), 1.0))
         return states, tr, stats, key
 
     @partial(jax.jit, static_argnums=(7,))
@@ -270,7 +272,8 @@ def main():
                    stand_feet=round(float(st["stand_feet"]), 4), stand_load=round(float(st["stand_load"]), 4),
                    stand_twist=round(float(st["stand_twist"]), 4), stand_tilt=round(float(st["stand_tilt"]), 4),
                    standing=round(float(st["standing"]), 3), clear=round(float(st["clear"]) * 1e4, 3),   # 발 들기 부족 [cm²]
-                   vy_track=round(float(st["vy_track"]), 3))
+                   vy_track=round(float(st["vy_track"]), 3), heading=round(float(st["heading"]), 4),   # 직진 방향 오차 (3° = 1)
+                   liftoff=round(float(st["liftoff"]), 4))   # 서 있을 때 한 발이 떨어진 비율
         log.append(rec)
         if it % 5 == 0 or it == 1:
             print(json.dumps(rec, ensure_ascii=False), flush=True)

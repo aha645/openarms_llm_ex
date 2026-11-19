@@ -52,6 +52,19 @@ CLEAR_SCALE = float(os.environ.get("TRON1_CLEAR", 0.0))
 # 걷는 속도의 16~19 % 만큼 옆으로 흘렀고 옆걸음은 0.3 m/s 명령에 0.1 m/s. 옆 속도 오차만 따로 좁은 폭으로 본다
 TRACK_VY_SCALE = float(os.environ.get("TRON1_TRACK_VY", 0.0))
 TRACK_VY_SIGMA = 0.02
+# v6 (모두 기본 꺼짐, 사용자 요청: 일자로 걷기·팔을 움직여도 일자로·서 있을 때 발바닥 붙이기·옆걸음 보폭)
+# 직진 방향 유지: 회전 명령 없이 걸을 때 걷기 시작한 방향(walk_yaw)에서 틀어진 각도에 벌점 (3° 에서 1, 상한 2).
+#   팔은 걷는 중에도 3~6 s 마다 다른 자세로 움직이므로 '팔을 움직이며 일자로' 도 같이 배운다.
+#   기준은 STAND_YAW_TAU 로 천천히 따라가 밀려서 돈 몫은 잊고, 정책 자신의 꾸준한 회전만 벌점으로 남긴다
+WALK_HEADING_SCALE = float(os.environ.get("TRON1_WALK_HEADING", 0.0))
+WALK_HEADING_REF = 0.05
+# 서 있을 때 발바닥: 서기 안정 구간에 한 발이라도 접촉력이 STAND_LIFT_F 아래면 벌점, 두 발 모두 붙고 미끄러지지 않으면 보상
+STAND_LIFT_SCALE = float(os.environ.get("TRON1_STAND_LIFT", 0.0))
+STAND_PLANTED_SCALE = float(os.environ.get("TRON1_STAND_PLANTED", 0.0))
+STAND_LIFT_F = 5.0             # [N]
+# 옆걸음 보폭: 두 발 사이 최소 거리 벌점(feet_distance −100)이 옆걸음에서 발을 모았다 벌리는 동작을 막아 보폭이 작았다 →
+# 옆걸음 명령(|vy| > 0.05)일 때만 이 배율로 줄인다
+FD_SIDE_SCALE = float(os.environ.get("TRON1_FD_SIDE", 1.0))
 
 # ── SF 서기 버티기 (보행 학습 13절) ─────────────────────────────────────────────────────────────────────
 # 실제 집기에서 손이 상자·작업대에 막혀 팔이 계속 밀면 손에 수십 N 이 걸리고, 서기 정책이 버티지 못해 한 발에 하중이 쏠리면
@@ -106,6 +119,7 @@ class EnvState(NamedTuple):
     standing: jax.Array
     stand_t: jax.Array       # SF: 서기 시작 뒤 경과 시간 [s]
     yaw0: jax.Array          # SF: 서기 방향 기준
+    walk_yaw: jax.Array      # SF: 직진 방향 기준 (v6 walk_heading)
     cmd_until: jax.Array     # 다음 명령 재설정 스텝
     hist: jax.Array
     obs: jax.Array           # 마지막 관측 (잡음 포함, hist 의 마지막 항목과 같음)
@@ -198,6 +212,9 @@ class Tron1MjxEnv:
             self.rs["stand_feet"] = self.rs["stand_load"] = self.rs["stand_twist"] = self.rs["stand_tilt"] = 0.0
         self.rs["feet_clearance"] = -CLEAR_SCALE
         self.rs["tracking_vy"] = TRACK_VY_SCALE
+        self.rs["walk_heading"] = -WALK_HEADING_SCALE
+        self.rs["stand_liftoff"] = -STAND_LIFT_SCALE
+        self.rs["stand_planted"] = STAND_PLANTED_SCALE
         # 랜덤화 대상 인덱스
         self.base_bid = m.body("base_link").id
         self.contact_geoms = jnp.array([g for g in range(m.ngeom) if m.geom_contype[g] or m.geom_conaffinity[g]])
@@ -346,6 +363,7 @@ class Tron1MjxEnv:
         z = jnp.zeros(self.nj, jnp.float32)
         s = EnvState(d=d, last_action=z, last_action2=z, last_target=self.q_def, gait_index=jnp.array(0.0),
                      cmd=cmd, want_still=still, standing=jnp.array(False), stand_t=jnp.array(0.0), yaw0=jnp.array(0.0),
+                     walk_yaw=_yaw(q[3:7]),
                      cmd_until=dur, hist=jnp.zeros(self.HIST * self.obs_dim, jnp.float32),
                      obs=jnp.zeros(self.obs_dim, jnp.float32),
                      t=jnp.array(0, jnp.int32), delay=delay, arm_from=arm, arm_to=arm, arm_t0=jnp.array(0.0),
@@ -483,7 +501,9 @@ class Tron1MjxEnv:
             yaw = _yaw(s.d.qpos[3:7])
             follow = POLICY_DT / STAND_YAW_TAU if STAND_YAW_TAU > 0 else 0.0
             yaw0 = jnp.where(stand_t < STAND_YAW_SETTLE, yaw, s.yaw0 + follow * _wrap(yaw - s.yaw0))
-            return s._replace(gait_index=g, standing=standing, stand_t=stand_t, yaw0=yaw0)
+            straight = ~standing & (jnp.abs(s.cmd[2]) < 0.05)
+            walk_yaw = jnp.where(straight, s.walk_yaw + follow * _wrap(yaw - s.walk_yaw), yaw)
+            return s._replace(gait_index=g, standing=standing, stand_t=stand_t, yaw0=yaw0, walk_yaw=walk_yaw)
         return s._replace(gait_index=(g + POLICY_DT * self.GAIT[0]) % 1.0)
 
     def _reward(self, s, a):
@@ -520,7 +540,7 @@ class Tron1MjxEnv:
             action_smooth=jnp.sum((a - 2 * s.last_action + s.last_action2) ** 2),
             orientation=jnp.sum(grav[:2] ** 2),
             dof_pos_limits=jnp.sum(jnp.clip(self.jlo - q, 0, None) + jnp.clip(q - self.jhi, 0, None)),
-            feet_distance=jnp.clip(0.115 - jnp.linalg.norm(fp), 0, 1),
+            feet_distance=jnp.clip(0.115 - jnp.linalg.norm(fp), 0, 1) * jnp.where(jnp.abs(s.cmd[1]) > 0.05, FD_SIDE_SCALE, 1.0),
             contact_force=jnp.mean((1 - des) * (1 - jnp.exp(-F ** 2 / 25.0))),
             contact_vel=jnp.mean(des * (1 - jnp.exp(-fv ** 2 / 0.25))),
             stand_drift=s.standing * (1 - jnp.exp(-(gyro[2] / STAND_DRIFT_SIGMA[0]) ** 2
@@ -533,6 +553,11 @@ class Tron1MjxEnv:
             stand_tilt=settled * jnp.clip((jnp.linalg.norm(grav[:2]) - STAND_TILT_FREE) / STAND_TILT_REF, 0.0, 2.0),
             feet_clearance=jnp.sum((1 - des) * jnp.clip(self.GAIT[3] - (fz - jnp.min(fz)), 0.0, None) ** 2),
             tracking_vy=jnp.exp(-(s.cmd[1] - lin[1]) ** 2 / TRACK_VY_SIGMA),
+            walk_heading=(~s.standing & (jnp.abs(s.cmd[2]) < 0.05)).astype(jnp.float32)
+            * jnp.minimum(jnp.abs(_wrap(_yaw(quat) - s.walk_yaw)) / WALK_HEADING_REF, 2.0),
+            stand_liftoff=settled * (jnp.min(F) < STAND_LIFT_F).astype(jnp.float32),
+            stand_planted=settled * (jnp.min(F) >= STAND_LIFT_F).astype(jnp.float32)
+            * jnp.mean(jnp.exp(-(fvxy / STAND_FEET_SIGMA) ** 2)),
         )
         r = sum(self.rs[k] * v for k, v in t.items()) * POLICY_DT
         return r, t
