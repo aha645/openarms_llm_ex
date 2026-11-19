@@ -2,7 +2,8 @@
 """학습 과정 보기 — 학습(train_mjx.py)은 GPU 에서 화면 없이 수천 대를 동시에 돌리므로, 두 창으로 따로 본다.
 
     python3 watch_training.py plot <학습 폴더>    # 학습 지표 그래프 (10 s 마다 log.json 을 다시 그림)
-    python3 watch_training.py play <학습 폴더>    # MuJoCo 뷰어: 가장 최근 중간 정책으로 앞·뒤·옆 걷기를 되풀이
+    python3 watch_training.py play <학습 폴더>    # MuJoCo 뷰어: 가장 최근 중간 정책으로 앞·뒤·옆 걷기를 되풀이 (가벼운 모델)
+    python3 watch_training.py play <학습 폴더> --full   # 전체 메시 모델 (학습이 GPU 를 다 쓰는 동안에는 느림)
     (학습 폴더 = train_mjx.py --out. 중간 정책은 --ck-min 분마다 ckNNNmin.npz 로 저장됨)
 
 play: 전진 0.6 → 후진 0.4 → 왼쪽 0.3 → 오른쪽 0.3 m/s (각 6 s, 사이 2 s 서기)를 반복하고, 한 바퀴가 끝날 때 새 중간 정책이
@@ -82,11 +83,15 @@ def plot(run):
         plt.pause(10.0)
 
 
-def play(run):
+VIEW_HZ = 10.0     # 뷰어 갱신 [Hz]. 매 정책 스텝(50 Hz)마다 2560x1440 전체 메시를 그렸더니, 학습이 같은 GPU 를 98 % 쓰는 동안
+                   # 화면 그리기가 밀려 시뮬이 거의 멈추고 창이 '응답 없음' 이 되었다 (물리만은 실시간의 4.6 배)
+
+
+def play(run, full=False):
     import mujoco
     import mujoco.viewer
     from tron1_openarm_sim.locomotion_policy import LocomotionPolicy
-    m = mujoco.MjModel.from_xml_path(os.path.join(ROOT, "src/tron1_openarm_sim/mjcf/sf/world.xml"))
+    m = mujoco.MjModel.from_xml_path(os.path.join(ROOT, "src/tron1_openarm_sim/mjcf/sf", "world.xml" if full else "world_light.xml"))
     d = mujoco.MjData(m)
     b = m.body("base_link").id
     feet = [m.body(n).id for n in ("ankle_L_Link", "ankle_R_Link")]
@@ -123,6 +128,7 @@ def play(run):
 
     with mujoco.viewer.launch_passive(m, d) as v:
         v.cam.distance, v.cam.elevation, v.cam.azimuth = 3.0, -15, 135
+        last_view, rt0, st0 = 0.0, time.time(), 0.0
         while v.is_running():
             pol, jq, jv, act = load()
             vel = []
@@ -143,12 +149,18 @@ def play(run):
                     lift = (lift + [abs(fz[0] - fz[1])])[-100:]
                     vm = np.mean(vel, 0)
                     fell = d.xpos[b][2] < 0.45
+                    if time.time() - last_view < 1.0 / VIEW_HZ and not fell:
+                        time.sleep(max(0.0, 0.02 - (time.time() - t0)))
+                        continue
+                    rtf = (d.time - st0) / max(time.time() - rt0, 1e-3)
+                    last_view, rt0, st0 = time.time(), time.time(), d.time
                     with v.lock():
                         v.cam.lookat[:] = d.xpos[b]
                         v.set_texts((None, mujoco.mjtGridPos.mjGRID_TOPLEFT,
-                                     "policy\ncommand\nvelocity\nfoot lift",
+                                     "policy\ncommand\nvelocity\nfoot lift\nsim time",
                                      f"{os.path.relpath(state['path'], os.path.dirname(run))}\n{name}\n"
-                                     f"fwd {vm[0]:+.2f}  side {vm[1]:+.2f} m/s\n{100 * max(lift):.1f} cm"
+                                     f"fwd {vm[0]:+.2f}  side {vm[1]:+.2f} m/s\n{100 * max(lift):.1f} cm\n"
+                                     f"{d.time:.1f} s  (x{rtf:.2f} real time)"
                                      + ("\nFELL - restart" if fell else "")))
                     v.sync()
                     if not v.is_running() or fell:
@@ -161,4 +173,7 @@ def play(run):
 if __name__ == "__main__":
     if len(sys.argv) < 3 or sys.argv[1] not in ("plot", "play"):
         sys.exit(__doc__)
-    (plot if sys.argv[1] == "plot" else play)(os.path.abspath(sys.argv[2]))
+    if sys.argv[1] == "plot":
+        plot(os.path.abspath(sys.argv[2]))
+    else:
+        play(os.path.abspath(sys.argv[2]), full="--full" in sys.argv)
