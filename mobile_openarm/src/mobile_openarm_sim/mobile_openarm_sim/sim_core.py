@@ -9,7 +9,7 @@ ROS 없이도 tools/selftest.py 로 주행·LiDAR·카메라·ArUco·파지를 �
   * 2D LiDAR (mj_multiRay, 월드 geom group 0/1 만 감지 → 로봇 자기 몸체 무시)
   * 머리 RGB 카메라 오프스크린 렌더 + ArUco 검출/포즈 추정 (검출 결과만 밖으로)
   * 관절 궤적 실행 (FollowJointTrajectory 와 동일한 의미: 시간-위치 보간)
-  * 그리퍼 + "파지 보조(grasp assist)" weld 구속 (교육용 옵션)
+  * 그리퍼 + "파지 보조(grasp assist)" weld 구속 (교육용 옵션, load_model 이 손끝↔상자 weld 를 꺼진 채 넣어 둠)
   * 움직이는 사람(mocap) 장애물
 """
 import math
@@ -42,6 +42,25 @@ def yaw_of(quat_wxyz):
     w, x, y, z = quat_wxyz
     return math.atan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z))
 
+
+
+def load_model(xml_path):
+    """MJCF 를 읽고 파지 보조용 weld 구속(손끝 ↔ 상자마다 하나, 꺼진 상태)을 더해 컴파일한다.
+    상자를 쥐면 그때의 상대 자세로 켜고(_update_attached), 손가락을 열면 끈다."""
+    spec = mujoco.MjSpec.from_file(xml_path)
+    names = {b.name for b in spec.bodies}
+    boxes = sorted(n for n in names if n.startswith("box_"))
+    for side in ("left", "right"):
+        tcp = f"openarm_{side}_hand_tcp"
+        if tcp not in names:
+            continue
+        for b in boxes:
+            e = spec.add_equality()
+            e.type, e.objtype = mujoco.mjtEq.mjEQ_WELD, mujoco.mjtObj.mjOBJ_BODY
+            e.name, e.name1, e.name2 = f"grasp_{side}_{b}", tcp, b
+            e.active = False
+            e.solref = [0.01, 1.0]
+    return spec.compile()
 
 class Trajectory:
     """시간 기준 관절 궤적. points: [(t, positions[, velocities])]. 3차 Hermite 보간."""
@@ -96,7 +115,7 @@ class MobileOpenArmSim:
                  enable_camera=True, lidar_rays=360, lidar_range=(0.12, 12.0), lidar_hz=10.0,
                  lidar_noise=0.005, grasp_assist=True, move_person=True, person_speed=0.4,
                  aruco_dict="DICT_4X4_50", marker_size=0.04, use_depth=True):
-        self.m = mujoco.MjModel.from_xml_path(xml_path)
+        self.m = load_model(xml_path)
         self.d = mujoco.MjData(self.m)
         self.lock = threading.RLock()
         m = self.m
@@ -163,11 +182,12 @@ class MobileOpenArmSim:
         self.last_image = None
         self.last_detections = []
 
-        # 파지 보조 (weld 구속은 런타임에 eq 를 쓰지 않고 '정적 부착'으로 구현: 상자 freejoint 를 손에 고정)
+        # 파지 보조: 손끝↔상자 weld 구속 (load_model 이 꺼진 채 넣어 둠, _update_attached 가 켜고 끈다)
         self.grasp_assist = grasp_assist
         self.attached = {"left": None, "right": None}  # (box_body_id, rel_pos, rel_quat)
         self.box_bodies = [i for i in range(m.nbody) if m.body(i).name.startswith("box_")]
         self.tcp = {s: m.body(f"openarm_{s}_hand_tcp").id for s in ARM_JOINTS}
+        self._init_grasp_welds()
 
         # 사람
         self.move_person = move_person
@@ -334,8 +354,21 @@ class MobileOpenArmSim:
         self.odom_vel[:] = [(wl + wr) / 2, (wr - wl) / WHEEL_SEPARATION]
 
     # ------------------------------------------------------------------ grasp assist
+    def _init_grasp_welds(self):
+        m = self.m
+        self.grasp_eq = {}
+        for s in ("left", "right"):
+            for b in self.box_bodies:
+                i = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_EQUALITY, f"grasp_{s}_{m.body(b).name}")
+                if i >= 0:
+                    self.grasp_eq[(s, b)] = i
+
     def _update_attached(self):
-        """파지 보조: 그리퍼가 닫혀 있고 상자가 손가락 사이에 있으면 상자를 TCP 에 고정."""
+        """파지 보조: 그리퍼를 닫는 중 두 손가락이 모두 상자에 닿으면 그때의 상대 자세로 손끝↔상자 weld 를 켠다. 열면 끈다.
+        예전에는 손가락 하나만 닿아도 '부착' 하고, 매 스텝 상자 위치를 손끝 기준으로 덮어쓰며 속도를 0 으로 만들었다.
+        그러면 상자가 공중에 고정된 무한 질량 물체가 되어, 나머지 손가락이 닫히며 그 상자를 400 N 넘게 밀고 반작용이 팔→몸통→다리로
+        그대로 전해졌다 (이족: 쥐고·놓을 때마다 하체가 떨리고 발을 디딤, 상자가 손가락 사이 1 cm 비켜 있으면 1 m 밀려 넘어짐 —
+        오프라인 비교). weld 는 손과 상자 사이의 내력이라 쥐는 힘이 몸통을 밀지 않는다 (같은 조건 0.35 cm, 서기 풀림 0)."""
         if not self.grasp_assist:
             return
         m, d = self.m, self.d
@@ -348,30 +381,31 @@ class MobileOpenArmSim:
                     for b in self.box_bodies:
                         if any(a is not None and a[0] == b for a in self.attached.values()):
                             continue
-                        rel = d.xmat[tcp].reshape(3, 3).T @ (d.xpos[b] - d.xpos[tcp])
-                        # TCP 기준 상자 중심이 손가락 사이(±3cm)에 있고, 손가락이 상자에 닿았을 때
-                        if np.all(np.abs(rel) < [0.035, 0.035, 0.04]) and self._fingers_touch(side, b):
+                        eq = self.grasp_eq.get((side, b))
+                        if eq is None:
+                            continue
+                        Rt = d.xmat[tcp].reshape(3, 3)
+                        rel = Rt.T @ (d.xpos[b] - d.xpos[tcp])
+                        # TCP 기준 상자 중심이 손가락 사이(±3.5 cm)에 있고, 두 손가락이 모두 상자에 닿았을 때
+                        if np.all(np.abs(rel) < [0.035, 0.035, 0.04]) and self._fingers_touch(side, b) >= 2:
                             qrel = np.zeros(4)
                             qinv = np.zeros(4)
                             mujoco.mju_negQuat(qinv, d.xquat[tcp])
                             mujoco.mju_mulQuat(qrel, qinv, d.xquat[b])
+                            m.eq_data[eq, 0:3] = 0.0           # weld: anchor, body1(손끝) 기준 body2(상자) 상대 위치·자세
+                            m.eq_data[eq, 3:6] = rel
+                            m.eq_data[eq, 6:10] = qrel
+                            d.eq_active[eq] = 1
                             self.attached[side] = (b, rel, qrel)
                             break
-            else:
-                if target > 0.03:  # 열면 해제
-                    self.attached[side] = None
-                    continue
-                b, rel, qrel = att
-                jadr = m.jnt_qposadr[m.body_jntadr[b]]
-                dadr = m.jnt_dofadr[m.body_jntadr[b]]
-                pos = d.xpos[tcp] + d.xmat[tcp].reshape(3, 3) @ rel
-                quat = np.zeros(4)
-                mujoco.mju_mulQuat(quat, d.xquat[tcp], qrel)
-                d.qpos[jadr:jadr + 3] = pos
-                d.qpos[jadr + 3:jadr + 7] = quat
-                d.qvel[dadr:dadr + 6] = 0
+            elif target > 0.03:  # 열면 해제
+                eq = self.grasp_eq.get((side, att[0]))
+                if eq is not None:
+                    d.eq_active[eq] = 0
+                self.attached[side] = None
 
     def _fingers_touch(self, side, box_body):
+        """상자에 닿은 손가락 수 (0~2)."""
         m, d = self.m, self.d
         names = {f"openarm_{side}_right_finger", f"openarm_{side}_left_finger"}
         touched = set()
@@ -381,7 +415,7 @@ class MobileOpenArmSim:
             for a, b in ((b1, b2), (b2, b1)):
                 if b == box_body and m.body(a).name in names:
                     touched.add(m.body(a).name)
-        return len(touched) >= 1
+        return len(touched)
 
     def object_poses(self):
         """상자들의 world 위치 (정답값, 디버깅/채점용)."""
