@@ -24,9 +24,21 @@ n.create_subscription(String, "/biped/status", lambda m: st.__setitem__("b", jso
 t0 = time.time()
 while time.time() - t0 < 30 and st["v"] is None:
     rclpy.spin_once(n, timeout_sec=0.2)
+# 명령 토픽 구독자(작업 관리자)와 연결될 때까지 기다렸다 보낸다. 상태 토픽이 먼저 연결돼도 명령 토픽은 아직일 수 있어
+# 명령이 버려지고 미션이 '대기 중' 에 멈췄다 (TRON1 수평 들기 미션 첫 실행). 5 s 안에 대기 중을 벗어나지 않으면 다시 보낸다 (최대 3 번)
+while time.time() - t0 < 30 and pub.get_subscription_count() == 0:
+    rclpy.spin_once(n, timeout_sec=0.2)
 time.sleep(1)
-pub.publish(String(data=cmd))
-print("sent", cmd, flush=True)
+for k in range(3):
+    pub.publish(String(data=cmd))
+    print("sent" if k == 0 else f"다시 보냄 {k}", cmd, flush=True)
+    t_sent = time.time()
+    while time.time() - t_sent < 5:
+        rclpy.spin_once(n, timeout_sec=0.2)
+        if st["v"] and st["v"]["state"] != "idle":
+            break
+    if st["v"] and st["v"]["state"] != "idle":
+        break
 last = None
 while time.time() - t0 < float(sys.argv[2] if len(sys.argv) > 2 else 2400):
     rclpy.spin_once(n, timeout_sec=0.2)
