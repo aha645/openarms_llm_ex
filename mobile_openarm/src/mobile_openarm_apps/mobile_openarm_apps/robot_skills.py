@@ -39,7 +39,7 @@ from std_msgs.msg import String
 from tf2_ros import Buffer, TransformListener
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 
-from .geometry import approach_rotation, mat_to_quat_xyzw, quat_to_yaw, se2_inverse_apply, yaw_to_quat
+from .geometry import approach_rotation, mat_to_quat_xyzw, quat_to_yaw, rot_axis, se2_inverse_apply, yaw_to_quat
 
 try:    # 이족(TRON1) 패키지가 있으면 손목 마커 정의를 쓴다 — 바퀴형 작업공간에는 없어도 된다
     from tron1_openarm_sim import wrist_markers as WRIST
@@ -1690,9 +1690,11 @@ class RobotSkills(Node):
         self.log(f"[pick] 완료: {obj}")
         return side
 
-    # 바퀴형: 쥔 상자를 들고 다니는 자세 — 쥔 손 방향을 그대로 두고 위로만 들어 올린다 (상자가 쥘 때처럼 수평).
+    # 바퀴형: 쥔 상자를 들고 다니는 자세 — 상자가 쥘 때처럼 수평인 채 위로 들고 몸 쪽으로 당긴다.
     # 예전에는 정해진 관절각 carry 로 접어 손목이 돌며 상자가 기울고 가슴에 붙었다 (사용자 지적: 물이 든 그릇이면 쏟아진다).
     HOLD_UP = 0.15                  # 상판 위 손끝 높이 [m]
+    HOLD_FWD = 0.30                 # 몸 쪽으로 당길 목표: 몸 앞 손끝 거리 [m] (Nav2 외곽 앞 0.28 m 근처)
+    HOLD_YAWS = (0, 15, -15, 30, -30, 45, -45)   # 당길 때 손 수평 방향(수직축 둘레) 후보 [°] — 상자 수평과 무관
     BASE_FOOTPRINT = [(0.28, 0.26), (0.28, -0.26), (-0.27, -0.26), (-0.27, 0.26)]   # config/nav2_params.yaml 과 같은 값
 
     def set_footprint(self, front=None):
@@ -1704,8 +1706,12 @@ class RobotSkills(Node):
             pub.publish(msg)
 
     def _hold_level(self, side):
-        """쥔 손 방향을 그대로 두고 수직으로만 들어 올린다 (손끝 = 상판 + HOLD_UP). 앞뒤로 옮기거나 돌리지 않는다.
-        (몸 쪽으로 당기는 직선은 팔 관절 한계로 76~92 % 만 풀렸고, 사용자 요청: 그냥 들어 올린 채로 이동)"""
+        """쥔 상자를 수평으로 유지한 채 들어 올리고 몸 쪽으로 당긴다. 앞뒤로 옮기거나 접을 때 손이 기울지 않는다.
+        ① 손 방향 그대로 수직으로 들어 올림 (손끝 = 상판 + HOLD_UP)
+        ② 몸 쪽(앞 HOLD_FWD)으로 직선. 상자가 수평이려면 손의 숙임·기울기만 지키면 되고 수직축 둘레 방향(yaw)은 돌아도 된다 →
+           yaw 후보마다 직선이 얼마나 되는지 미리 재서 가장 멀리 가는 방향으로, 되는 데까지만 간다.
+           (손 방향을 완전히 고정하면 팔 관절 한계로 76~92 % 만 풀렸다: 바퀴형 시험 7. 시작·끝 방향이 수직축 회전만 다르므로
+            직선 경로 중간의 손 방향 보간도 수직축 회전 → 상자는 내내 수평)"""
         tf = self._tf_matrix(TCP[side])
         if tf is None:
             return
@@ -1717,10 +1723,32 @@ class RobotSkills(Node):
             except SkillError as e:
                 self.log(f"[pick] 더 들어 올리기 생략: {e}")
         tf = self._tf_matrix(TCP[side])
+        if tf is not None and tf[0][0] > self.HOLD_FWD + 0.01:
+            p, R = tf
+            goal = np.array([self.HOLD_FWD, p[1], p[2]])
+            q = {n: self._joints[n] for n in ARM_JOINTS[side] if n in self._joints}
+            best = None
+            for deg in self.HOLD_YAWS:
+                Ry = rot_axis([0.0, 0.0, 1.0], math.radians(deg)) @ R
+                try:
+                    f = self._cart_fraction(side, q, Ry, goal)
+                except SkillError:
+                    continue
+                if best is None or f > best[0] + 0.02:
+                    best = (f, deg, Ry)
+                if f >= 0.99:
+                    break
+            if best is not None and best[0] > 0.05:
+                try:
+                    self.cartesian(side, [goal], best[2], vel=0.15, min_fraction=0.0)
+                    self.log(f"[pick] 수평 유지하며 몸 쪽으로 (손 수평 방향 {best[1]:+d}°, 직선 {best[0] * 100:.0f} %)")
+                except SkillError as e:
+                    self.log(f"[pick] 몸 쪽으로 당기기 생략: {e}")
+        tf = self._tf_matrix(TCP[side])
         tip = tf[0] if tf is not None else p
         front = float(tip[0]) + self.box_size * 0.75 + 0.02      # 손끝(상자 중심) + 상자 반 대각선 + 여유
         self.set_footprint(front)
-        self.log(f"[pick] 쥔 손 방향 그대로 들어 올림: 손끝 base {np.round(tip, 3)} (상자 수평), Nav2 외곽 앞 {front:.2f} m")
+        self.log(f"[pick] 쥔 상자 수평으로 들기: 손끝 base {np.round(tip, 3)}, Nav2 외곽 앞 {front:.2f} m")
 
     def _choose_place(self, side, fwd, lat, edge, top_h, obs):
         """빈자리 후보(원래 자리에서 가까운 순) 중 쥘 때와 같은 기울기로 IK·직선 접근이 되는 첫 자리 → (target, R, pre, q_pre).
