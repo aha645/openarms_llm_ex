@@ -424,6 +424,9 @@ def build(tron1_dir, openarm_xml, out_dir, xacro_file, mount_x=None, shoulder=No
         for fn in ("tron1_openarm.xml", "tron1_openarm_light.xml", "tron1_openarm_train.xml"):
             for note in apply_sole_box(os.path.join(out_dir, fn)):
                 print(f"[sf] {fn}: {note}")
+    # 저사양 모델의 다리 뼈대·고관절·무릎 (시각 전용, 메시가 없어 다리가 끊겨 보이는 문제 — tools/leg_bones.py)
+    from leg_bones import apply_leg_bones
+    print(f"[legs] tron1_openarm_light.xml: {', '.join(apply_leg_bones(os.path.join(out_dir, 'tron1_openarm_light.xml')))}")
 
     # ---------------- 요약
     m = mujoco.MjModel.from_xml_path(full)
