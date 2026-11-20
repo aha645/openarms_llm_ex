@@ -164,10 +164,10 @@ ros2 run mobile_openarm_apps patrol --ros-args -p loops:=1 -p mode:=through
    ```bash
    cd ~/openarm_mobile_ws/mobile_openarm
    .venv-mobile/bin/python -m colcon build --symlink-install --base-paths src --packages-select mobile_openarm_sim
-   source install/setup.bash
+   source scripts/env.sh
    ```
 
-   주의: `locations.yaml` 은 `tools/build_world.py` 가 만든 파일이라, `05_regen_models.sh`(모델 재생성)를 돌리면 원래대로 덮어써집니다 (`04_setup_workspace.sh` 는 덮어쓰지 않음). 계속 쓰려면 `build_world.py` 의 `LOCATIONS` 도 같이 고치세요.
+   주의: `locations.yaml` 은 `tools/build_world.py` 가 만든 파일이라, `mobile_openarm/scripts/regen_models.sh`(모델 재생성)를 돌리면 원래대로 덮어써집니다 (`mobile_openarm/scripts/setup_workspace.sh` 는 덮어쓰지 않음). 계속 쓰려면 `build_world.py` 의 `LOCATIONS` 도 같이 고치세요.
 3. T1을 재시작할 필요는 없습니다. T2에서 순찰을 다시 실행하고 `waypoint n/5` 로 바뀌었는지 확인합니다.
 
 ## 5. 미션 체크리스트
@@ -188,7 +188,7 @@ ros2 run mobile_openarm_apps patrol --ros-args -p loops:=1 -p mode:=through
 |---|---|
 | `Nav2 is ready` 가 안 나오고 멈춤 | T1의 Nav2가 아직 켜지는 중이거나 실패. T1 로그 확인 |
 | 한 지점에서 실패 → 순찰 중단 | 그 지점이 장애물에 가려짐 (사람). `/sim/set_person_motion` 으로 사람 멈추고 다시 |
-| yaml 고쳤는데 그대로 | `mobile_openarm/` 에서 다시 빌드한 뒤 `source install/setup.bash` 를 했는지 |
+| yaml 고쳤는데 그대로 | `mobile_openarm/` 에서 다시 빌드한 뒤 `source scripts/env.sh` 를 했는지 |
 
 ## 8. 더 해보기
 

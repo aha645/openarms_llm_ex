@@ -49,7 +49,7 @@ MuJoCo 모델은 XML 한 파일(또는 `include` 로 나눈 여러 파일)입니
 
 | 파일 | 하는 일 |
 |---|---|
-| `mobile_openarm/src/mobile_openarm_sim/tools/build_mjcf.py` | enactic의 OpenArm v1 양팔 MJCF를 가져와 **바퀴 베이스·LiDAR·카메라를 붙여** `mjcf/mobile_openarm.xml` 을 만든다 (`04_setup_workspace.sh` 가 이미 실행함) |
+| `mobile_openarm/src/mobile_openarm_sim/tools/build_mjcf.py` | enactic의 OpenArm v1 양팔 MJCF를 가져와 **바퀴 베이스·LiDAR·카메라를 붙여** `mjcf/mobile_openarm.xml` 을 만든다 (`mobile_openarm/scripts/setup_workspace.sh` 가 이미 실행함) |
 | `mobile_openarm/src/mobile_openarm_sim/tools/build_world.py` | 방·벽·작업대·ArUco 상자·사람을 넣은 `mjcf/world.xml` 을 만든다. 저사양용 `world_light.xml` 도 만든다 |
 | `mobile_openarm/src/mobile_openarm_sim/mjcf/world.xml` | 이 장에서 여는 파일. 첫 줄에서 `mobile_openarm.xml`(로봇)을 `include` 한다 |
 | `python3 -m mujoco.viewer` | MuJoCo 패키지에 들어 있는 기본 뷰어 프로그램 |
@@ -63,7 +63,7 @@ MuJoCo 모델은 XML 한 파일(또는 `include` 로 나눈 여러 파일)입니
 
 ```bash
 cd ~/openarm_mobile_ws
-source mobile_openarm/.venv-mobile/bin/activate    # mujoco 가 든 가상환경 (프롬프트에 (.venv-mobile) 표시)
+source mobile_openarm/scripts/env.sh       # mujoco 가 든 가상환경 포함 (프롬프트에 (.venv-mobile) 표시)
 python3 -m mujoco.viewer --mjcf=mobile_openarm/src/mobile_openarm_sim/mjcf/world.xml
 # 저사양: --mjcf=mobile_openarm/src/mobile_openarm_sim/mjcf/world_light.xml
 ```
@@ -116,13 +116,13 @@ python3 -m mujoco.viewer --mjcf=mobile_openarm/src/mobile_openarm_sim/mjcf/world
 
 ```bash
 cd ~/openarm_mobile_ws
-source mobile_openarm/.venv-mobile/bin/activate    # 새 터미널일 때만 필요
+source mobile_openarm/scripts/env.sh       # 새 터미널일 때만 필요
 python3 mobile_openarm/src/mobile_openarm_sim/tools/selftest.py                 # 기본 world.xml
 python3 mobile_openarm/src/mobile_openarm_sim/tools/selftest.py world_light.xml # 저사양 월드
 ```
 
 - **무엇을 하나**: 창 없이 시뮬레이션을 빠르게 돌리며 항목마다 `[PASS]` / `[FAIL]` 을 출력합니다. 1 m 직진 시 오도메트리 오차, LiDAR 거리, 카메라로 본 ArUco 위치 오차, 팔 관절 추종, 상자 집기·놓기 등을 봅니다.
-- **기대 결과**: 마지막 줄 `총 14개 중 실패 0개`. 카메라 항목만 실패하면 OpenGL(그래픽 드라이버) 문제입니다. 설치 문서([노트북](../setup/ubuntu24-native.md#자주-막히는-부분) · [DGX Spark](../setup/dgx-spark.md#자주-막히는-부분) · [iMac Docker](../setup/imac-docker.md#6-종료재개와-문제-해결))의 문제 해결 표를 보세요.
+- **기대 결과**: 마지막 줄 `총 14개 중 실패 0개`. 카메라 항목만 실패하면 OpenGL(그래픽 드라이버) 문제입니다. 설치 문서([노트북](../setup/ubuntu24-rtx3090.md#자주-막히는-부분) · [DGX Spark](../setup/dgx-spark.md#자주-막히는-부분) · [iMac Docker](../setup/imac-docker.md#5-종료재개와-문제-해결))의 문제 해결 표를 보세요.
 
 ## 4. 미션 체크리스트
 
@@ -141,7 +141,7 @@ python3 mobile_openarm/src/mobile_openarm_sim/tools/selftest.py world_light.xml 
 
 | 증상 | 해결 |
 |---|---|
-| `No module named mujoco` | 가상환경을 켰는지: `source ~/openarm_mobile_ws/mobile_openarm/.venv-mobile/bin/activate`. 가상환경이 없으면 `bash mobile_openarm/scripts/setup_venv_mobile.sh` |
+| `No module named mujoco` | 환경을 불러왔는지: 저장소 루트에서 `source mobile_openarm/scripts/env.sh`. 가상환경이 없으면 `bash mobile_openarm/scripts/setup_venv_mobile.sh` |
 | 창이 검거나 바로 꺼짐 | 노트북: `glxinfo -B` 로 NVIDIA가 쓰이는지 확인, Wayland면 Xorg 세션으로 로그인. Docker: VNC 화면 안에서 실행했는지 확인 |
 | 매우 느림 | `world_light.xml` 사용 |
 

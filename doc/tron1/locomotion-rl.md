@@ -2,6 +2,8 @@
 
 [TRON1 목차](README.md) · [설계](design.md) · [검증 기록](validation-log.md) · [Python 가상환경](../setup/python-venv.md)
 
+> **학습 코드 이름 (2026-11-20).** 같은 PPO 를 물리 실행 장치로 나눠 `scripts/train_ppo_gpu.sh`·`rl/train_ppo_gpu.py`·`rl/tron1_env_gpu.py`(MJX/Warp)와 `scripts/train_ppo_cpu.sh`·`rl/train_ppo_cpu.py`·`rl/tron1_env_cpu.py`(mujoco.rollout)로 부릅니다. 예전 이름은 `train_mjx`·`tron1_mjx_env`(GPU), `train_policy.sh`·`train_ppo.py`·`tron1_env.py`(CPU)입니다. 보상·명령·팔 자세·손 외력 설정은 두 판이 `rl/train_config.py` 를 함께 쓰고, **SF 기본값은 배포 v3 를 만든 설정**(13-5절)입니다. PF 에는 v3 조건을 적용하지 않습니다. 아래 기록의 명령·파일 이름은 새 이름으로 바꿔 적었고, 기록 당시에는 13-5절 변수를 직접 켜야 했습니다.
+
 ## 이 장의 미션
 
 > LimX 가 공개한 TRON1 보행 정책을 우리 MuJoCo 모델(상반신 14.4 kg)에서 돌려 보고 문제를 확인한다.
@@ -43,13 +45,13 @@ flowchart LR
 ```
 
 - 정책 주기 50 Hz, 보행 주파수 2 Hz (발 하나가 0.25 s 씩 디딤), 발 높이 0.1 m
-- 같은 규약을 `tron1_openarm_sim/locomotion_policy.py`(배포)와 `rl/tron1_env.py`(학습)가 똑같이 구현합니다
+- 같은 규약을 `tron1_openarm_sim/locomotion_policy.py`(배포)와 `rl/tron1_env_cpu.py`(학습)가 똑같이 구현합니다
 
 ## 3. 사전학습 정책 그대로 써 보기 (문제 확인)
 
 ```bash
-source ~/openarm_mobile_ws/tron1_openarm/.venv-biped/bin/activate     # mujoco 가 든 TRON1 시뮬용 venv
-cd ~/openarm_mobile_ws/tron1_openarm/src/tron1_openarm_sim
+cd ~/openarm_mobile_ws && source tron1_openarm/scripts/env.sh          # mujoco 가 든 TRON1 시뮬용 venv 포함
+cd tron1_openarm/src/tron1_openarm_sim
 python3 tools/selftest_tron1.py world_light.xml deployed_policies/limx_pf_tron1a_pretrained.npz
 ```
 
@@ -74,7 +76,7 @@ LimX 의 학습 랜덤화는 몸통 질량 −0.5~+5 kg 였는데, 상반신은 
 
 이 실습 PC(노트북 i7-7700HQ, iMac Docker)와 이 저장소를 만든 클라우드(CPU 2코어, GPU 없음)에서는 처음부터 학습은 현실적으로 불가능합니다. 그래서 **같은 네트워크·같은 관측 규약을 유지한 전이학습**을 택했습니다. `--init scratch` 옵션으로 처음부터도 할 수 있게 해 두었습니다(GPU PC 권장).
 
-### 4-2. 환경 (`rl/tron1_env.py`)
+### 4-2. 환경 (`rl/tron1_env_cpu.py`)
 
 | 항목 | 값 | 이유 |
 |---|---|---|
@@ -123,10 +125,11 @@ LimX 의 학습 랜덤화는 몸통 질량 −0.5~+5 kg 였는데, 상반신은 
 ### 4-5. 실행
 
 ```bash
-bash tron1_openarm/scripts/11_train_policy.sh 90        # (없으면) .venv-biped-train 생성 → 90분 학습 → 평가
+bash tron1_openarm/scripts/train_ppo_cpu.sh 30 sf     # CPU 판: (없으면) .venv-biped-train 생성 → 30분 학습 → 배포 정책과 비교 평가
+bash tron1_openarm/scripts/train_ppo_gpu.sh 30 sf     # GPU 판: 같은 보상·사용법, 같은 시간에 학습량 수십 배
 ```
 
-학습용 가상환경은 `tron1_openarm/.venv-biped-train` 입니다 (시뮬·미션용 `.venv-biped` 와 별개). `11`·`12` 가 없으면 `tron1_openarm/scripts/setup_venv_biped_train_ppo.sh` 를 불러 만듭니다. 이 스크립트는 GPU 를 보고 `jax[cuda13]`(compute capability ≥ 7.5, DGX Spark GB10 등)·`jax[cuda12]`(GTX 1050 등)·`jax[cpu]` 중 하나를 설치하고 `jax.devices()` 로 GPU 사용을 확인합니다. 자세한 내용: [Python 가상환경](../setup/python-venv.md).
+학습용 가상환경은 `tron1_openarm/.venv-biped-train` 입니다 (시뮬·미션용 `.venv-biped` 와 별개). `train_ppo_gpu.sh`·`train_ppo_cpu.sh` 가 환경이 없으면 `tron1_openarm/scripts/setup_venv_biped_train_ppo.sh` 를 불러 만듭니다. 이 스크립트는 GPU 를 보고 `jax[cuda13]`(compute capability ≥ 7.5, DGX Spark GB10 등)·`jax[cuda12]`(GTX 1050 등)·`jax[cpu]` 중 하나를 설치하고 `jax.devices()` 로 GPU 사용을 확인합니다. 자세한 내용: [Python 가상환경](../setup/python-venv.md).
 
 또는 직접 (🆕 새 터미널). `~/.bashrc` 가 ROS 를 자동으로 불러오는 PC 라도 아래처럼 `env -u PYTHONPATH` 를 붙이면 ROS 의 Python 경로(NumPy 1.26)가 섞이지 않습니다. 이 접두어를 빼지 마세요.
 
@@ -134,12 +137,15 @@ bash tron1_openarm/scripts/11_train_policy.sh 90        # (없으면) .venv-bipe
 cd ~/openarm_mobile_ws
 bash tron1_openarm/scripts/setup_venv_biped_train_ppo.sh   # JAX_SPEC='jax[cuda12]' 처럼 직접 지정 가능
 cd tron1_openarm/rl
-env -u PYTHONPATH PYTHONNOUSERSITE=1 XLA_PYTHON_CLIENT_PREALLOCATE=false \
-  ../.venv-biped-train/bin/python train_ppo.py --minutes 90 --init-std 0.08 --lr 2e-5 --out ../runs/my_run
+env -u PYTHONPATH PYTHONNOUSERSITE=1 JAX_PLATFORMS=cpu \
+  ../.venv-biped-train/bin/python train_ppo_cpu.py --foot sf --minutes 30 --out ../runs/my_run
+# PF 를 LimX 원본 정책에서: --foot pf --init pretrained_limx/limx_pf_tron1a_pretrained.npz
 ```
 
 | 옵션 | 뜻 |
 |---|---|
+| `--foot sf\|pf` | 발 형태 (기본 sf). 학습 모델·시작 정책이 이에 맞춰 정해짐 |
+| `--init` | 시작 정책 npz (기본: 발 형태별 배포 정책) |
 | `--envs 128` | 병렬 환경 수. 코어가 많으면 늘리기 (16코어: 512) |
 | `--minutes` | 학습 시간 |
 | `--init scratch` | 사전학습 없이 처음부터 (GPU PC, 수 시간~하루) |
@@ -229,7 +235,7 @@ env -u PYTHONPATH ../.venv-biped-train/bin/python export_onnx.py ../src/tron1_op
 
 ## 8. 이후 변경 — v8·Sole-foot·현재 설정 (구현 기록)
 
-> 1~7절은 Point-foot v7 시점의 설명입니다. 아래는 그 뒤 실제로 바꾼 내용이며, **보상 계수 표(8-7)가 현재 코드(`rl/tron1_env.py` `REWARD_SCALES`)의 값**입니다.
+> 1~7절은 Point-foot v7 시점의 설명입니다. 아래는 그 뒤 실제로 바꾼 내용이며, **보상 계수 표(8-7)가 현재 코드(`rl/tron1_env_cpu.py` `REWARD_SCALES`)의 값**입니다.
 
 ### 8-1. 정책 신경망의 입출력 (LimX 규약 그대로)
 
@@ -304,7 +310,7 @@ flowchart LR
 - 상반신 14.5 kg 을 얹으면 PF·SF 모두 1~2 s 안에 넘어집니다 (평가 넘어짐 3/3).
 - 같은 신경망 구조·관측 규약을 유지한 채 PPO 로 이어서 학습했습니다 (전이학습).
 
-### 8-5. 학습 환경 `rl/tron1_env.py`
+### 8-5. 학습 환경 `rl/tron1_env_cpu.py`
 
 - `mujoco.rollout.Rollout` 으로 128 개 환경을 C 스레드에서 한꺼번에 진행합니다. JAX 로 쓴 신경망은 CPU 에서 돕니다.
   - PyTorch 를 쓰지 않은 이유: 이 환경에서 PyTorch 내려받기 서버가 막혀 있었습니다.
@@ -315,7 +321,7 @@ flowchart LR
   - v8 부터: **왼팔·오른팔을 따로** 고릅니다 (절반은 같게). v7 은 양팔이 항상 같은 자세로만 학습해, 앱이 한 팔만 carry 로 올리면 옆으로 흘러갔습니다.
 - **SF 서기 학습**: 명령 0 인 경우의 80% 는 `want_still`. 시계가 두 발 디딘 위상에 오면 멈추고, 그동안 두 발 모두 "디딤 기대값 1" 로 둡니다(발 속도 벌점).
 
-### 8-6. PPO 알고리즘 `rl/train_ppo.py` (LimX rsl_rl 변형과 같은 구성)
+### 8-6. PPO 알고리즘 `rl/train_ppo_cpu.py` (LimX rsl_rl 변형과 같은 구성)
 
 | 항목 | 값 |
 |---|---|
@@ -340,6 +346,8 @@ flowchart LR
 
 ### 8-7. 보상 함수 (`REWARD_SCALES`, 정책 주기마다 합 × 0.02)
 
+> 아래 표는 이 절을 쓴 시점(예전 시험 환경)의 기록입니다. 지금 계수는 `rl/train_config.py` 의 `REWARD_SCALES` 와 `reward_scales(foot)` 에 있고 CPU·GPU 학습이 함께 씁니다. SF 는 회전 추종 6.0(허용 폭 0.25)과 v3 서기 항목(`stand_yaw` 3, `stand_feet` 5, `stand_load` 3, `stand_twist` 5, `stand_tilt` 4)이 기본으로 켜집니다.
+
 | 항 | 가중치 | 식 | LimX 대비 바꾼 점·이유 |
 |---|---|---|---|
 | keep_balance | +1.0 | 1 | - |
@@ -360,10 +368,10 @@ flowchart LR
 # 별도 가상환경 tron1_openarm/.venv-biped-train (JAX 는 numpy 2 필요, ROS Jazzy 는 numpy 1.26 → 같은 환경에 깔면 cv_bridge 등이 깨짐)
 bash tron1_openarm/scripts/setup_venv_biped_train_ppo.sh      # 처음 1회 (JAX GPU 자동 선택)
 cd tron1_openarm/rl
-env -u PYTHONPATH ../.venv-biped-train/bin/python train_ppo.py --foot pf \
+env -u PYTHONPATH ../.venv-biped-train/bin/python train_ppo_cpu.py --foot pf \
     --init ../src/tron1_openarm_sim/deployed_policies/tron1_openarm_policy.npz \
     --minutes 60 --init-std 0.08 --lr 2e-5 --critic-warmup 20 --out ../runs/pf_low_v1
-env -u PYTHONPATH ../.venv-biped-train/bin/python train_ppo.py --foot sf --xml ../src/tron1_openarm_sim/mjcf/sf/tron1_openarm_train.xml \
+env -u PYTHONPATH ../.venv-biped-train/bin/python train_ppo_cpu.py --foot sf --xml ../src/tron1_openarm_sim/mjcf/sf/tron1_openarm_train.xml \
     --init pretrained_limx/limx_sf_tron1a_pretrained.npz --payload-start 0.1 --minutes 80 --init-std 0.1 --lr 3e-5 --out ../runs/sf_v2
 # 평가 (학습에 안 쓴 배포 조건: 실습 월드, 물리 2 ms, 시드 3개)
 # 주의: 실행하면 저장소에 커밋된 기록 eval_records/eval_results.json 을 덮어씁니다
@@ -401,17 +409,17 @@ env -u PYTHONPATH ../.venv-biped/bin/python eval_policy.py ../src/tron1_openarm_
 | 파일 | 하는 일 |
 |---|---|
 | `rl/mjx_model.py` | 학습 모델(`*_train.xml`) → GPU 용 단순화 모델: SF 발 메시 → 발바닥 상자, 바닥과는 발만 닿게, 솔버 반복 지정 |
-| `rl/tron1_mjx_env.py` | `tron1_env.py` 와 같은 규약의 순수 JAX 환경. 환경 수천 개를 `vmap` 으로 한꺼번에 진행 |
-| `rl/train_mjx.py` | 수집·GAE·PPO·인코더 갱신을 모두 `jit` 안에서 (CPU↔GPU 복사는 기록용 숫자뿐) |
+| `rl/tron1_env_gpu.py` | `tron1_env_cpu.py` 와 같은 규약의 순수 JAX 환경. 환경 수천 개를 `vmap` 으로 한꺼번에 진행 |
+| `rl/train_ppo_gpu.py` | 수집·GAE·PPO·인코더 갱신을 모두 `jit` 안에서 (CPU↔GPU 복사는 기록용 숫자뿐) |
 | `rl/mjx_parity.py` | 같은 정책을 CPU 환경과 MJX 환경에 넣어 결과가 같은지 비교 |
-| `scripts/12_train_mjx.sh` | GPU 고정 → 학습 → 배포 조건 평가(`eval_policy.py --out=run 폴더`) |
+| `scripts/train_ppo_gpu.sh` | GPU 고정 → 학습 → 배포 조건 평가(`eval_policy.py --out=run 폴더`) |
 | `scripts/_gpu_select.sh` | GPU·드라이버를 보고 JAX 변형·GPU 를 고름 |
 
 ### 9-2. 측정 (RTX 3090, 드라이버 550, SF, 정책 스텝/s)
 
 | 방식 | 속도 |
 |---|---|
-| CPU 물리 (`train_ppo.py`), 환경 128 / 1024 개, 32 스레드 | 7,600 / **20,800** |
+| CPU 물리 (`train_ppo_cpu.py`), 환경 128 / 1024 개, 32 스레드 | 7,600 / **20,800** |
 | MJX 순수 JAX 백엔드, 환경 4096 개 (학습 전체) | 14,700 — 물리가 병목 (서 있는 상태 물리만 16,000) |
 | **MJX + MuJoCo Warp 백엔드**, 환경 4096 / 8192 개 (학습 전체) | **80,000 / 92,000** |
 
@@ -425,7 +433,8 @@ env -u PYTHONPATH ../.venv-biped/bin/python eval_policy.py ../src/tron1_openarm_
 | CPU(상자 발) vs MJX-Warp | 서기·걷기·회전·옆걸음·느린 걸음 5 개 시험, 환경 256 개: 낙상 0, 속도·높이·기울기 차이 1 cm/s·1 mm·0.1° 수준 | 물리 동등 |
 | 도메인 랜덤화가 Warp 에도 적용되는가 | 게인 ×0.6, 몸통 +6 kg, 마찰 0.05 에서 JAX·Warp 가 같은 방향·크기로 반응 | 적용됨 |
 | 학습 중 NaN (환경 4096·16384 개) | 환경당 제약 버퍼 `njmax` 64 가 부족 | `njmax` 128, 발산 환경은 넘어짐 처리 + 그 스텝 값 0 (기록 `diverged`) |
-| Warp 최신판은 CUDA 13 드라이버(≥ 580) 필요 | 드라이버 550 에서 GPU 를 못 찾음 | 드라이버 < 580 이면 `warp-lang==1.12.1`(CUDA 12.9 빌드) |
+| Warp 최신판은 CUDA 13 드라이버(≥ 580) 필요 | 드라이버 550 에서 GPU 를 못 찾음 | `warp-lang==1.12.1`(CUDA 12.9 빌드) |
+| Warp 1.19 는 MuJoCo MJX 3.5.0 과 맞지 않음 (DGX Spark, 2026-11-20) | `put_model: 'int' has no attribute 'WARP'` | 드라이버와 관계없이 `warp-lang==1.12.1` 고정 (`setup_venv_biped_train_ppo.sh`) |
 
 ### 9-4. 배포 조건에서의 결과 (5 분 미세조정, 환경 4096 개)
 
@@ -441,7 +450,7 @@ env -u PYTHONPATH ../.venv-biped/bin/python eval_policy.py ../src/tron1_openarm_
 
 GPU 에서 상자 발로 학습한 정책이 메시 발 배포 시뮬로 옮겨도 넘어지지 않고 동작한다.
 
-**주의 — 짧은 학습은 결과가 흔들린다.** `12_train_mjx.sh 3 sf` 로 3 분 다시 학습한 정책은 회전이 오히려 나빠졌다
+**주의 — 짧은 학습은 결과가 흔들린다.** `train_ppo_gpu.sh 3 sf` 로 3 분 다시 학습한 정책은 회전이 오히려 나빠졌다
 (best 0.27 / final 0.23 rad/s, final 은 직진도 0.10 m/s). 위 5 분 결과(회전 0.57)는 한 번의 실행이며,
 상자 발은 메시 발보다 회전 마찰이 커서(9-3) 회전 성능이 학습마다 달라질 수 있다.
 배포 정책은 바꾸지 않았다 — 더 긴 학습(30 분 이상)·여러 시드·제자리 흔들림·집기 시험으로 확인한 뒤 교체한다.
@@ -451,8 +460,8 @@ GPU 에서 상자 발로 학습한 정책이 메시 발 배포 시뮬로 옮겨�
 
 ```bash
 bash tron1_openarm/scripts/setup_venv_biped_train_ppo.sh  # 처음 1 회 (MuJoCo Warp 포함)
-bash tron1_openarm/scripts/12_train_mjx.sh 30 sf           # 30 분, SF, 환경 4096 개
-bash tron1_openarm/scripts/12_train_mjx.sh 60 sf --envs 8192 --init scratch    # 처음부터 (관측 규약을 바꿀 때)
+bash tron1_openarm/scripts/train_ppo_gpu.sh 30 sf           # 30 분, SF, 환경 4096 개
+bash tron1_openarm/scripts/train_ppo_gpu.sh 60 sf --envs 8192 --init scratch    # 처음부터 (관측 규약을 바꿀 때)
 # 물리 동등성 확인 (CPU 상자 발 vs MJX)
 cd tron1_openarm/rl && env -u PYTHONPATH ../.venv-biped-train/bin/python mjx_parity.py --foot sf --impl warp --only cpu,mjx_elliptic
 ```
@@ -493,7 +502,7 @@ cd tron1_openarm/rl && env -u PYTHONPATH ../.venv-biped-train/bin/python mjx_par
 
 ```bash
 cd tron1_openarm/rl
-for s in 1 2 3; do env -u PYTHONPATH ../.venv-biped-train/bin/python train_mjx.py --foot sf --impl warp --envs 4096 --minutes 30 --seed $s --out ../runs/box/seed$s; done
+for s in 1 2 3; do env -u PYTHONPATH ../.venv-biped-train/bin/python train_ppo_gpu.py --foot sf --impl warp --envs 4096 --minutes 30 --seed $s --out ../runs/box/seed$s; done
 ```
 
 배포 정책(sf_v4)에서 시작, 시드마다 약 1,400 반복·1.35 억 스텝. 학습 중 낙상률 0, 발산 0.
@@ -530,7 +539,7 @@ for s in 1 2 3; do env -u PYTHONPATH ../.venv-biped-train/bin/python train_mjx.p
 `tools/selftest_tron1.py` SF·PF 10/10. 제자리 회전 0.5 rad/s × 8 s: 111° → 약 226°. 배포: `deployed_policies/tron1sf_openarm_policy.npz` = `runs/box/seed3/best.npz`.
 
 **학습 중 경고 `narrowphase overflow ... naconmax`:** 환경당 접촉 버퍼 12 개가 순간적으로 13~14 개 필요해 일부 스텝에서 접촉이 빠졌다
-(시드마다 240~430 회 / 약 1,400 반복). 낙상률·평가에 영향은 보이지 않았지만, 더 긴 학습에서는 `Tron1MjxEnv(contacts_per_env=16)` 로 올리는 것을 권한다.
+(시드마다 240~430 회 / 약 1,400 반복). 낙상률·평가에 영향은 보이지 않았지만, 더 긴 학습에서는 `Tron1EnvGpu(contacts_per_env=16)` 로 올리는 것을 권한다.
 
 ## 11. SF 서기 모드 방향 흐름
 
@@ -540,7 +549,7 @@ wz·v 명령에 반응하지 않으므로 바깥 루프의 명령으로는 되�
 ### 11-1. 학습으로 고치기 — 시도했지만 채택 안 함
 
 기존 보상으로는 이렇게 느린 흐름이 벌점이 되지 않는다: 회전 추종 보상의 허용 폭 0.25 rad/s, 발 속도 벌점의 폭 0.5 m/s 에 비해 0.007 rad/s 는 0 과 같다.
-그래서 서 있는 동안만 몸통 회전·수평 속도를 좁은 폭(0.02 rad/s, 0.02 m/s)으로 보는 벌점 `stand_drift` 를 넣었다 (`tron1_env.py`, `tron1_mjx_env.py`):
+그래서 서 있는 동안만 몸통 회전·수평 속도를 좁은 폭(0.02 rad/s, 0.02 m/s)으로 보는 벌점 `stand_drift` 를 넣었다 (`tron1_env_cpu.py`, `tron1_env_gpu.py`):
 
 ```python
 stand_drift = standing * (1 - exp(-(wz / 0.02)**2 - |v_xy|**2 / 0.02**2))     # 크기 −4 (TRON1_STAND_DRIFT)
@@ -574,12 +583,12 @@ stand_drift = standing * (1 - exp(-(wz / 0.02)**2 - |v_xy|**2 / 0.02**2))     # 
 
 ### 12-1. 진단
 
-학습 환경(CPU `tron1_env`, 랜덤화·밀기 끔)에서 배포 정책을 명령 0 '제자리 서기' 로 30 s:
+학습 환경(CPU `tron1_env_cpu`, 랜덤화·밀기 끔)에서 배포 정책을 명령 0 '제자리 서기' 로 30 s:
 32 개 환경 모두 같은 방향으로 평균 **0.22 °/s** 회전 (팔 자세 무관) → 학습 물리에서도 재현되므로 보상으로 고칠 수 있다.
 그런데 학습 때 명령이 **5 s 마다** 바뀌어, 한 번 서 있는 동안 1.1° 밖에 돌지 않는다 → 보상에 거의 안 드러났다.
 다리에 수직축 관절이 없어 몸통이 돌면 두 발바닥이 바닥에서 비틀린다 → 몸통 방향을 벌점으로 보면 곧 발바닥 비틀림을 막는 것.
 
-### 12-2. 보상 (`tron1_env.py`, `tron1_mjx_env.py`)
+### 12-2. 보상 (`tron1_env_cpu.py`, `tron1_env_gpu.py`)
 
 1. **긴 서기**: 제자리 서기 명령의 50 %(`STAND_LONG_P`)는 10~20 s 유지 (`cmd_until`).
 2. **`stand_yaw`**: 서기 시작 1 s 뒤부터 기준 방향에서 돌아간 각도에 선형 벌점 (3° 에서 1, 상한 2), 크기 −3 (`TRON1_STAND_YAW`).
@@ -619,7 +628,7 @@ stand_drift = standing * (1 - exp(-(wz / 0.02)**2 - |v_xy|**2 / 0.02**2))     # 
 손 누름(아래·앞·옆 중 하나, `PRESS_N`, 2 s) → 상자 무게로 들어 올림 → 10 s 에 걸쳐 carry 로 접기 → home.
 양팔 × 상자 옆 거리 2 가지 × seed 3 = 12 회. 서기 모드가 풀린 횟수를 이유(방향 바로잡기 / 불안정)·구간별로 센다.
 
-### 13-2. 학습에 넣은 것 (`tron1_mjx_env.py`, 환경 변수로 켬)
+### 13-2. 학습에 넣은 것 (`tron1_env_gpu.py`, 환경 변수로 켬 — 지금은 v3 값이 SF 기본값)
 
 | 변수 | 내용 |
 |---|---|
@@ -630,7 +639,7 @@ stand_drift = standing * (1 - exp(-(wz / 0.02)**2 - |v_xy|**2 / 0.02**2))     # 
 | `TRON1_STAND_TWIST` | 발바닥 수직축 회전 속도 벌점 (`cvel` z, σ 0.05 rad/s) — v2 에서 추가 |
 
 v1: HAND_F 25, REACH_P 0.35, FEET 5, LOAD 3. v2: v1 + TWIST 5. 배포 정책에서 이어 시드 2 개 × 35 분.
-`train_mjx.py` 는 새 항을 기록하고 10 분마다 체크포인트(`ckNNNmin.npz`)를 저장한다.
+`train_ppo_gpu.py` 는 새 항을 기록하고 10 분마다 체크포인트(`ckNNNmin.npz`)를 저장한다.
 
 ### 13-3. 결과 (손 누름 25 N, 12 회)
 
@@ -661,12 +670,12 @@ python3 tools/stand_long.py mjcf/sf/world_light.xml deployed_policies/tron1sf_op
 # 학습 (v2 설정)
 cd ../../rl
 TRON1_HAND_F=25 TRON1_REACH_P=0.35 TRON1_STAND_FEET=5 TRON1_STAND_LOAD=3 TRON1_STAND_TWIST=5 \
-  ../.venv-biped-train/bin/python train_mjx.py --foot sf --impl warp --envs 4096 --minutes 35 --seed 2 --out ../runs/feet2/seed2
+  ../.venv-biped-train/bin/python train_ppo_gpu.py --foot sf --impl warp --envs 4096 --minutes 35 --seed 2 --out ../runs/feet2/seed2
 ```
 
 ### 13-5. 서 있을 때 기울기 줄이기 (v3: 처음엔 배포 안 함 → 파지 보조 수정 뒤 채택)
 
-v2 는 서 있을 때 몸통이 7~8° 앞으로 숙는다. 기울기 벌점과 긴 에피소드를 넣어 다시 학습했다 (`tron1_mjx_env.py`, 모두 기본 꺼짐):
+v2 는 서 있을 때 몸통이 7~8° 앞으로 숙는다. 기울기 벌점과 긴 에피소드를 넣어 다시 학습했다 (`tron1_env_gpu.py`, 당시에는 모두 기본 꺼짐 — 지금은 이 값들이 `train_config.py` 의 SF 기본값):
 
 | 환경 변수 | 뜻 |
 |---|---|
@@ -698,14 +707,14 @@ weld 파지 보조로 고친 뒤 같은 r1~r8: v3 seed1 final **8/8**, 평균 99
 ```bash
 TRON1_HAND_F=25 TRON1_REACH_P=0.35 TRON1_STAND_FEET=5 TRON1_STAND_LOAD=3 TRON1_STAND_TWIST=5 \
 TRON1_STAND_TILT=4 TRON1_EP_S=60 TRON1_STAND_LONG_MAX_S=50 \
-  ../.venv-biped-train/bin/python train_mjx.py --foot sf --impl warp --envs 4096 --minutes 35 --seed 1 --out ../runs/upright/seed1
+  ../.venv-biped-train/bin/python train_ppo_gpu.py --foot sf --impl warp --envs 4096 --minutes 35 --seed 1 --out ../runs/upright/seed1
 ```
 
 ## 14. 빠른 걸음·옆걸음·서서 작업하기 재학습 (v4~v10)
 
 사용자 요청: "다리를 더 들고 보폭을 길게, 앞·뒤·옆으로 빠르면서도 치우치지 않고 넘어지지 않게", 이어서
 "일자로 걷기, 팔을 움직이며 일자로, 서 있을 때 발바닥을 붙이고 발을 구르지 않기". 모두 v3(배포 정책)에서 이어 학습한 미세조정이고,
-결과마다 문제를 찾아 다음 판의 보상·명령 분포를 바꿨다. 학습: `train_mjx.py --impl warp --envs 4096`, RTX 3090, 시드당 45~60 분 (판별 실행 스크립트 `tron1_openarm/tools/gait_runs/train_vN.sh`, 절차와 명령은 14-7, **처음부터 끝까지 한 바퀴 흐름은 14-11**).
+결과마다 문제를 찾아 다음 판의 보상·명령 분포를 바꿨다. 학습: `train_ppo_gpu.py --impl warp --envs 4096`, RTX 3090, 시드당 45~60 분 (판별 실행 스크립트 `tron1_openarm/tools/gait_runs/train_vN.sh`, 절차와 명령은 14-7, **처음부터 끝까지 한 바퀴 흐름은 14-11**).
 평가: `rl/eval_policy.py`(배포 조건 SF 월드·2 ms), 집기 시험: `tools/validation/series_run.sh` r1~r8 (`POLICY=` 로 후보 지정).
 학습 과정 보기: `rl/watch_training.py plot|play <runs/폴더>` (그래프·중간 정책 보행 화면).
 
@@ -753,7 +762,7 @@ TRON1_STAND_TILT=4 TRON1_EP_S=60 TRON1_STAND_LONG_MAX_S=50 \
 
 ### 14-4. 소스 코드 변경 (파일·함수별, 커밋)
 
-**`tron1_openarm/rl/tron1_mjx_env.py`** (MJX 학습 환경 — 새 항목은 모두 환경 변수로 켜고 기본은 꺼짐, v3 까지의 학습을 그대로 재현)
+**`tron1_openarm/rl/tron1_env_gpu.py`** (GPU 학습 환경 — v4 이후 항목은 환경 변수로 켜고 기본은 꺼짐. 설정은 `train_config.py` 에 있고 CPU 판도 같은 항목을 구현)
 
 | 판 | 위치 | 어떻게 바꿨나 (식) | 왜 (그 전 판에서 본 문제) | 커밋 |
 |---|---|---|---|---|
@@ -775,7 +784,7 @@ TRON1_STAND_TILT=4 TRON1_EP_S=60 TRON1_STAND_LONG_MAX_S=50 \
 | v10 | `EnvState`·`reset()`·`_advance_clock()` | `v_avg` 필드: `v_avg += (dt/0.5 s)·(v_xy − v_avg)` | 걸음마다 몸통 속도가 출렁여 느린 명령은 순간 속도로 비교할 수 없음 | 4408667 |
 | v10 | `_reward()`·`_sample_cmd()` | `tracking_slow = [0.005 < |cmd| < 0.15]·exp(−(|cmd − v_avg| / max(|cmd|, 0.03))²/0.25)`, `CMD_MIX == "v10"`(느린 15·서기 25 %) | v9 best 는 0.05 m/s 전진 17 %·후진 187 % → 작업대 앞 위치 맞추기에 45~80 s. 절대 오차 보상(폭 0.05)은 못 따라가도 보상이 95 % 남음. **결과: 서기 안정성을 잃어 30 분에 중단** | 4408667 |
 
-**`tron1_openarm/rl/train_mjx.py`** (PPO 학습)
+**`tron1_openarm/rl/train_ppo_gpu.py`** (PPO 학습)
 - `--ck-min`: 중간 정책 저장 간격(기본 10 분, 학습 보기용으로 5 분) — 127be28
 - 학습 로그 항목 추가: `clear`(127be28), `vy_track`(46a67ee), `heading`·`liftoff`(151e0f8), `sway`(592d965), `slow`(4408667)
 - `split_stats()` 새 함수: 명령 종류별 평균 `side_vy`(옆걸음 명령일 때 옆 추종)·`head_straight`(직진할 때 방향 오차)·`clear_walk`(걷는 중 발 들기)·`slow_track`(느린 명령 추종) — e53c2a1, 4408667
@@ -802,7 +811,7 @@ TRON1_STAND_TILT=4 TRON1_EP_S=60 TRON1_STAND_LONG_MAX_S=50 \
 ### 14-5. 판별 학습 명령
 
 공통 (v3 설정): `TRON1_HAND_F=25 TRON1_REACH_P=0.35 TRON1_STAND_FEET=5 TRON1_STAND_LOAD=3 TRON1_STAND_TWIST=5 TRON1_STAND_TILT=4 TRON1_EP_S=60 TRON1_STAND_LONG_MAX_S=50`.
-`rl/` 에서 `../.venv-biped-train/bin/python train_mjx.py --foot sf --impl warp --envs 4096 --seed <1|2> --ck-min 5 --out ../runs/gait_vN/seed<1|2>` 에 아래를 더한다.
+`rl/` 에서 `../.venv-biped-train/bin/python train_ppo_gpu.py --foot sf --impl warp --envs 4096 --seed <1|2> --ck-min 5 --out ../runs/gait_vN/seed<1|2>` 에 아래를 더한다.
 
 | 판 | 추가 환경 변수 | `--init` | 기타 |
 |---|---|---|---|
@@ -833,11 +842,11 @@ TRON1_STAND_TILT=4 TRON1_EP_S=60 TRON1_STAND_LONG_MAX_S=50 \
 DISPLAY=:1 gnome-terminal --title "보행 학습 v9" -- bash -c "bash tron1_openarm/tools/gait_runs/train_v9.sh; exec bash"
 ```
 - 스크립트가 하는 일: `scripts/_gpu_select.sh` 의 `pin_gpu`(가장 빈 GPU 고정) → 공통·판별 `TRON1_*` 환경 변수 →
-  `train_mjx.py --foot sf --init <시작 정책> --init-std <탐색> --impl warp --envs 4096 --minutes <45|60> --seed 1|2 --ck-min 5 --out runs/gait_vN/seed1|2`
+  `train_ppo_gpu.py --foot sf --init <시작 정책> --init-std <탐색> --impl warp --envs 4096 --minutes <45|60> --seed 1|2 --ck-min 5 --out runs/gait_vN/seed1|2`
   를 시드 1·2 차례로 → 끝나면 `eval_policy.py` 로 배포 정책·이전 후보·새 best/final 을 함께 평가(`runs/gait_vN/eval.json`·`eval.log`) → `runs/gait_vN/DONE`.
 - 결과물: `runs/gait_vN/seedS/{best.npz, final.npz, ckNNNmin.npz, log.json}`, 학습 출력 `runs/gait_vN/seedS.log` (`runs/` 는 git 에 넣지 않음).
 
-**② 학습 중 보기** (선택, 학습과 같은 PC)
+**② 학습 중 보기** (선택, 학습과 같은 PC). `train_ppo_gpu.sh`·`train_ppo_cpu.sh` 는 화면이 있으면 아래 두 창을 자동으로 띄운다(`VIEW=0` 으로 끔, 중간 정책 간격 `CK_MIN` 분, 기본 2). `gait_runs` 스크립트처럼 학습기를 직접 부를 때는 직접 띄운다.
 ```bash
 python3 tron1_openarm/rl/watch_training.py plot tron1_openarm/runs/gait_v9   # 그래프: 속도 추종·옆걸음 옆 추종·서기 밀림·넘어짐·직진 방향 오차·느린 추종
 tron1_openarm/.venv-biped/bin/python tron1_openarm/rl/watch_training.py play tron1_openarm/runs/gait_v9   # 최신 중간 정책 보행 (q 로 끝)
@@ -1017,7 +1026,9 @@ CUDA_VISIBLE_DEVICES= ../.venv-biped/bin/python eval_policy.py \
 **1) 문제를 숫자로 확인** — 집기 시험 `step_time.py` 에서 r1·r2·r8 걸음 모드 45~80 s, 오프라인 평가 `slow_f.track` 0.17 (14-8).
 "무엇을 고칠지"는 느낌이 아니라 이런 지표 하나로 정하고, 같은 지표로 나중에 판정한다.
 
-**2) 보상 항목 추가** (`tron1_openarm/rl/tron1_mjx_env.py`, v10 커밋 4408667 이 그대로 예시) — 다섯 곳을 고친다.
+**2) 보상 항목 추가** (`tron1_openarm/rl/tron1_env_gpu.py`, v10 커밋 4408667 이 그대로 예시) — 다섯 곳을 고친다.
+
+> 이 절차는 v10 당시(예전 시험 환경)의 기록입니다. 지금 코드에서는 ① 상수와 ⑤ 계수가 `rl/train_config.py`(상수, `reward_scales()`)로 옮겨졌고, ②~④ 는 `tron1_env_gpu.py` 와 `tron1_env_cpu.py` 두 곳에 같은 식으로 넣습니다. 고친 뒤 `rl/check_env_parity.py` 로 두 환경의 보상이 같은지 확인합니다.
 
 | 순서 | 위치 | v10 에서 쓴 코드 | 왜 |
 |---|---|---|---|
@@ -1027,15 +1038,15 @@ CUDA_VISIBLE_DEVICES= ../.venv-biped/bin/python eval_policy.py \
 | ④ | `_reward()` 의 `terms` | `tracking_slow = [0.005 < |cmd| < 0.15] · exp(−(|cmd − v_avg| / max(|cmd|, 0.03))² / 0.25)` | 항목 값 (0~1 또는 벌점 크기) — 무게는 곱하지 않음 |
 | ⑤ | `__init__` 의 `self.rs` | `self.rs["tracking_slow"] = TRACK_SLOW_SCALE` (벌점이면 `-SCALE`) | 총 보상 = Σ 무게 × 항목 |
 
-학습 중에 보려면 `tron1_openarm/rl/train_mjx.py` 도 고친다: 롤아웃 기록에 `slow=info["terms"]["tracking_slow"]`, 명령 종류별 평균 `split_stats()` 에 `slow_track`,
+학습 중에 보려면 `tron1_openarm/rl/train_ppo_gpu.py` 도 고친다: 롤아웃 기록에 `slow=info["terms"]["tracking_slow"]`, 명령 종류별 평균 `split_stats()` 에 `slow_track`,
 로그 `rec` 에 `slow_track=…` (그래프 `watch_training.py plot` 은 키 이름으로 읽음). 명령 분포를 바꿀 때는 `_sample_cmd()` 의 `CMD_MIX` 분기(v7·v9·v10 예시).
-고친 뒤 짧게 확인: `TRON1_TRACK_SLOW=3 … train_mjx.py --minutes 2 --envs 512 --out /tmp/smoke` → 로그에 `slow_track` 이 찍히고 넘어짐 0 인지.
+고친 뒤 짧게 확인: `TRON1_TRACK_SLOW=3 … train_ppo_gpu.py --minutes 2 --envs 512 --out /tmp/smoke` → 로그에 `slow_track` 이 찍히고 넘어짐 0 인지.
 
 **3) 학습 명령 — 이전 가중치에서 이어서 (`--init`)**
 ```bash
 bash tron1_openarm/tools/gait_runs/train_v10.sh      # 안에서 실행하는 핵심 줄 ↓
 TRON1_…(v9 설정)… TRON1_CMD_MIX=v10 TRON1_TRACK_SLOW=3 \
-  ../.venv-biped-train/bin/python train_mjx.py --foot sf --init ../runs/gait_v9/seed1/best.npz --init-std 0.1 \
+  ../.venv-biped-train/bin/python train_ppo_gpu.py --foot sf --init ../runs/gait_v9/seed1/best.npz --init-std 0.1 \
   --impl warp --envs 4096 --minutes 60 --seed 1 --ck-min 5 --out ../runs/gait_v10/seed1
 ```
 
@@ -1056,7 +1067,7 @@ TRON1_…(v9 설정)… TRON1_CMD_MIX=v10 TRON1_TRACK_SLOW=3 \
 - 저장: `ckNNNmin.npz` (`--ck-min` 분마다), `best.npz` (점수 `lin_track + 0.5·ang_track − 50·fall_rate + 0.5·난이도 − 10·(1−팔 하중)` 최고일 때),
   `final.npz` (끝), `last.pkl` (재개용). **best 는 학습 점수 기준이라 새 항목·서기 안정성은 반영하지 않는다** → 반드시 평가로 고른다.
 
-**5) 학습 중 보기** — 그래프와 시뮬레이션 화면 (14-7 ②)
+**5) 학습 중 보기** — 그래프와 시뮬레이션 화면 (14-7 ②). `train_ppo_*.sh` 로 학습하면 자동으로 뜬다. 학습기를 직접 부른 경우:
 ```bash
 python3 tron1_openarm/rl/watch_training.py plot tron1_openarm/runs/gait_v10      # 지표 그래프 (지금 학습 중인 시드를 따라감)
 tron1_openarm/.venv-biped/bin/python tron1_openarm/rl/watch_training.py play tron1_openarm/runs/gait_v10   # 최신 ckNNNmin.npz 로 걷기

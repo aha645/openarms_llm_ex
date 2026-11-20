@@ -8,7 +8,7 @@
 #
 #   필요: NVIDIA GPU + 드라이버 (CUDA 는 따로 설치 안 해도 됨 — JAX 가 같이 받아 온다)
 #   사용법:  bash tron1_openarm/scripts/setup_venv_biped_train_ppo.sh
-#            (12_train_mjx.sh 가 가상환경이 없으면 자동으로 불러 줌)
+#            (train_ppo_gpu.sh 가 가상환경이 없으면 자동으로 불러 줌)
 #   JAX 종류를 직접 고를 때:  JAX_SPEC='jax[cuda12]' bash ...
 # ============================================================================
 set -e
@@ -37,7 +37,9 @@ echo "== 패키지 설치"
 $PIP install -q --upgrade pip
 $PIP install -q "$JAX_SPEC" optax 'mujoco==3.5.0' 'mujoco-mjx==3.5.0' onnx onnxruntime pyyaml scipy
 case "$JAX_SPEC" in
-  *cuda13*) $PIP install -q 'mujoco-warp==3.5.0.2' ;;
+  # warp-lang 은 두 경우 모두 1.12.1 로 고정: 1.19 는 JAX 연결 모듈 위치가 바뀌어(warp._src.jax_experimental → warp._src.jax)
+  # MuJoCo MJX 3.5.0 이 GPU 물리를 올리지 못한다 (put_model: 'int' has no attribute 'WARP'). 1.12.1 은 CUDA 13 드라이버(GB10)에서도 동작
+  *cuda13*) $PIP install -q 'mujoco-warp==3.5.0.2' 'warp-lang==1.12.1' ;;
   *cuda12*) $PIP install -q 'mujoco-warp==3.5.0.2' 'warp-lang==1.12.1' ;;   # 드라이버 525~579 용 warp
   *)        echo "[알림] GPU 가 없어 GPU 물리(mujoco-warp)는 설치하지 않습니다" ;;
 esac
@@ -49,4 +51,4 @@ print('numpy', numpy.__version__, '| jax', jax.__version__, '| mujoco', mujoco._
 print('장치:', jax.devices(), '→', jax.default_backend())
 "
 echo "== 완료: $VENV"
-echo "   학습:  bash tron1_openarm/scripts/12_train_mjx.sh 30 sf      (30분, GPU 물리)"
+echo "   학습:  bash tron1_openarm/scripts/train_ppo_gpu.sh 30 sf      (30분, GPU 물리)"

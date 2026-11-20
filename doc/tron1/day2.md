@@ -11,9 +11,7 @@ Ubuntu 24.04 / ROS 2 Jazzy / TRON1 워크스페이스(`tron1_openarm/`, `setup_w
 각 새 터미널에서 저장소 루트로 이동 후:
 
 ```bash
-source /opt/ros/jazzy/setup.bash
-source tron1_openarm/install/setup.bash
-source tron1_openarm/.venv-biped/bin/activate   # python3 를 직접 실행할 때 필요
+source tron1_openarm/scripts/env.sh   # ROS 2 + 가상환경(.venv-biped) + TRON1 패키지
 ```
 
 Docker에서는 컨테이너 내부 `/root/openarm_mobile_ws`에서 실행합니다. TRON1 앱(`tron1_openarm_apps`)은 이족 전용이라 따로 켜야 할 환경 변수가 없습니다. 이름 자세는 `tron1_openarm_moveit_config` 의 SRDF 에서 읽습니다(PF·SF SRDF 의 이름 자세는 같은 값).

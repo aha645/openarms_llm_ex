@@ -22,10 +22,29 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(
 from tron1_openarm_sim.sole import sole_box as _sole_box  # noqa: E402
 
 
-def build_mjx_model(xml, verbose=False, iterations=None, ls_iterations=None, cone=None):
-    """xml(MJCF) → (MjModel, 바꾼 내용 설명 목록). 반환 모델은 mjx.put_model 로 GPU 에 올릴 수 있다."""
+def add_foot_sensors(spec, feet):
+    """CPU 학습(mujoco.rollout 은 센서값만 돌려줌)용: 발 몸체의 위치(몸체 원점)·각속도(세계 기준) 센서를 더한다.
+    GPU 학습은 같은 값을 d.xpos·d.cvel 에서 바로 읽는다 (발 높이 feet_clearance, 발바닥 비틀림 stand_twist)."""
+    for side, body in zip("LR", feet):
+        spec.add_sensor(name=f"train_foot_{side}_xpos", type=mujoco.mjtSensor.mjSENS_FRAMEPOS,
+                        objtype=mujoco.mjtObj.mjOBJ_XBODY, objname=body)
+        spec.add_sensor(name=f"train_foot_{side}_angvel", type=mujoco.mjtSensor.mjSENS_FRAMEANGVEL,
+                        objtype=mujoco.mjtObj.mjOBJ_XBODY, objname=body)
+    return spec
+
+
+def build_cpu_model(xml, feet):
+    """CPU 학습 모델: MJCF 그대로 + 발 센서 (충돌·솔버는 손대지 않음)."""
+    return add_foot_sensors(mujoco.MjSpec.from_file(xml), feet).compile()
+
+
+def build_mjx_model(xml, verbose=False, iterations=None, ls_iterations=None, cone=None, feet=None):
+    """xml(MJCF) → (MjModel, 바꾼 내용 설명 목록). 반환 모델은 mjx.put_model 로 GPU 에 올릴 수 있다.
+    feet: 발 몸체 이름 2개를 주면 CPU 학습용 발 센서도 더한다 (mjx_parity.py 가 같은 단순화 모델로 CPU 와 비교할 때)."""
     m0 = mujoco.MjModel.from_xml_path(xml)
     spec = mujoco.MjSpec.from_file(xml)
+    if feet:
+        add_foot_sensors(spec, feet)
     notes = []
     feet = []
     for g in range(m0.ngeom):

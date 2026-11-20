@@ -27,21 +27,21 @@
 ```bash
 cd ~/openarm_mobile_ws
 bash tron1_openarm/scripts/setup_workspace.sh    # .venv-biped 생성 → 자체 점검 → 빌드 (휠형 설치 불필요)
-source tron1_openarm/install/setup.bash
+source tron1_openarm/scripts/env.sh              # 터미널마다: ROS 2 + .venv-biped + TRON1 패키지
 ros2 launch tron1_openarm_sim full_system.launch.py foot:=sf planner:=offline world:=world_light.xml rviz:=false    # → http://localhost:8080
 ```
 
 이미 설치한 PC 라면 첫 줄은 건너뜁니다. 교육 절차는 [1일차](day1.md)부터입니다.
 
-(선택) 보행 정책 직접 학습 (GPU PC): `bash tron1_openarm/scripts/12_train_mjx.sh 30 sf` — ROS 와 분리된 `tron1_openarm/.venv-biped-train`(JAX GPU)을 없으면 자동으로 만들어 씁니다 (`setup_venv_biped_train_ppo.sh`). [Python 가상환경](../setup/python-venv.md)
+(선택) 보행 정책 직접 학습 (GPU PC): `bash tron1_openarm/scripts/train_ppo_gpu.sh 30 sf` — ROS 와 분리된 `tron1_openarm/.venv-biped-train`(JAX GPU)을 없으면 자동으로 만들어 씁니다 (`setup_venv_biped_train_ppo.sh`). [Python 가상환경](../setup/python-venv.md)
 
 ## 폴더 구조
 
 ```
 tron1_openarm/
-├── scripts/setup_venv_biped.sh(시뮬 venv), setup_workspace.sh(설치·빌드), setup_venv_biped_train_ppo.sh(학습 venv),
-│            11_train_policy.sh, 12_train_mjx.sh, 13_regen_tron1_models.sh(선택)
-├── third_party/                    (13 재생성 때만 clone, git 에 안 올라감) tron1-robot-description — 메시·모델은 src/ 에 포함
+├── scripts/setup_venv_biped.sh(시뮬 venv), setup_workspace.sh(설치·빌드), env.sh(터미널마다 source), setup_venv_biped_train_ppo.sh(학습 venv),
+│            train_ppo_cpu.sh, train_ppo_gpu.sh, regen_models.sh(선택)
+├── third_party/                    (regen_models.sh 때만 clone, git 에 안 올라감) tron1-robot-description — 메시·모델은 src/ 에 포함
 ├── .venv-biped/                    (setup_venv_biped.sh 가 생성, git 제외) 시뮬·미션용 (ROS·MuJoCo, CPU)
 ├── .venv-biped-train/              (setup_venv_biped_train_ppo.sh 가 생성, git 제외) PPO 학습용 (JAX·MJX, GPU)
 ├── build/ install/ log/            (colcon 산출물 — 휠형과 독립)
@@ -60,7 +60,7 @@ tron1_openarm/
 │   ├── tron1_openarm_moveit_config/  MoveIt (다리 포함 URDF·SRDF, tools/make_srdf.py)
 │   └── tron1_openarm_apps/         robot_skills(집기·놓기·옆걸음·시각 도킹·시각 피드백), task_manager, llm_planner, dashboard,
 │                                   실습 노드(arm_demo, pick_place, nav_pick_place, patrol, aruco_detector)
-├── rl/                             강화학습: train_mjx.py, eval_policy.py, watch_training.py, export_onnx.py …
+├── rl/                             강화학습: train_ppo_gpu.py, eval_policy.py, watch_training.py, export_onnx.py …
 │   ├── pretrained_limx/            학습 시작점 — LimX 공개 정책 원본 (PF·SF)
 │   └── eval_records/               평가 기록 (eval_results.json, eval_gait_history.json, gait_pick_tests.json)
 └── runs/                           학습 로그 (생성물, git 제외)

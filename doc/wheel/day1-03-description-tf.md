@@ -98,7 +98,7 @@ ros2 launch mobile_openarm_sim sim.launch.py
 
 ```bash
 cd ~/openarm_mobile_ws
-source mobile_openarm/.venv-mobile/bin/activate    # 변환기가 mujoco 를 쓰므로 필요
+source mobile_openarm/scripts/env.sh       # 변환기가 mujoco 를 쓰므로 가상환경 필요
 cd mobile_openarm/src/mobile_openarm_sim
 python3 tools/mjcf_to_urdf.py --mjcf mjcf/mobile_openarm.xml --out /tmp/check.urdf
 ```
@@ -111,7 +111,7 @@ python3 tools/mjcf_to_urdf.py --mjcf mjcf/mobile_openarm.xml --out /tmp/check.ur
 `wrote /tmp/check.urdf` 가 나오면 성공입니다. (이 변환기는 개발할 때 MuJoCo와 URDF의 손끝 위치를 관절 자세 20개에서 비교해 최대 오차 0.000007 m를 확인했습니다.)
 
 ```bash
-sudo apt install -y liburdfdom-tools     # 03 스크립트·DGX 3절·Docker 이미지로 설치했다면 이미 있음 → 생략
+sudo apt install -y liburdfdom-tools     # install_ros2_jazzy.sh·DGX 3절·Docker 이미지로 설치했다면 이미 있음 → 생략
 check_urdf /tmp/check.urdf | head -20    # 링크 나무 구조 출력: root Link: base_footprint …
 diff /tmp/check.urdf urdf/mobile_openarm.urdf && echo 같음
 ```
@@ -204,7 +204,7 @@ RViz 왼쪽 아래 **Add** → **By topic** 에서 다음을 추가해 봅니다
 | `tf2_echo` 가 `Could not transform … does not exist` | 프레임 이름 오타, 또는 T1이 꺼져 있음. `ros2 run tf2_tools view_frames` 로 이름 확인 |
 | RViz 로봇이 흰색/빨간 오류 | `/robot_description` 이 없음. T1 로그에서 robot_state_publisher 오류 확인 |
 | `check_urdf: command not found` | `sudo apt install liburdfdom-tools` |
-| `No module named mujoco` (단계 2) | 가상환경을 켜지 않음: `source ~/openarm_mobile_ws/mobile_openarm/.venv-mobile/bin/activate` |
+| `No module named mujoco` (단계 2) | 환경을 불러오지 않음: 저장소 루트에서 `source mobile_openarm/scripts/env.sh` |
 
 ## 7. 더 해보기
 

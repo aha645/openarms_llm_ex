@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""TRON1 + OpenArm 보행 정책 PPO — MJX(GPU 물리) 판.
+"""TRON1 + OpenArm 보행 정책 PPO — GPU 판 (물리: MJX / MuJoCo Warp, 신경망: JAX).
 
-train_ppo.py(CPU 물리)와 알고리즘·신경망·가중치 형식(npz)·커리큘럼이 같다. 다른 점은
-  * 환경: tron1_mjx_env.Tron1MjxEnv (발바닥 상자, 솔버 반복 16) — 수천 개를 GPU 에서 한꺼번에
+train_ppo_cpu.py(CPU 판)와 알고리즘·신경망·가중치 형식(npz)·커리큘럼·보상(train_config.py)이 같다. 다른 점은
+  * 환경: tron1_env_gpu.Tron1EnvGpu (발만 바닥과 닿는 단순화 모델, 솔버 반복 16) — 수천 개를 GPU 에서 한꺼번에
   * 수집(rollout)·GAE·PPO 갱신이 모두 jax.jit 안에서 돈다 (반복당 CPU↔GPU 복사는 기록용 숫자뿐)
 
-    python3 train_mjx.py --foot sf --init ../src/tron1_openarm_sim/deployed_policies/tron1sf_openarm_policy.npz --minutes 30
-    python3 train_mjx.py --foot sf --init scratch --envs 4096 --minutes 240     # 처음부터 (관측 규약을 바꿀 때)
+    python3 train_ppo_gpu.py --foot sf --init ../src/tron1_openarm_sim/deployed_policies/tron1sf_openarm_policy.npz --minutes 30
+    python3 train_ppo_gpu.py --foot sf --init scratch --envs 4096 --minutes 240     # 처음부터 (관측 규약을 바꿀 때)
 
 결과: <out>/best.npz · final.npz (locomotion_policy.py 가 그대로 읽음), last.pkl (이어 학습), log.json
 """
@@ -25,7 +25,7 @@ import optax
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import policy_jax as P  # noqa: E402
-from tron1_mjx_env import Tron1MjxEnv  # noqa: E402
+from tron1_env_gpu import Tron1EnvGpu  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -36,7 +36,7 @@ def parse():
     ap.add_argument("--foot", choices=["pf", "sf"], default="sf")
     ap.add_argument("--xml", default="", help="기본: 발 형태별 *_train.xml")
     ap.add_argument("--init", default="", help="npz 경로 또는 scratch. 기본: 발 형태별 배포 정책")
-    ap.add_argument("--out", default=os.path.join(ROOT, "runs", "mjx_" + time.strftime("%Y%m%d_%H%M%S")))
+    ap.add_argument("--out", default=os.path.join(ROOT, "runs", "gpu_" + time.strftime("%Y%m%d_%H%M%S")))
     ap.add_argument("--envs", type=int, default=4096)
     ap.add_argument("--steps", type=int, default=24, help="반복당 환경별 스텝 수")
     ap.add_argument("--minutes", type=float, default=30)
@@ -89,7 +89,7 @@ def main():
     a = parse()
     os.makedirs(a.out, exist_ok=True)
     print("JAX:", jax.default_backend(), jax.devices(), flush=True)
-    env = Tron1MjxEnv(a.xml, foot=a.foot, iterations=a.iterations, ls_iterations=a.ls_iterations, impl=a.impl, num_envs=a.envs)
+    env = Tron1EnvGpu(a.xml, foot=a.foot, iterations=a.iterations, ls_iterations=a.ls_iterations, impl=a.impl, num_envs=a.envs)
     print("MJX 모델:", "; ".join(env.model_notes), flush=True)
     N, T = a.envs, a.steps
     nj, enc_in, pol_in = env.nj, env.HIST * env.obs_dim, 3 + env.obs_dim + env.n_cmd
@@ -269,7 +269,7 @@ def main():
         if st["n_done"] > 0:
             rets.append(float(st["ret_sum"]) / float(st["n_done"]))
             lens.append(float(st["len_sum"]) / float(st["n_done"]))
-        # 커리큘럼 (train_ppo.py 와 같음): 상반신 무게 → 난이도
+        # 커리큘럼 (train_ppo_cpu.py 와 같음): 상반신 무게 → 난이도
         if payload < 1.0:
             if actor_on and it > a.critic_warmup + 10 and fr < 0.002 and it - last_pl > 10:
                 payload, last_pl = min(1.0, payload + 0.05), it

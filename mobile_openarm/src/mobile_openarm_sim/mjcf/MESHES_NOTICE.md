@@ -8,4 +8,4 @@
 | 커밋 | `6c455d32854e8ad5af2c8a483db8d84b1ca49402` (2026-11-16) |
 | 라이선스 | Apache License 2.0 — 전문: [`doc/third_party_licenses/openarm_mujoco-LICENSE.txt`](../../../../doc/third_party_licenses/openarm_mujoco-LICENSE.txt) |
 
-평소 설치(`04_setup_workspace.sh`)는 이 폴더를 그대로 씁니다. 원본에서 다시 만들려면 `bash mobile_openarm/scripts/05_regen_models.sh`.
+평소 설치(`mobile_openarm/scripts/setup_workspace.sh`)는 이 폴더를 그대로 씁니다. 원본에서 다시 만들려면 `bash mobile_openarm/scripts/regen_models.sh`.

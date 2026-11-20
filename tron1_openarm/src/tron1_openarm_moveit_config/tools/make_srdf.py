@@ -4,7 +4,7 @@
   * 그룹: left_arm / right_arm (체인 openarm_*_link0 → openarm_*_hand_tcp), both_arms, 그리퍼
   * 자기충돌 비활성 쌍: 인접 링크 + MJCF <exclude> + N 회 랜덤 자세에서 한 번도 접촉하지 않은 쌍
       python3 make_srdf.py --mjcf ../../tron1_openarm_sim/mjcf/sf/tron1_openarm.xml --out ../config/tron1_openarm_sf.srdf --samples 2000
-  (scripts/13_regen_tron1_models.sh 가 PF·SF 둘 다 만든 뒤 tron1_openarm_sim/tools/patch_srdf_home.py 로 이족용 이름 자세를 넣는다)
+  (scripts/regen_models.sh 가 PF·SF 둘 다 만든 뒤 tron1_openarm_sim/tools/patch_srdf_home.py 로 이족용 이름 자세를 넣는다)
 """
 import argparse
 import itertools

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # (선택) TRON1 + OpenArm 모델 다시 만들기: LimX TRON1 로봇 설명(limxdynamics/tron1-robot-description, Apache-2.0)과
 #        OpenArm 원본(enactic/openarm_mujoco, Apache-2.0)을 third_party 에 받아 MJCF·URDF·SRDF·월드·Nav2 파라미터를 새로 생성한다.
-#   사용: bash tron1_openarm/scripts/13_regen_tron1_models.sh
+#   사용: bash tron1_openarm/scripts/regen_models.sh
 #   언제: LimX·OpenArm 원본을 새 버전으로 바꾸거나, 생성 도구(src/tron1_openarm_sim/tools/*.py)를 고쳤을 때만.
 #         평소 설치(setup_workspace.sh)는 저장소에 들어 있는 모델·메시를 그대로 쓰므로 이 스크립트가 필요 없다.
 #   주의: 생성 파일(mjcf/, urdf/, SRDF 2개, config/nav2_params_tron1.yaml)을 덮어쓴다. 끝나면 git diff 로 확인하고,

@@ -14,7 +14,7 @@ OUT=$T1/runs/gait_v7
 mkdir -p $OUT
 for s in 1 2; do
   echo "================ 시드 $s 학습 시작 $(date +%H:%M) ================"
-  env -u PYTHONPATH PYTHONNOUSERSITE=1 XLA_PYTHON_CLIENT_PREALLOCATE=false ../.venv-biped-train/bin/python train_mjx.py \
+  env -u PYTHONPATH PYTHONNOUSERSITE=1 XLA_PYTHON_CLIENT_PREALLOCATE=false ../.venv-biped-train/bin/python train_ppo_gpu.py \
     --foot sf --init $T1/runs/gait_v6/seed1/final.npz --init-std 0.15 --impl warp --envs 4096 --minutes 60 --seed $s --ck-min 5 --out $OUT/seed$s 2>&1 \
     | grep --line-buffered -v "Module .* load on device" | tee $OUT/seed$s.log
 done

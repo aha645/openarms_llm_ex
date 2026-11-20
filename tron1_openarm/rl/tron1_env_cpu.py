@@ -1,15 +1,16 @@
-"""TRON1 + OpenArm 보행 강화학습 환경 (MuJoCo, CPU 병렬).
-
+"""TRON1 + OpenArm 보행 강화학습 환경 — CPU 판 (MuJoCo, mujoco.rollout C 스레드 병렬).
 LimX tron1-rl-isaacgym 의 pointfoot_flat 과 같은 관측·행동·보상 규약을 MuJoCo 로 옮겼다.
 달라진 점: 상반신(OpenArm 양팔 14.4 kg)이 얹혀 있고, 학습 중 팔 자세가 계속 바뀐다.
 
-* 병렬화: mujoco.rollout.Rollout (C 스레드) 로 N 개 환경을 한 번에 진행
+보상·명령·팔 자세·손 외력·에피소드 설정은 train_config.py 를 GPU 판(tron1_env_gpu.py)과 함께 쓴다.
+기본값은 배포 중인 SF v3 정책을 만든 설정이다. 두 판은 물리를 어디서 돌리는지만 다르다:
+  * 이 판: 메시·기본 접촉 솔버, 변형 모델 7개를 돌려 쓰는 도메인 랜덤화, 환경 수 백 개 (CPU 코어 수만큼 스레드)
+  * GPU 판: 발만 바닥과 닿는 단순화 모델(mjx_model.py)·솔버 반복 16, 환경마다 따로 뽑는 랜덤화, 환경 수 천 개
 * 정책 주기 50 Hz, 학습 물리 dt 4 ms (5 스텝). 배포(시뮬레이터)는 2 ms 로 다시 검증한다.
 * 도메인 랜덤화: 몸통 질량(-0.5~+2 kg)·무게중심(±2 cm)·바닥 마찰(0.4~1.2)·PD 게인(±15%)·
-  행동 지연(0~12 ms)·밀기(push)·관측 잡음·팔 자세(이름 자세 + 무작위)
+  행동 지연(0~12 ms)·밀기(push)·관측 잡음·팔 자세(이름 자세 + 무작위 + 집기 자세)·서 있을 때 손 외력
 """
 import math
-
 import os
 import sys
 
@@ -17,40 +18,11 @@ import mujoco
 import numpy as np
 from mujoco import rollout
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src", "tron1_openarm_sim"))
-from tron1_openarm_sim.locomotion_policy import PF, SF, SF_BASE_HEIGHT_CMD  # noqa: E402  관측·행동 규약을 실행기와 공유
-
-ACTION_SCALE = 0.25
-POLICY_DT = 0.02
-CMD_SCALE = np.array([2.0, 2.0, 0.25], np.float32)
-BASE_HEIGHT_TARGET = {"pf": 0.68, "sf": SF_BASE_HEIGHT_CMD}
-
-from tron1_openarm_sim.arm_poses import POSES as ARM_POSES  # noqa: E402  SRDF 이름 자세와 같은 값 (어깨를 낮춘 설계용)
-REWARD_SCALES = dict(
-    keep_balance=1.0, tracking_lin_vel=3.0, tracking_ang_vel=1.5, base_height=-20.0, lin_vel_z=-0.5,
-    ang_vel_xy=-0.05, torques=-8e-5, action_rate=-0.01, action_smooth=-0.01, orientation=-60.0,
-    dof_pos_limits=-2.0, feet_distance=-100.0, contact_force=-2.0, contact_vel=-2.0, termination=-20.0, stand_drift=0.0, stand_yaw=0.0)
-# SF 서기 모드 제자리 흐름 벌점 (SF 만 켬, 아래 Tron1OpenArmEnv·Tron1MjxEnv). 이 항이 없을 때 서기 모드 정책이 발을 디딘 채
-# 0.15~0.5 °/s 로 몸통을 돌렸다 — 회전 추종 보상(허용 폭 0.25)·발 속도 벌점(0.5 m/s)으로는 이렇게 느린 흐름이 벌점이 안 됨.
-# 서 있는 동안 몸통 회전·수평 속도를 허용 폭 STAND_DRIFT_SIGMA 로 좁게 본다.
-# 기본은 꺼 둠(0): 4.0 으로 30 분 × 2 시드 학습해도 흐름이 0.21~0.35 °/s 로 조금만 줄었고 한 팔 carry 에서 넘어졌다
-# → 배포는 biped_core 의 서기 중 방향 바로잡기(STAND_YAW_TOL)로 해결 (보행 학습 11절). 실험할 때 TRON1_STAND_DRIFT=4 로 켠다
-STAND_DRIFT_SCALE = float(os.environ.get("TRON1_STAND_DRIFT", 0.0))
-STAND_DRIFT_SIGMA = (0.02, 0.02)   # (회전 rad/s, 수평 속도 m/s)
-# SF 서기 방향 유지 (stand_drift 를 대신함, 보행 학습 12절). 서기 정책은 발바닥을 디딘 채 몸통을 0.22 °/s(학습 환경)~0.45 °/s(배포) 로 돌린다.
-# 다리에 수직축 관절이 없어 몸통이 돌면 두 발바닥이 바닥에서 비틀린다. 실패 원인 두 가지를 고침:
-#  ① 학습 때 명령이 5 s 마다 바뀌어 서 있는 시간이 짧았다 (5 s 에 1.1° — 보상에 거의 안 드러남)
-#     → 제자리 서기 명령의 STAND_LONG_P 비율은 10~20 s 유지
-#  ② 몸통 속도 벌점은 서기 진입 감속·밀기에서 이미 포화돼 느린 비틀림에 기울기가 없었다
-#     → 서기 시작 1 s 뒤부터 '기준 방향에서 돌아간 각도' 에 선형 벌점 (0.05 rad = 3° 에서 1, 상한 2)
-#  ③ (v2) 기준 방향을 서기 시작 방향에 고정하면, 서 있는 동안 밀기·팔 반동으로 돈 몫(발을 못 떼 되돌릴 수 없음)이
-#     계속 벌점으로 남아 학습 후반(교란이 커짐)에 벌점이 상한 근처(1.75/2)로 포화됐다 → 기준이 현재 방향을 시간상수
-#     STAND_YAW_TAU 로 천천히 따라가게 함. 정책 자신의 느린 회전 r 은 r·τ 만큼 꾸준히 남아(0.22 °/s → 1.1°) 벌점이 되고,
-#     밀려서 돈 몫은 τ 정도 뒤에 사라진다
-STAND_YAW_SCALE = float(os.environ.get("TRON1_STAND_YAW", 3.0))
-STAND_YAW_REF, STAND_YAW_SETTLE = 0.05, 1.0
-STAND_YAW_TAU = float(os.environ.get("TRON1_STAND_YAW_TAU", 5.0))   # 0 이면 v1 (기준 고정)
-STAND_LONG_P, STAND_LONG_STEPS = 0.5, (500, 1000)
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from mjx_model import build_cpu_model  # noqa: E402
+from train_config import *  # noqa: E402,F401,F403  보상·명령·팔 자세·손 외력 설정 (GPU 학습과 공유)
+from train_config import ARM_POSES, FEET_BODIES, PF, SF, SF_BASE_HEIGHT_CMD, episode_s, reach_p, reward_scales  # noqa: E402
+from tron1_openarm_sim.arm_poses import mirror  # noqa: E402
 
 
 def ncdf(x, s=0.05):
@@ -84,12 +56,21 @@ def quat_rot_inv(q, v):
     return a - b + c
 
 
-class Tron1OpenArmEnv:
+def quat_to_mat(q):
+    """q (N,4) wxyz → (N,3,3)."""
+    w, x, y, z = q[:, 0], q[:, 1], q[:, 2], q[:, 3]
+    return np.stack([np.stack([1 - 2 * (y * y + z * z), 2 * (x * y - z * w), 2 * (x * z + y * w)], 1),
+                     np.stack([2 * (x * y + z * w), 1 - 2 * (x * x + z * z), 2 * (y * z - x * w)], 1),
+                     np.stack([2 * (x * z - y * w), 2 * (y * z + x * w), 1 - 2 * (x * x + y * y)], 1)], 1)
+
+
+class Tron1EnvCpu:
     def __init__(self, xml, num_envs=128, num_models=8, seed=0, nthread=2, randomize=True,
-                 episode_s=20.0, cmd_ranges=None, push=True, foot="pf", load_model=None):
-        # load_model: xml → MjModel 함수 (기본 mujoco.MjModel.from_xml_path). MJX 와 같은 단순화 모델로 비교할 때
-        #             mjx_model.build_mjx_model 을 넘긴다 (mjx_parity.py --cpu-sole box)
-        load = load_model or mujoco.MjModel.from_xml_path
+                 ep_s=None, cmd_ranges=None, push=True, foot="sf", load_model=None):
+        # load_model: (xml, 발 몸체) → MjModel. 기본은 MJCF 그대로 + 발 센서 (mjx_model.build_cpu_model).
+        #             MJX 와 같은 단순화 모델로 비교할 때 mjx_parity.py 가 build_mjx_model(feet=...) 을 넘긴다
+        feet = FEET_BODIES[foot]
+        load = (lambda x: load_model(x, feet)) if load_model else (lambda x: build_cpu_model(x, feet))
         self.rng = np.random.default_rng(seed)
         self.foot = foot
         self.sp = PF if foot == "pf" else SF
@@ -100,32 +81,16 @@ class Tron1OpenArmEnv:
         self.KP, self.KD, self.TAU = self.sp.kp.astype(np.float64), self.sp.kd.astype(np.float64), self.sp.tau.astype(np.float64)
         self.q_def = self.sp.default_q.astype(np.float64)
         self.GAIT = self.sp.gait
-        self.rs = dict(REWARD_SCALES)
-        self.ang_sigma = 0.1
-        if foot == "sf":
-            # SF 1차 미세조정은 회전 추종이 약했다(0.6 rad/s 명령에 0.08) → 회전 추종 보상을 2배
-            self.rs["tracking_ang_vel"] = 3.0
-            # SF 3차(sf_v3): 시뮬 집기 시험에서 SF 는 ① 느린 명령(0.04~0.08 m/s)을 거의 무시(2~3 s 에 1 cm)하고
-            # ② 0.25 m/s 직진 6 s 동안 13~17° 돌아갔다(제자리 유지 루프가 회전을 명령해도 못 따라감).
-            # → 회전 추종 보상을 더 키우고 허용 폭을 좁혀(0.1 → 0.05) 작은 회전 오차도 벌점이 되게 한다
-            self.rs["tracking_ang_vel"] = 5.0
-            self.ang_sigma = 0.05
-            # SF 4차(sf_v4): sf_v3 은 직진 중 방향 흐름은 고쳤지만(−13° → +5°) 제자리 회전은 여전히 못 했다(0.6 명령에 0.01 rad/s).
-            # 허용 폭 0.05 에서는 회전 못 하는 상태의 보상이 거의 0 이라 '조금 더 도는 쪽' 으로 가는 기울기가 없었다 →
-            # 허용 폭을 넓히고(0.25, LimX 기본) 가중치를 더 키우고, 제자리 회전 명령 비율을 15 → 30% 로
-            if os.environ.get("TRON1_SF_STAGE", "4") == "4":
-                self.rs["tracking_ang_vel"] = 6.0
-                self.ang_sigma = 0.25
-            self.rs["stand_drift"] = -STAND_DRIFT_SCALE
-            self.rs["stand_yaw"] = -STAND_YAW_SCALE
+        self.rs, self.ang_sigma = reward_scales(foot)      # train_config.py (GPU 학습과 같은 값)
         base = load(xml)
         self.dt = base.opt.timestep
         self.nsub = int(round(POLICY_DT / self.dt))
         self.N = num_envs
         self.randomize = randomize
         self.push = push
-        self.ep_len = int(episode_s / POLICY_DT)
-        self.cmd_ranges = cmd_ranges or dict(vx=(-0.35, 0.6), vy=(-0.2, 0.2), wz=(-0.9, 0.9))
+        self.ep_len = int((episode_s(foot) if ep_s is None else ep_s) / POLICY_DT)   # 기본: SF 60 s / PF 20 s (train_config)
+        self.reach_p = reach_p(foot)
+        self.cmd_ranges = cmd_ranges or CMD_RANGES
         # --- 인덱스
         self.qadr = np.array([base.jnt_qposadr[base.joint(j).id] for j in LEG])
         self.vadr = np.array([base.jnt_dofadr[base.joint(j).id] for j in LEG])
@@ -135,14 +100,23 @@ class Tron1OpenArmEnv:
         self.arm_qadr = {s: np.array([base.jnt_qposadr[base.joint(f"openarm_{s}_joint{i}").id] for i in range(1, 8)])
                          for s in ("left", "right")}
         self.finger_act = [base.actuator(f"{s}_finger1_ctrl").id for s in ("left", "right")]
+        self.hand_bid = [base.body(f"openarm_{s}_hand").id for s in ("left", "right")]
         self.jrange = base.jnt_range[[base.joint(j).id for j in LEG]].copy()
         self.arm_range = {s: base.actuator_ctrlrange[self.arm_act[s]].copy() for s in self.arm_act}
+        self.arm_lo = np.concatenate([self.arm_range["left"][:, 0], self.arm_range["right"][:, 0]])
+        self.arm_hi = np.concatenate([self.arm_range["left"][:, 1], self.arm_range["right"][:, 1]])
+        # 집기·들기 자세 (train_config.REACH_R, 오른팔 기준 → 왼팔은 거울상), 다른 팔은 home/carry
+        self.reach_r = np.array(REACH_R, float)
+        self.reach_l = np.array([mirror(q) for q in REACH_R], float)
+        self.rest_r = np.array([ARM_POSES[n][1] for n in ("home", "carry")], float)
+        self.rest_l = np.array([ARM_POSES[n][0] for n in ("home", "carry")], float)
 
         def sadr(n):
             i = base.sensor(n).id
             return slice(base.sensor_adr[i], base.sensor_adr[i] + base.sensor_dim[i])
         self.s = {n: sadr(n) for n in ["imu_gyro", "imu_quat", "base_linvel", "foot_L_touch", "foot_R_touch",
-                                        "foot_L_pos", "foot_R_pos", "foot_L_vel", "foot_R_vel"]}
+                                        "foot_L_pos", "foot_R_pos", "foot_L_vel", "foot_R_vel",
+                                        "train_foot_L_xpos", "train_foot_R_xpos", "train_foot_L_angvel", "train_foot_R_angvel"]}
         self.s_tau = [sadr(j + "_tau") for j in LEG]
         # --- 모델 변형 (도메인 랜덤화)
         self.models = []
@@ -170,6 +144,8 @@ class Tron1OpenArmEnv:
         self.datas = [mujoco.MjData(base) for _ in range(nthread)]
         self.roll = rollout.Rollout(nthread=nthread)
         self.spec = mujoco.mjtState.mjSTATE_FULLPHYSICS
+        # 매 물리 스텝 넣는 값: 구동기 명령 + 몸체 외력(손 외력용 xfrc_applied)
+        self.ctrl_spec = int(mujoco.mjtState.mjSTATE_CTRL) | int(mujoco.mjtState.mjSTATE_XFRC_APPLIED)
         self.ns = mujoco.mj_stateSize(base, self.spec)
         d = mujoco.MjData(base)
         mujoco.mj_forward(base, d)
@@ -178,6 +154,7 @@ class Tron1OpenArmEnv:
         self.q0 = 1                                   # state 안에서 qpos 시작 (0 = time)
         self.v0 = 1 + base.nq
         self.nu = base.nu
+        self.nbody = base.nbody
         self.nsens = base.nsensordata
         # --- 버퍼
         N = self.N
@@ -195,6 +172,11 @@ class Tron1OpenArmEnv:
         self.standing = np.zeros(N, bool)       # SF: 보행 시계를 멈추고 서 있는 중
         self.stand_t = np.zeros(N)              # SF: 서기 시작 뒤 경과 시간 [s]
         self.yaw0 = np.zeros(N)                 # SF: 서기 방향 기준 (서기 시작 STAND_YAW_SETTLE 뒤의 방향)
+        self.walk_yaw = np.zeros(N)             # SF: 직진 방향 기준 (walk_heading)
+        self.stand_xy = np.zeros((N, 2))        # SF: 서기 위치 기준 (stand_sway)
+        self.v_avg = np.zeros((N, 2))           # 몸통 수평 속도 0.5 s 평균 (tracking_slow)
+        self.hand_f = np.zeros((N, 2, 3))       # 손에 거는 힘 (왼손, 오른손) × xyz [N] (세계 기준)
+        self.f_until = np.zeros(N, np.int64)    # 지금 힘(또는 쉬는 구간)이 끝나는 스텝
         self.cmd_until = np.full(N, 250, np.int64)   # 다음 명령 재설정 스텝
         self.hist = np.zeros((N, self.HIST * self.obs_dim), np.float32)
         self.t = np.zeros(N, np.int64)
@@ -204,7 +186,7 @@ class Tron1OpenArmEnv:
         self.arm_t0 = np.zeros(N)
         self.arm_T = np.ones(N)
         self.ep_ret = np.zeros(N)
-        self.difficulty = 0.0       # 0 → 1: 잡음·지연·밀기·팔 동작 강도 (train_ppo.py 가 낙상률을 보며 올림)
+        self.difficulty = 0.0       # 0 → 1: 잡음·지연·밀기·팔 동작 강도 (train_ppo_cpu.py 가 낙상률을 보며 올림)
         self.stats = {}
         self.reset(np.arange(N))
 
@@ -231,7 +213,6 @@ class Tron1OpenArmEnv:
                 q = np.zeros(14)
             elif r < 0.7 * arm_level:
                 # 왼팔·오른팔 자세를 따로 고른다 (절반). DAY2 앱은 한 팔씩 움직인다(예: 오른팔 carry + 왼팔 home).
-                # 양팔이 항상 같은 자세로만 학습한 v7 은 이런 비대칭 자세에서 옆으로 0.05 m/s 흘러가 버렸다.
                 iL, iR = self.rng.integers(len(names), size=2)
                 if self.rng.random() < 0.5:
                     iR = iL
@@ -243,48 +224,66 @@ class Tron1OpenArmEnv:
                     lam = self.rng.random()
                     q[7 * s:7 * s + 7] = lam * np.array(a) + (1 - lam) * np.array(b)
                 q += self.rng.normal(0, 0.25, 14)
-            lo = np.concatenate([self.arm_range["left"][:, 0], self.arm_range["right"][:, 0]])
-            hi = np.concatenate([self.arm_range["left"][:, 1], self.arm_range["right"][:, 1]])
-            out[i] = np.clip(q, lo, hi)
+            if self.reach_p > 0 and self.rng.random() < self.reach_p:
+                # 한 팔은 집기 자세(+작은 잡음), 다른 팔은 home/carry — 실제 집기처럼 (GPU 판과 같은 규칙)
+                ir = self.rng.integers(len(self.reach_r))
+                io = self.rng.integers(2)
+                nz = 0.05 * self.rng.normal(size=7)
+                if self.rng.random() < 0.5:
+                    q = np.concatenate([self.rest_l[io], self.reach_r[ir] + nz])
+                else:
+                    q = np.concatenate([self.reach_l[ir] + nz, self.rest_r[io]])
+            out[i] = np.clip(q, self.arm_lo, self.arm_hi)
         return out
 
-    def _resample_cmd(self, idx):
-        n = len(idx)
-        r = self.cmd_ranges
-        c = np.stack([self.rng.uniform(*r["vx"], n), self.rng.uniform(*r["vy"], n) * (self.rng.random(n) < 0.3),
-                      self.rng.uniform(*r["wz"], n)], 1)
-        z = self.rng.random(n)
-        c[z < 0.25] = 0.0                                   # 25%: 제자리(명령 0) — Nav2 정지·도킹 대기
-        c[(z >= 0.25) & (z < 0.45), 1:] = 0.0               # 20%: 직진만 (가장 흔한 주행)
-        c[(z >= 0.45) & (z < 0.6), 0:2] = 0.0               # 15%: 제자리 회전 (도킹 yaw 보정)
-        if self.foot == "sf":
-            turn = (z >= 0.75) & (z < 0.9)                  # SF: 제자리 회전 15% 더 (합 30%), 크기 0.3~0.9 rad/s
-            k = int(turn.sum())
-            if k:
-                c[turn] = np.stack([np.zeros(k), np.zeros(k),
-                                    self.rng.uniform(0.3, 0.9, k) * self.rng.choice([-1.0, 1.0], k)], 1)
-            # SF: 15% 는 느린 미세 이동 (도킹·옆걸음·작은 회전, |vx| ≤ 0.12, |vy| ≤ 0.08, |wz| ≤ 0.3).
-            # 예전에는 |명령| < 0.05 를 0 으로 바꿔 느린 명령을 학습한 적이 없었다 → 0.04~0.08 m/s 에서 거의 안 움직임
-            slow = (z >= 0.6) & (z < 0.75)
-            k = int(slow.sum())
-            if k:
-                c[slow] = np.stack([self.rng.uniform(-0.12, 0.12, k), self.rng.uniform(-0.08, 0.08, k) * (self.rng.random(k) < 0.5),
-                                    self.rng.uniform(-0.3, 0.3, k) * (self.rng.random(k) < 0.5)], 1)
-            c[np.abs(c) < 0.015] = 0.0
-        else:
+    def _sample_cmd(self):
+        """명령 하나 → (cmd[3], want_still, dur). GPU 판 _sample_cmd 와 같은 분포."""
+        rng, r = self.rng, self.cmd_ranges
+
+        def gen():
+            return np.array([rng.uniform(*r["vx"]), rng.uniform(*r["vy"]) * (rng.random() < VY_P), rng.uniform(*r["wz"])])
+        c = gen()
+        z = rng.random()
+        if z < 0.25:
+            c = np.zeros(3)                                 # 25%: 제자리(명령 0) — Nav2 정지·도킹 대기
+        elif z < 0.45:
+            c = c * [1.0, 0.0, 0.0]                         # 20%: 직진만 (가장 흔한 주행)
+        elif z < 0.6:
+            c = c * [0.0, 0.0, 1.0]                         # 15%: 제자리 회전 (도킹 yaw 보정)
+        if self.foot != "sf":
             c[np.abs(c) < 0.05] = 0.0
-        self.cmd[idx] = c
-        if self.foot == "sf":
-            # SF: 명령 0 인 경우의 80% 는 '제자리 서기'(발 안 떼기) — 조작할 때 쓰는 모드. 나머지는 제자리 걸음
-            zero = np.all(c == 0, 1)
-            self.want_still[idx] = zero & (self.rng.random(n) < 0.8)
-            self.standing[idx] = False
-            self.stand_t[idx] = 0.0
-            long = self.want_still[idx] & (self.rng.random(n) < STAND_LONG_P)
-            dur = np.where(long, self.rng.integers(STAND_LONG_STEPS[0], STAND_LONG_STEPS[1] + 1, n), 250)
-        else:
-            dur = np.full(n, 250)
-        self.cmd_until[idx] = self.t[idx] + dur
+            return c, False, 250
+        turn = np.array([0.0, 0.0, rng.uniform(0.3, 0.9) * (-1.0 if rng.random() < 0.5 else 1.0)])
+        # 느린 미세 이동 (도킹·옆걸음·작은 회전, |vx| ≤ 0.12, |vy| ≤ 0.08, |wz| ≤ 0.3)
+        slow = np.array([rng.uniform(-0.12, 0.12), rng.uniform(-0.08, 0.08) * (rng.random() < 0.5),
+                         rng.uniform(-0.3, 0.3) * (rng.random() < 0.5)])
+        if 0.75 <= z < 0.9:
+            c = turn                                        # SF: 제자리 회전 15% 더 (합 30%)
+        elif 0.6 <= z < 0.75:
+            c = slow                                        # SF: 15% 느린 미세 이동
+        if CMD_MIX in ("v7", "v9", "v10"):
+            g = gen()
+            side = np.array([0.0, rng.uniform(0.1, r["vy"][1]) * (-1.0 if rng.random() < 0.5 else 1.0), 0.0])
+            diag = np.array([rng.uniform(*r["vx"]), rng.uniform(*r["vy"]), 0.0])
+            edges = {"v7": (0.20, 0.35, 0.50, 0.60, 0.70, 0.85), "v9": (0.30, 0.42, 0.57, 0.67, 0.75, 0.87),
+                     "v10": (0.25, 0.35, 0.48, 0.57, 0.72, 0.85)}[CMD_MIX]
+            choices = [np.zeros(3), g * [1.0, 0.0, 0.0], side, diag, slow, turn]
+            c = next((ch for e, ch in zip(edges, choices) if z < e), g)
+        c = np.where(np.abs(c) < 0.015, 0.0, c)
+        # SF: 명령 0 인 경우의 80% 는 '제자리 서기'(발 안 떼기) — 조작할 때 쓰는 모드. 나머지는 제자리 걸음
+        want_still = bool(np.all(c == 0) and rng.random() < 0.8)
+        long = want_still and rng.random() < STAND_LONG_P
+        dur = int(rng.integers(STAND_LONG_RANGE[0], STAND_LONG_RANGE[1] + 1)) if long else 250
+        return c, want_still, dur
+
+    def _resample_cmd(self, idx):
+        for i in idx:
+            c, still, dur = self._sample_cmd()
+            self.cmd[i] = c
+            self.want_still[i] = still
+            self.standing[i] = False
+            self.stand_t[i] = 0.0
+            self.cmd_until[i] = self.t[i] + dur
 
     def reset(self, idx):
         if len(idx) == 0:
@@ -300,8 +299,10 @@ class Tron1OpenArmEnv:
             q[self.arm_qadr["left"]] = arm[k, :7]
             q[self.arm_qadr["right"]] = arm[k, 7:]
             st[k, self.q0:self.q0 + m.nq] = q
+            self.walk_yaw[i] = yaw
+            self.stand_xy[i] = q[0:2]
         self.state[idx] = st
-        self.ctrl[idx][:, :] = 0
+        self.ctrl[idx] = 0
         self.ctrl[np.ix_(idx, self.arm_act["left"])] = arm[:, :7]
         self.ctrl[np.ix_(idx, self.arm_act["right"])] = arm[:, 7:]
         self.ctrl[np.ix_(idx, self.finger_act)] = 0.044
@@ -318,6 +319,10 @@ class Tron1OpenArmEnv:
         self.delay[idx] = self.rng.integers(0, 1 + int(round(3 * self.difficulty)), len(idx)) if self.randomize else 0
         self.ep_ret[idx] = 0
         self.hist[idx] = 0
+        self.v_avg[idx] = 0
+        self.hand_f[idx] = 0
+        self.f_until[idx] = 0
+        self.yaw0[idx] = 0
         self._resample_cmd(idx)
         self.sens[idx] = 0
         self._hist_reset = np.zeros(self.N, bool)
@@ -348,7 +353,7 @@ class Tron1OpenArmEnv:
         return obs
 
     def observe(self):
-        """정책 입력 재료: (obs 30, 관측 기록 300, 명령 3, 특권정보=실제 선속도×2 3)."""
+        """정책 입력 재료: (obs, 관측 기록, 명령, 특권정보=실제 선속도×2 3)."""
         obs = self._obs()
         lin = self.sens[:, self.s["base_linvel"]] * 2.0
         return obs, self.hist.copy(), self.command_vector(), lin.astype(np.float32)
@@ -362,21 +367,50 @@ class Tron1OpenArmEnv:
         return np.concatenate([c, np.full((self.N, 1), SF_BASE_HEIGHT_CMD, np.float32), still[:, None]], 1)
 
     def _advance_clock(self):
-        """SF 제자리 서기: 두 발 다 디딘 위상(0 또는 0.5 근처)에 오면 시계를 멈춘다 (LimX 와 같은 규칙)."""
-        if self.foot == "sf":
-            g = self.gait_index
-            win = self.want_still & ~self.standing & ((g < 0.05) | (g >= 0.95) | ((g >= 0.5) & (g < 0.55)))
-            self.gait_index[win] = np.where((g[win] >= 0.5) & (g[win] < 0.55), 0.5, 0.0)
-            self.standing |= win
-            self.standing &= self.want_still
-            yaw = yaw_of_wxyz(self.state[:, self.q0 + 3:self.q0 + 7])
-            self.stand_t = np.where(self.standing, self.stand_t + POLICY_DT, 0.0)
-            follow = POLICY_DT / STAND_YAW_TAU if STAND_YAW_TAU > 0 else 0.0
-            self.yaw0 = np.where(self.stand_t < STAND_YAW_SETTLE, yaw, self.yaw0 + follow * wrap(yaw - self.yaw0))
-            mov = ~self.standing
-            self.gait_index[mov] = (self.gait_index[mov] + POLICY_DT * self.GAIT[0]) % 1.0
-        else:
+        """SF 제자리 서기: 두 발 다 디딘 위상(0 또는 0.5 근처)에 오면 시계를 멈춘다 (LimX 와 같은 규칙).
+        서기·직진 기준 방향과 서기 기준 위치는 STAND_YAW_TAU 로 천천히 따라간다 (GPU 판과 같음)."""
+        if self.foot != "sf":
             self.gait_index = (self.gait_index + POLICY_DT * self.GAIT[0]) % 1.0
+            return
+        g = self.gait_index
+        win = self.want_still & ~self.standing & ((g < 0.05) | (g >= 0.95) | ((g >= 0.5) & (g < 0.55)))
+        g = np.where(win, np.where((g >= 0.5) & (g < 0.55), 0.5, 0.0), g)
+        self.standing = (self.standing | win) & self.want_still
+        self.gait_index = np.where(self.standing, g, (g + POLICY_DT * self.GAIT[0]) % 1.0)
+        self.stand_t = np.where(self.standing, self.stand_t + POLICY_DT, 0.0)
+        yaw = yaw_of_wxyz(self.state[:, self.q0 + 3:self.q0 + 7])
+        follow = POLICY_DT / STAND_YAW_TAU if STAND_YAW_TAU > 0 else 0.0
+        self.yaw0 = np.where(self.stand_t < STAND_YAW_SETTLE, yaw, self.yaw0 + follow * wrap(yaw - self.yaw0))
+        straight = ~self.standing & (np.abs(self.cmd[:, 2]) < 0.05)
+        self.walk_yaw = np.where(straight, self.walk_yaw + follow * wrap(yaw - self.walk_yaw), yaw)
+        xy = self.state[:, self.q0:self.q0 + 2]
+        settle = (self.stand_t < STAND_YAW_SETTLE)[:, None]
+        self.stand_xy = np.where(settle, xy, self.stand_xy + follow * (xy - self.stand_xy))
+        self.v_avg = self.v_avg + (POLICY_DT / SLOW_TAU) * (self.sens[:, self.s["base_linvel"]][:, :2] - self.v_avg)
+
+    def _hand_force(self):
+        """손 외력: 힘을 거는 구간(0.3~3 s)과 쉬는 구간(0.5~3 s)을 번갈아. 크기 0~HAND_F_MAX × 난이도(0.3~1),
+        방향은 몸통 기준 앞쪽·아래쪽이 더 많게 (상자를 밀고, 작업대를 누르는 경우). GPU 판 _hand_force 와 같은 규칙."""
+        rng = self.rng
+        due = np.nonzero(self.t >= self.f_until)[0]
+        level = float(np.clip(2.0 * self.difficulty, 0.3, 1.0))
+        yaw = yaw_of_wxyz(self.state[:, self.q0 + 3:self.q0 + 7])
+        for i in due:
+            was_on = bool(np.any(self.hand_f[i] != 0))
+            if was_on:
+                self.hand_f[i] = 0.0
+                dur = rng.uniform(0.5, 3.0)
+            else:
+                mag = rng.uniform(0.0, HAND_F_MAX) * level
+                v = np.array([rng.uniform(-0.5, 1.0), rng.uniform(-1.0, 1.0), rng.uniform(-1.0, 0.3)])
+                v /= max(np.linalg.norm(v), 1e-3)
+                c, sn = math.cos(yaw[i]), math.sin(yaw[i])
+                f = np.array([c * v[0] - sn * v[1], sn * v[0] + c * v[1], v[2]]) * mag
+                which = rng.integers(5)                     # 0,1: 왼손 / 2,3: 오른손 / 4: 두 손 (각 절반)
+                self.hand_f[i, 0] = f if which <= 1 else (0.5 * f if which == 4 else 0.0)
+                self.hand_f[i, 1] = f if which in (2, 3) else (0.5 * f if which == 4 else 0.0)
+                dur = rng.uniform(0.3, 3.0)
+            self.f_until[i] = self.t[i] + int(dur / POLICY_DT)
 
     # ------------------------------------------------------------------ step
     def step(self, action):
@@ -400,7 +434,9 @@ class Tron1OpenArmEnv:
             self.arm_t0[idx] = tsec[idx]
             self.arm_T[idx] = self.rng.uniform(1.5, 3.0, len(idx))
         arm = self._arm_now(tsec)
-        ctrl = np.repeat(self.ctrl[:, None, :], self.nsub, 1)
+        nc = self.nu + 6 * self.nbody
+        ctrl = np.zeros((N, self.nsub, nc))
+        ctrl[:, :, :self.nu] = self.ctrl[:, None, :]
         ctrl[:, :, self.arm_act["left"]] = arm[:, None, :7]
         ctrl[:, :, self.arm_act["right"]] = arm[:, None, 7:]
         ctrl[:, :, self.leg_act] = target[:, None, :]
@@ -412,21 +448,34 @@ class Tron1OpenArmEnv:
             pz = self.rng.random(N) < POLICY_DT / 7.0
             if pz.any():
                 self.state[pz, self.v0:self.v0 + 2] += self.rng.uniform(-0.5, 0.5, (pz.sum(), 2)) * self.difficulty
-        st, se = self.roll.rollout(self.model_list, self.datas, self.state, ctrl, nstep=self.nsub)
+        # 손 외력: 서 있고 서기 0.5 s 뒤부터 (SF)
+        if HAND_F_MAX > 0 and self.foot == "sf":
+            self._hand_force()
+            on = (self.standing & (self.stand_t > 0.5)).astype(float)
+            for h, b in enumerate(self.hand_bid):
+                c0 = self.nu + 6 * b
+                ctrl[:, :, c0:c0 + 3] = (self.hand_f[:, h] * on[:, None])[:, None, :]
+        st, se = self.roll.rollout(self.model_list, self.datas, self.state, ctrl, control_spec=self.ctrl_spec,
+                                   nstep=self.nsub)
         self.state = st[:, -1, :].copy()
         self.sens = se[:, -1, :].copy()
         self.ctrl[:, self.leg_act] = target
+        self.ctrl[:, self.arm_act["left"]] = arm[:, :7]
+        self.ctrl[:, self.arm_act["right"]] = arm[:, 7:]
         self.last_target = target
         self._advance_clock()
         self.t += 1
 
+        bad = ~(np.isfinite(self.state).all(1) & np.isfinite(self.sens).all(1))
         rew, terms = self._reward(a)
+        rew = np.where(bad, 0.0, rew)
+        terms = {k: np.where(bad, 0.0, v) for k, v in terms.items()}
         self.last_action2 = self.last_action
         self.last_action = a
         h = self.state[:, self.q0 + 2]
         quat = self.state[:, self.q0 + 3:self.q0 + 7]
         upz = 1 - 2 * (quat[:, 1] ** 2 + quat[:, 2] ** 2)
-        fell = (h < 0.45) | (upz < 0.7) | ~np.isfinite(self.state).all(1)
+        fell = (h < 0.45) | (upz < 0.7) | bad
         timeout = self.t >= self.ep_len
         rew = rew + fell * self.rs["termination"]
         self.ep_ret += rew
@@ -434,7 +483,7 @@ class Tron1OpenArmEnv:
         # 명령 재설정 (5초마다)
         rs = (self.t >= self.cmd_until) & ~done
         self._resample_cmd(np.nonzero(rs)[0])
-        info = {"fell": fell, "timeout": timeout, "terms": terms, "ep_ret": self.ep_ret.copy(), "ep_t": self.t.copy()}
+        info = {"fell": fell, "bad": bad, "timeout": timeout, "terms": terms, "ep_ret": self.ep_ret.copy(), "ep_t": self.t.copy()}
         self.reset(np.nonzero(done)[0])
         return rew.astype(np.float32), done, info
 
@@ -444,6 +493,7 @@ class Tron1OpenArmEnv:
         return self.arm_from + (self.arm_to - self.arm_from) * s[:, None]
 
     def _reward(self, a):
+        """보상 항 — GPU 판 Tron1EnvGpu._reward 와 같은 식·같은 계수 (train_config.reward_scales)."""
         S = self.sens
         quat = self.state[:, self.q0 + 3:self.q0 + 7]
         lin = S[:, self.s["base_linvel"]]
@@ -453,13 +503,29 @@ class Tron1OpenArmEnv:
         q = self.state[:, self.q0:][:, self.qadr]
         tau = np.stack([S[:, s][:, 0] for s in self.s_tau], 1)
         F = np.stack([S[:, self.s["foot_L_touch"]][:, 0], S[:, self.s["foot_R_touch"]][:, 0]], 1)
-        fv = np.stack([np.linalg.norm(S[:, self.s["foot_L_vel"]], axis=1),
-                       np.linalg.norm(S[:, self.s["foot_R_vel"]], axis=1)], 1)
+        fvel = np.stack([S[:, self.s["foot_L_vel"]], S[:, self.s["foot_R_vel"]]], 1)           # (N, 2, 3)
+        fv = np.linalg.norm(fvel, axis=2)
+        fvxy = np.linalg.norm(fvel[:, :, :2], axis=2)
         fp = S[:, self.s["foot_L_pos"]][:, :2] - S[:, self.s["foot_R_pos"]][:, :2]
+        # 발 높이: 관절 각도 정기구학(몸통 기준 발 위치)을 IMU 자세로 돌려 '세계 위쪽' 높이로 (GPU 판과 같은 계산)
+        base = self.state[:, self.q0:self.q0 + 3]
+        Rb = quat_to_mat(quat)
+        fx = np.stack([S[:, self.s["train_foot_L_xpos"]], S[:, self.s["train_foot_R_xpos"]]], 1)  # (N, 2, 3)
+        p_b = np.einsum("nfi,nij->nfj", fx - base[:, None, :], Rb)                               # 몸통 기준
+        Ri = quat_to_mat(S[:, self.s["imu_quat"]])
+        fz = np.einsum("nfj,nkj->nfk", p_b, Ri)[:, :, 2]
+        twist = np.stack([S[:, self.s["train_foot_L_angvel"]][:, 2], S[:, self.s["train_foot_R_angvel"]][:, 2]], 1)
+        vcmd = np.linalg.norm(self.cmd[:, :2], axis=1)
+        clear_h = np.clip(0.06 + 0.07 * vcmd, 0.06, self.GAIT[3])[:, None] if CLEAR_ADAPT else self.GAIT[3]
+        settled = (self.standing & (self.stand_t >= STAND_YAW_SETTLE)).astype(np.float64)
         des = desired_contacts(self.gait_index, self.GAIT)
         if self.foot == "sf":
             des[self.standing] = 1.0       # 서 있을 때는 두 발 모두 디딤 (발 속도 0 이 보상)
         lo, hi = self.jrange[:, 0] * 0.95, self.jrange[:, 1] * 0.95
+        yaw = yaw_of_wxyz(quat)
+        walking_straight = (~self.standing & (np.abs(self.cmd[:, 2]) < 0.05)).astype(np.float64)
+        slow_cmd = (~self.standing & (vcmd > 0.005) & (vcmd < 0.15)).astype(np.float64)
+        Fmin = F.min(1)
         t = dict(
             keep_balance=np.ones(self.N),
             tracking_lin_vel=np.exp(-np.sum((self.cmd[:, :2] - lin[:, :2]) ** 2, 1) / 0.05),   # LimX 0.2 → 0.05: 옆 흐름·속도 부족을 더 강하게
@@ -472,13 +538,26 @@ class Tron1OpenArmEnv:
             action_smooth=np.sum((a - 2 * self.last_action + self.last_action2) ** 2, 1),
             orientation=np.sum(grav[:, :2] ** 2, 1),
             dof_pos_limits=np.sum(np.clip(lo - q, 0, None) + np.clip(q - hi, 0, None), 1),
-            feet_distance=np.clip(0.115 - np.linalg.norm(fp, axis=1), 0, 1),
+            feet_distance=np.clip(0.115 - np.linalg.norm(fp, axis=1), 0, 1) * np.where(np.abs(self.cmd[:, 1]) > 0.05, FD_SIDE_SCALE, 1.0),
             contact_force=np.mean((1 - des) * (1 - np.exp(-F ** 2 / 25.0)), 1),
             contact_vel=np.mean(des * (1 - np.exp(-fv ** 2 / 0.25)), 1),
             stand_drift=self.standing * (1 - np.exp(-(gyro[:, 2] / STAND_DRIFT_SIGMA[0]) ** 2
                                                     - np.sum(lin[:, :2] ** 2, 1) / STAND_DRIFT_SIGMA[1] ** 2)),
             stand_yaw=(self.standing & (self.stand_t >= STAND_YAW_SETTLE))
-            * np.minimum(np.abs(wrap(yaw_of_wxyz(quat) - self.yaw0)) / STAND_YAW_REF, 2.0),
+            * np.minimum(np.abs(wrap(yaw - self.yaw0)) / STAND_YAW_REF, 2.0),
+            stand_feet=settled * np.mean(1 - np.exp(-(fvxy / STAND_FEET_SIGMA) ** 2), 1),
+            stand_twist=settled * np.mean(1 - np.exp(-(twist / STAND_TWIST_SIGMA) ** 2), 1),
+            stand_load=settled * np.clip((STAND_LOAD_MIN - Fmin / np.maximum(F.sum(1), 1.0)) / STAND_LOAD_MIN, 0.0, 1.0),
+            stand_tilt=settled * np.clip((np.linalg.norm(grav[:, :2], axis=1) - STAND_TILT_FREE) / STAND_TILT_REF, 0.0, 2.0),
+            feet_clearance=np.sum((1 - des) * np.clip(clear_h - (fz - fz.min(1, keepdims=True)), 0.0, None) ** 2, 1),
+            tracking_vy=np.exp(-(self.cmd[:, 1] - lin[:, 1]) ** 2 / TRACK_VY_SIGMA),
+            walk_heading=walking_straight * np.minimum(np.abs(wrap(yaw - self.walk_yaw)) / WALK_HEADING_REF, WALK_HEADING_CAP),
+            walk_yawrate=walking_straight * np.minimum((gyro[:, 2] / 0.05) ** 2, 4.0),
+            stand_liftoff=settled * (Fmin < STAND_LIFT_F),
+            stand_sway=settled * np.minimum(np.linalg.norm(self.state[:, self.q0:self.q0 + 2] - self.stand_xy, axis=1) / STAND_SWAY_REF, 2.0),
+            tracking_slow=slow_cmd * np.exp(-(np.linalg.norm(self.cmd[:, :2] - self.v_avg, axis=1)
+                                              / np.maximum(vcmd, 0.03)) ** 2 / 0.25),
+            stand_planted=settled * (Fmin >= STAND_LIFT_F) * np.mean(np.exp(-(fvxy / STAND_FEET_SIGMA) ** 2), 1),
         )
         r = sum(self.rs[k] * v for k, v in t.items()) * POLICY_DT
         return r, t

@@ -11,7 +11,7 @@ Ubuntu 24.04 / ROS 2 Jazzy / 저장소 clone 까지 완료되어 있다고 가�
 
 ```bash
 bash tron1_openarm/scripts/setup_workspace.sh
-source tron1_openarm/install/setup.bash
+source tron1_openarm/scripts/env.sh
 ros2 pkg prefix tron1_openarm_sim
 ```
 
@@ -44,10 +44,10 @@ ros2 pkg prefix tron1_openarm_sim
 각 터미널은 저장소 루트에서 시작합니다. 노트북은 현재 clone 경로, Docker는 `/root/openarm_mobile_ws`입니다.
 
 ```bash
-source /opt/ros/jazzy/setup.bash
-source tron1_openarm/install/setup.bash
-source tron1_openarm/.venv-biped/bin/activate   # python3 를 직접 실행할 때 필요 (ros2 launch/run 은 없어도 됨)
+source tron1_openarm/scripts/env.sh   # ROS 2 + 가상환경(.venv-biped) + TRON1 패키지를 한 번에
 ```
+
+`bash` 로 실행하면 지금 터미널에 남지 않으므로 반드시 `source` 로 부릅니다. 휠형을 불러온 터미널이어도 휠형 경로와 가상환경을 지우고 TRON1 것만 남깁니다. 마지막 줄에 `TRON1 환경: ROS 2 jazzy · python …/.venv-biped/bin/python3 · …/install` 이 나오면 준비된 것입니다.
 
 각 절 위의 터미널 상태표(🆕 새로 열기 · 🟢 계속 실행 · ⚪ 바로 끝남)는 [휠형 공통 규칙](../wheel/README.md#1-터미널-여러-개-쓰기)과 같은 표기입니다. T1/T2/T3는 별도 터미널입니다. 단계 전환 시 기존 launch·teleop를 Ctrl+C로 종료합니다. 휠형과 이족형, sim/slam/nav/full_system을 동시에 올리지 않습니다. 같은 노드·토픽·액션을 공유하기 때문입니다.
 

@@ -4,6 +4,8 @@
 
 ## 범위와 원리
 
+이 문서는 **Docker 이미지(Ubuntu 24.04 + ROS 2 Jazzy) → 컨테이너 화면 → 가상환경·colcon 빌드**까지만 다룹니다. 실행은 교육 문서([휠형](../wheel/README.md) · [TRON1](../tron1/day1.md))에서 시작하며, 모든 ROS 명령은 컨테이너 안에서 실행합니다.
+
 대상은 **Intel iMac (Retina 5K, 27-inch, 2019)** — Intel Core i5-8600 6코어, Radeon Pro 575X 4GB, RAM 32GB 입니다. Intel(x86_64)이라 ROS 공식 amd64 이미지를 에뮬레이션 없이 그대로 씁니다. Apple Silicon 은 이 문서의 검증 대상이 아닙니다.
 
 macOS 에 Ubuntu 를 이중 부팅하거나 컨테이너 안에서 OS 설치 프로그램을 돌리지 않습니다. `osrf/ros:jazzy-desktop` 이미지가 **Ubuntu 24.04 + ROS 2 Jazzy** 를 제공하고, `docker/Dockerfile` 이 Nav2·MoveIt·가상 데스크톱·소프트웨어 OpenGL 을 추가합니다. macOS 의 Docker 컨테이너는 Mac 의 GPU 를 쓸 수 없으므로 컨테이너 안에서 CPU 로 OpenGL 을 그리는 Mesa llvmpipe(OpenGL 4.5)를 쓰고, 화면은 컨테이너 안 가상 데스크톱을 브라우저(noVNC)나 macOS 화면 공유(VNC)로 봅니다.
@@ -47,7 +49,7 @@ flowchart TB
 ## 1. Mac 준비
 
 1. **macOS 버전 확인.** 이 iMac 은 macOS 15 Sequoia 가 마지막입니다. Docker Desktop 은 현재 macOS 와 직전 두 버전을 지원하므로 지금은 설치됩니다. 지원 범위는 [공식 설치 문서](https://docs.docker.com/desktop/setup/install/mac-install/)에서 확인하세요.
-2. **Docker Desktop 설치** — "Docker Desktop for Mac with Intel chip" `.dmg` 를 받아 `Docker.app` 을 응용 프로그램으로 끌어다 놓고 실행합니다.
+2. **Docker Desktop 설치** — **이미 설치되어 있으면 이 단계는 건너뜁니다** (아래 Mac 터미널 블록의 `docker version` 에 Server 가 나오면 설치·실행된 상태). 없으면 "Docker Desktop for Mac with Intel chip" `.dmg` 를 받아 `Docker.app` 을 응용 프로그램으로 끌어다 놓고 실행합니다.
    - **관리자 권한**은 설치할 때 한 번 필요합니다. 관리자 계정이 없다면 관리자에게 다음을 부탁합니다. 그 뒤에는 일반 계정으로 실행됩니다.
    - `sudo hdiutil attach Docker.dmg && sudo /Volumes/Docker/Docker.app/Contents/MacOS/install --user=<내계정이름>`
 3. **리소스 설정** (Docker Desktop → Settings → Resources). macOS 의 Docker 는 Linux VM 안에서 컨테이너를 돌리므로, 여기서 주는 양이 컨테이너가 쓸 수 있는 전부입니다.
@@ -95,7 +97,7 @@ Mac 터미널(`docker/`)에서:
 bash mac_start.sh
 ```
 
-`mac_start.sh` 는 워크스페이스가 아직 빌드되지 않았으면 컨테이너 안에서 `04_setup_workspace.sh` 까지 **자동으로 실행**합니다. 이 스크립트를 썼다면 3절은 **마지막 확인 명령만** 하면 됩니다.
+`mac_start.sh` 는 워크스페이스가 아직 빌드되지 않았으면 컨테이너 안에서 `mobile_openarm/scripts/setup_workspace.sh` 까지 **자동으로 실행**합니다. 이 스크립트를 썼다면 3절은 **마지막 확인 명령만** 하면 됩니다.
 
 단계별로 직접 하려면 Mac 터미널(`docker/`)에서:
 
@@ -117,93 +119,39 @@ command -v colcon
 command -v rosdep
 ```
 
-OS 는 Ubuntu 24.04 계열이어야 합니다. `colcon` 또는 `rosdep` 이 없다면 컨테이너에서 설치합니다. 베이스 이미지 태그는 바뀔 수 있어 명시적으로 확인합니다.
+`Ubuntu 24.04` 가 나오고 `colcon`·`rosdep` 경로가 보이면 됩니다. 베이스 이미지 `osrf/ros:jazzy-desktop` 에 ROS 2 Jazzy·RViz2·colcon·rosdep(초기화 완료)이 들어 있고, Dockerfile 이 Nav2·SLAM Toolbox·MoveIt·가상 데스크톱(VNC)을 더합니다. 혹시 `colcon`·`rosdep` 이 없으면 `apt-get update && apt-get install -y ros-dev-tools` 로 설치합니다.
 
-```bash
-apt-get update
-apt-get install -y ros-dev-tools
-```
+**컨테이너에서는 `doc/setup/install_nvidia_driver.sh`·`install_ros2_jazzy.sh` 를 실행하지 않습니다.** ROS 는 이미지에 이미 있습니다. 포트·볼륨·공유 메모리 같은 컨테이너 설정과 그 이유는 `docker/docker-compose.yml` 주석에 있습니다.
 
-**컨테이너에서는 `mobile_openarm/scripts/01`(NVIDIA 드라이버)·`03`(ROS 설치)을 실행하지 않습니다.** ROS 는 이미지에 이미 있고, 컨테이너는 root 라 sudo 를 전제하는 호스트용 설치 스크립트와도 다릅니다.
 
-### 같은 일을 docker run 한 줄로
+## 3. 가상환경·colcon 빌드
 
-Compose 대신 직접 실행할 때의 대응 명령과 옵션 설명입니다.
-
-```bash
-docker build -t openarm-mobile:jazzy ~/Documents/openarms_llm_ex/docker
-docker run -d --name openarm --platform linux/amd64 --shm-size=2g \
-  -p 127.0.0.1:6080:6080 -p 127.0.0.1:5901:5901 -p 127.0.0.1:8080:8080 \
-  -e RESOLUTION=1600x900x24 -e VNC_PASSWORD=openarm -e LP_NUM_THREADS=4 \
-  -e OPENAI_API_KEY="$OPENAI_API_KEY" \
-  -v ~/Documents/openarms_llm_ex:/root/openarm_mobile_ws \
-  -v mobile_build:/root/openarm_mobile_ws/mobile_openarm/build \
-  -v mobile_install:/root/openarm_mobile_ws/mobile_openarm/install \
-  -v mobile_log:/root/openarm_mobile_ws/mobile_openarm/log \
-  -v mobile_venv:/root/openarm_mobile_ws/mobile_openarm/.venv-mobile \
-  -it openarm-mobile:jazzy
-```
-
-| 옵션 | 의미 | 왜 필요한가 |
-| --- | --- | --- |
-| `-d` / `--name openarm` | 백그라운드 실행 / 이름 지정 | `docker exec -it openarm bash` 로 터미널을 더 열 수 있음 |
-| `--platform linux/amd64` | x86_64 이미지 사용 | Intel iMac 과 같은 아키텍처 → 에뮬레이션 없음 |
-| `--shm-size=2g` | 컨테이너의 /dev/shm 크기 | Docker 기본 64MB. ROS 2(Fast DDS) 공유메모리·RViz(Qt)가 부족하면 멈추거나 메시지가 유실됨 |
-| `-p 127.0.0.1:6080:6080` | noVNC 웹 화면 포트 | 브라우저로 컨테이너 데스크톱 보기. `127.0.0.1:` 을 붙여 같은 네트워크의 다른 PC 에서 접속 못 하게 함 |
-| `-p 127.0.0.1:5901:5901` | VNC 포트 | macOS 화면 공유 앱(더 매끄럽고 클립보드 공유) |
-| `-p 127.0.0.1:8080:8080` | 웹 대시보드 포트 | 2일차 대시보드를 Mac 사파리에서 바로 열기 |
-| `-e RESOLUTION` | 가상 화면 크기·색 깊이 | 작을수록 CPU 렌더가 빨라짐. 느리면 `1280x720x24` |
-| `-e VNC_PASSWORD` | VNC 비밀번호 | macOS 화면 공유는 비밀번호 없는 VNC 에 접속하지 않음 |
-| `-e LP_NUM_THREADS` | llvmpipe 렌더 스레드 수 | Docker 에 준 CPU(6)보다 1~2 적게 — 물리 시뮬·Nav2 몫을 남김 |
-| `-e OPENAI_API_KEY` | Mac 셸의 키 전달 | LLM 실습. 비워 두면 오프라인 계획기 사용 |
-| `-v ~/Documents/openarms_llm_ex:/root/...` | Mac 폴더를 컨테이너와 공유 | 코드를 Mac 에디터로 고치고 컨테이너에서 바로 실행. 컨테이너를 지워도 남음 |
-| `-v mobile_build:... mobile_install:... mobile_log:... mobile_venv:...` | colcon 산출물과 `.venv-mobile` 을 Docker 볼륨에 | 수천 개의 작은 파일을 Mac 폴더에 쓰면 매우 느림. 볼륨은 VM 안에 있어 빠름. TRON1 도 쓰면 `tron1_openarm/{build,install,log}` 볼륨을 같은 방식으로 추가(compose 에는 들어 있음) |
-| `-it` | 터미널 할당 | 로그 확인·입력용 |
-
-쓰지 않는 옵션: `--gpus` (macOS 에서 지원 안 함), `--privileged`, `--net=host` (Mac 에서는 호스트 네트워크가 VM 네트워크라 의미 없음), `-v /tmp/.X11-unix` (리눅스 호스트 전용).
-
-### Dockerfile 요점
-
-| 줄 | 내용 |
-| --- | --- |
-| `FROM osrf/ros:jazzy-desktop` | Ubuntu 24.04 + ROS 2 Jazzy desktop(RViz2 포함) 공식 이미지 |
-| `apt-get install ros-jazzy-navigation2 ... slam-toolbox ... moveit ... python3-venv` | 교육과정 스택 + 가상환경 도구 |
-| `xvfb x11vnc novnc websockify fluxbox xterm` | 가상 데스크톱과 원격 화면 |
-| `mesa-utils libgl1-mesa-dri libglx-mesa0 libegl-mesa0 libosmesa6 libglfw3` | 소프트웨어 OpenGL(화면용 GLX, 오프스크린용 EGL/OSMesa) |
-| `pip3 install --break-system-packages --ignore-installed -c /etc/pip-constraints.txt mujoco==3.5.0 openai pydantic>=2.5` | apt 의 numpy 버전(1.26.4)을 고정한 채 MuJoCo 를 이미지에 미리 설치. `--ignore-installed` 로 debian 이 설치한 typing_extensions 등을 지우지 않음. 3절의 `.venv-mobile`(`--system-site-packages`)이 이 패키지를 그대로 재사용 |
-| `ENV LIBGL_ALWAYS_SOFTWARE=1 GALLIUM_DRIVER=llvmpipe` | 항상 llvmpipe 사용 (GPU 탐색 시도 안 함) |
-| `ENV XDG_RUNTIME_DIR=/tmp/runtime-root` | glfw/Qt 의 "XDG_RUNTIME_DIR is invalid" 경고 제거 |
-| `ENV ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST` | ROS 통신을 컨테이너 안으로 한정 |
-| `ENTRYPOINT start-desktop.sh` | Xvfb :1 → fluxbox → xterm → x11vnc(5901, 비밀번호) → noVNC(6080) 순서로 시작 |
-
-## 3. 에셋 준비·colcon 빌드
-
-> `mac_start.sh` 를 썼다면 아래 블록 대신 컨테이너 터미널에서 `ros2 pkg prefix mobile_openarm_apps` 로 경로가 나오는지만 확인하고 4절로 넘어갑니다. `04` 를 다시 돌려도 망가지지는 않지만 시간이 오래 걸립니다.
+> `mac_start.sh` 를 썼다면 아래 블록 대신 컨테이너 터미널에서 `ros2 pkg prefix mobile_openarm_apps` 로 경로가 나오는지만 확인하고 4절로 넘어갑니다. `setup_workspace.sh` 를 다시 돌려도 망가지지는 않지만 시간이 오래 걸립니다.
 
 컨테이너 터미널(2절에서 연 터미널을 그대로 사용):
 
 ```bash
 cd /root/openarm_mobile_ws
-# rosdep이 아직 초기화되지 않은 이미지에만 필요 (이미 초기화됐다는 메시지는 무시 가능)
-rosdep init
-rosdep update
-bash mobile_openarm/scripts/04_setup_workspace.sh
-source mobile_openarm/install/setup.bash
+apt-get update                             # 이미지는 apt 목록을 지워 두므로, rosdep 이 빠진 패키지를 설치할 수 있게
+bash mobile_openarm/scripts/setup_workspace.sh
+source mobile_openarm/scripts/env.sh       # ROS 2 + .venv-mobile + 휠형 패키지
 ros2 pkg prefix mobile_openarm_apps
 ```
 
-`04` 가 `mobile_openarm/.venv-mobile` 가상환경(`--system-site-packages`)을 만들고, OpenArm 에셋·모델을 생성한 뒤 `mobile_openarm/` 에서 venv Python 으로 `colcon build --symlink-install --base-paths src` 를 수행합니다. 이미지에 pip 로 넣어 둔 MuJoCo·OpenAI·Pydantic 은 venv 에서 그대로 재사용되므로 새로 내려받지 않습니다. 이미지를 폴더 재구성 전에 빌드했다면 `python3-venv` 가 없으므로 `docker compose build` 를 다시 실행하세요. `rosdep init` 이 이미 초기화되었다고 실패하면 다음 명령으로 진행하세요. `04` 내부 자체 점검(selftest 14개)·rosdep 실패가 무시될 수 있으므로 로그와 빌드 요약을 별도로 확인합니다.
+`setup_workspace.sh` 가 `mobile_openarm/.venv-mobile` 가상환경(`--system-site-packages`)을 만들고, 저장소에 들어 있는 모델을 확인하고 자체 점검(14개)을 한 뒤, `mobile_openarm/` 에서 venv Python 으로 `colcon build --symlink-install --base-paths src` 를 수행합니다. 이미지에 pip 로 넣어 둔 MuJoCo·OpenAI·Pydantic 은 venv 에서 그대로 재사용되므로 새로 내려받지 않습니다. 자체 점검·rosdep 실패는 빌드를 멈추지 않으므로 로그와 빌드 요약(`Failed` 없음)을 따로 확인합니다.
 
-TRON1 도 쓸 때는 컨테이너 터미널에서 이어서 (휠형과 독립 — 휠형 빌드 없이도 됨):
+TRON1 도 쓸 때는 컨테이너 터미널에서 이어서 (TRON1 은 휠형과 코드·패키지·가상환경을 나눠 쓰지 않는 독립 시스템 — 휠형 빌드 없이도 됨):
 
 ```bash
 cd /root/openarm_mobile_ws
 bash tron1_openarm/scripts/setup_workspace.sh      # .venv-biped 생성 → 자체 점검 → 빌드
-source tron1_openarm/install/setup.bash
+source tron1_openarm/scripts/env.sh        # ROS 2 + .venv-biped + TRON1 패키지
 ros2 pkg prefix tron1_openarm_sim
 ```
 
-저장소는 Mac 폴더와 공유되지만 컨테이너 내부 경로는 **`/root/openarm_mobile_ws`** 로 고정됩니다. `mobile_openarm/`·`tron1_openarm/` 의 `build/`, `install/`, `log/` 와 가상환경 `mobile_openarm/.venv-mobile`·`tron1_openarm/.venv-biped` 는 Compose named volume 입니다. 폴더 재구성 전에 만든 볼륨(`ws_build` 등)은 더 이상 쓰지 않으므로 `docker volume ls` 로 확인 후 지워도 됩니다. **Mac 호스트에서 colcon 을 실행하거나 호스트의 install 경로를 source 하지 마세요.**
+저장소는 Mac 폴더와 공유되지만 컨테이너 내부 경로는 **`/root/openarm_mobile_ws`** 로 고정됩니다. `mobile_openarm/`·`tron1_openarm/` 의 `build/`, `install/`, `log/` 와 가상환경 `mobile_openarm/.venv-mobile`·`tron1_openarm/.venv-biped` 는 Compose named volume 입니다(Mac 폴더에 쓰면 매우 느림). **Mac 호스트에서 colcon 을 실행하거나 호스트의 install 경로를 source 하지 마세요.**
+
+컨테이너 터미널을 열 때마다 `/root/openarm_mobile_ws` 에서 `source mobile_openarm/scripts/env.sh`(휠형) 또는 `source tron1_openarm/scripts/env.sh`(TRON1) 한 줄로 ROS 2·가상환경·패키지를 한 번에 불러옵니다. 이미지의 `~/.bashrc` 는 ROS 와 휠형 install 만 미리 불러옵니다.
 
 ## 4. 화면 보기
 
@@ -233,83 +181,7 @@ export DISPLAY=host.docker.internal:0
 rviz2      # 실패하면 LIBGL_ALWAYS_INDIRECT=1 을 붙여 보고, 그래도 안 되면 A/B 방식으로
 ```
 
-## 5. 첫 통합 실행
-
-| 터미널 | 어디에서 | 상태 | 이 단계에서 |
-|---|---|---|---|
-| T1 | 컨테이너 | 🟢 | full_system 실행. 확인이 끝날 때까지 **끄지 않음** |
-| — | Mac 브라우저 | — | `http://localhost:8080` 대시보드 |
-| T2 | 🆕 컨테이너 (Mac 터미널에서 `docker compose exec openarm bash`) | 🟢 | `/task/status` 계속 출력. **결과 관찰은 여기서** |
-| T3 | 🆕 컨테이너 (같은 방법으로 하나 더) | ⚪ | 시험 명령 한 번 보내고 끝남 |
-
-표기: 🆕 새로 열기 · 🟢 계속 실행(터미널을 붙잡음) · ⚪ 바로 끝남 — [휠형 공통 규칙](../wheel/README.md#1-터미널-여러-개-쓰기)과 같습니다. 컨테이너 터미널은 이미지의 `~/.bashrc` 가 ROS·패키지를 자동으로 불러오므로 아래 `source` 두 줄은 확인용이며 생략해도 됩니다. `~/.bashrc` 는 휠형 install 만 불러옵니다. TRON1 터미널은 새로 열 때마다 `source /root/openarm_mobile_ws/tron1_openarm/install/setup.bash` 를 직접 입력합니다 (TRON1 은 휠형과 독립 워크스페이스. 이미지를 이 변경 전에 빌드했다면 `docker compose build` 로 다시 빌드).
-
-T1(컨테이너):
-
-```bash
-source /opt/ros/jazzy/setup.bash
-source /root/openarm_mobile_ws/mobile_openarm/install/setup.bash
-ros2 launch mobile_openarm_apps full_system.launch.py \
-  planner:=offline world:=world_light.xml viewer:=false rviz:=false
-```
-
-Mac 브라우저: **http://localhost:8080**
-
-`viewer:=false` 는 MuJoCo 별도 창만 끄며 대시보드 카메라는 유지됩니다. 시뮬/주행 → 5초 뒤 MoveIt → 12초 뒤 Task Manager·웹이 시작되며 실제 초기화는 더 걸릴 수 있습니다.
-
-T2: 새 Mac 터미널에서 컨테이너 터미널을 추가합니다.
-
-```bash
-cd ~/Documents/openarms_llm_ex/docker
-docker compose exec openarm bash
-```
-
-그 컨테이너 터미널에서:
-
-```bash
-source /opt/ros/jazzy/setup.bash
-source /root/openarm_mobile_ws/mobile_openarm/install/setup.bash
-ros2 topic echo /task/status --field data
-```
-
-`idle` 을 확인하고 T3(같은 방법으로 연 또 하나의 컨테이너 터미널)에서 다음을 보냅니다.
-
-```bash
-ros2 topic pub --once /task/command std_msgs/msg/String \
-  "{data: '순찰하고 복귀해'}"
-```
-
-**원인 → 결과:** T3에서 발행 → T1 로그에 계획·실행 → T2의 `state` 가 `planning` → `running` 으로 바뀌고, Mac 브라우저의 대시보드 미션 영역도 바뀝니다.
-
-이 단계에서는 웹 접속·상태 수신·명령에 대한 상태 전환까지 확인합니다. 실제 운반 검증은 [휠형 2일차](../wheel/README.md)에서 진행합니다. 교육의 T1/T2/T3 는 각각 별도 **컨테이너 터미널**입니다.
-
-### 성능 조절 (GPU 없이 그리므로 중요)
-
-| 조절 | 방법 | 효과 |
-| --- | --- | --- |
-| 저사양 월드 | `world:=world_light.xml` | 시각 메시 160만 면 제거 → 뷰어 렌더 부하·메모리 크게 감소 |
-| MuJoCo 뷰어 끄기 | `viewer:=false` | RViz 나 대시보드로만 보기 |
-| RViz 하나만 | 필요할 때만 `rviz:=true` | 가장 무거운 렌더러 |
-| 카메라 주기 | `camera_hz:=5.0` (기본 10) | 오프스크린 렌더 절반 |
-| LiDAR 선 수 | `lidar_rays:=180` | Nav2·SLAM 에는 충분 |
-| 가상 화면 크기 | `RESOLUTION=1280x720x24` | 작은 창 = 빠른 렌더 |
-| 시뮬 속도 | `rate_factor:=0.5` | 느린 대신 매끄럽게 (모든 노드가 시뮬 시간 사용) |
-
-**옵션 전달:** `camera_hz`·`rate_factor`·`lidar_rays` 는 `sim`·`nav`·`full_system` launch 가 모두 받아 시뮬까지 전달합니다(`slam` 은 카메라를 켜지 않으므로 `camera_hz` 없음). 다른 launch 는 `ros2 launch <패키지> <파일> --show-args` 로 받는 인자를 확인하세요.
-
-**시간 초과:** 앱의 주행·팔 동작 시간 제한(예: 주행 600초)은 PC 시계 기준입니다. 시뮬이 실시간보다 많이 느리면 `[nav] … 시간 초과` 가 날 수 있으니 위 표의 옵션으로 `/clock` 을 100Hz 에 가깝게 맞추세요.
-
-```bash
-# 컨테이너 터미널
-ros2 topic hz /clock      # 100Hz 가까우면 실시간, 50Hz 면 0.5배 (확인 후 Ctrl+C)
-```
-
-```bash
-# Mac 터미널
-docker stats openarm      # 컨테이너 CPU·메모리 사용량 (Ctrl+C 로 멈춤)
-```
-
-## 6. 종료·재개와 문제 해결
+## 5. 종료·재개와 문제 해결
 
 순서: ① **컨테이너 터미널**(T1)에서 launch 를 `Ctrl+C` → ② 다른 컨테이너 터미널은 `exit` → ③ **Mac 터미널**(`docker/` 폴더)에서 아래 명령.
 
@@ -320,24 +192,24 @@ docker compose start        # 재개
 docker compose down
 ```
 
-`docker compose down -v` 는 빌드·설치 볼륨을 삭제하므로 평소에는 사용하지 않습니다. Dockerfile 이 바뀐 저장소를 받았다면(`git pull`) `docker compose build && docker compose up -d` 로 이미지와 컨테이너를 다시 만들어야 반영됩니다. 재개 후 Mac 터미널에서 `docker compose exec openarm bash` 로 컨테이너 터미널에 들어가 launch 를 다시 실행합니다(ROS 환경은 `~/.bashrc` 가 자동으로 불러옴).
+`docker compose down -v` 는 빌드·설치 볼륨을 삭제하므로 평소에는 사용하지 않습니다. Dockerfile 이 바뀐 저장소를 받았다면(`git pull`) `docker compose build && docker compose up -d` 로 이미지와 컨테이너를 다시 만들어야 반영됩니다. 재개 후 Mac 터미널에서 `docker compose exec openarm bash` 로 컨테이너 터미널에 들어가 `source mobile_openarm/scripts/env.sh`(TRON1 은 `tron1_openarm/scripts/env.sh`) 뒤 launch 를 다시 실행합니다.
 
 | 증상 | 원인 | 조치 |
 | --- | --- | --- |
 | `Cannot connect to the Docker daemon` | Docker Desktop 이 꺼져 있음 | 응용 프로그램에서 Docker 실행, 메뉴 막대 고래 아이콘 확인 |
 | 브라우저가 6080 에 접속 못 함 | 컨테이너 시작 스크립트 실패, 포트 충돌 | `docker compose logs openarm`, 컨테이너 안 `cat /tmp/novnc.log /tmp/x11vnc.log` |
 | 창이 검게만 나옴 | 첫 프레임 렌더 전(CPU 렌더라 느림) | 10~30초 기다림. 계속되면 `glxinfo -B` 가 llvmpipe 인지 확인 |
-| 너무 느림 | CPU 렌더 | 5절 성능 조절표, Docker CPU/RAM 설정 확인 |
-| RViz 가 멈추거나 토픽이 끊김 | /dev/shm 부족 | `--shm-size=2g` (compose 에 설정됨) |
+| 너무 느림 | CPU 렌더 | 실행 인자 `world:=world_light.xml camera_hz:=5.0 lidar_rays:=180 rate_factor:=0.5` ([휠형 공통 규칙](../wheel/README.md)), 가상 화면 `RESOLUTION=1280x720x24`, Docker CPU/RAM 설정 |
+| RViz 가 멈추거나 토픽이 끊김 | /dev/shm 부족 | compose 의 `shm_size: "2gb"` 가 적용됐는지 (`docker compose up -d --force-recreate`) |
 | `colcon build` 가 매우 느림 | build/install 을 Mac 폴더에 씀 | compose 의 named volume 사용 여부 확인, File sharing = VirtioFS |
 | ROS 패키지 없음 | 빌드 실패 또는 source 누락 | 컨테이너에서 빌드 성공 여부와 `/root/openarm_mobile_ws/mobile_openarm/install/setup.bash` 확인 |
-| `numpy.core.multiarray failed to import` | pip 가 numpy 2.x 설치 | `.venv-mobile` 이면 볼륨을 지우고(`docker volume rm <프로젝트>_mobile_venv`) `04` 재실행. 이미지 쪽이면 `pip install --break-system-packages -c /etc/pip-constraints.txt "numpy<2"` |
-| 빌드 중 `Cannot uninstall typing_extensions 4.10.0, RECORD file not found` | pip 가 apt(debian) 패키지를 지우려다 실패 | Dockerfile 은 `--ignore-installed` 로 새 버전을 `/usr/local` 에 따로 설치하고 numpy 는 apt 와 같은 버전으로 고정함. 이 방식으로 apt OpenCV 4.6 + pip MuJoCo 3.5 가 함께 동작하고 selftest 14개가 통과하는 것을 Ubuntu 24.04 Python 3.12 에서 확인함 |
+| `numpy.core.multiarray failed to import` | pip 가 numpy 2.x 설치 | `.venv-mobile` 이면 볼륨을 지우고(`docker volume rm <프로젝트>_mobile_venv`) `bash mobile_openarm/scripts/setup_workspace.sh` 재실행. 이미지 쪽이면 `pip install --break-system-packages -c /etc/pip-constraints.txt "numpy<2"` |
+| 이미지 빌드 중 `Cannot uninstall typing_extensions ... RECORD file not found` | pip 가 apt(debian) 패키지를 지우려다 실패 | 저장소의 최신 `docker/Dockerfile`(`--ignore-installed`)로 `docker compose build` 다시 실행 |
 | 화면 공유가 접속을 거부 | VNC 비밀번호 없음/틀림 | `VNC_PASSWORD` 확인 후 `docker compose up -d --force-recreate` |
 | 컨테이너 재시작 후 화면이 안 뜸 | 남은 X 잠금 파일 | 시작 스크립트가 `/tmp/.X1-lock` 을 지움. 안 되면 `docker compose down && docker compose up -d` |
 | 한글이 □ 로 보임 | 글꼴 없음 | 이미지에 `fonts-noto-cjk` 포함됨(RViz·대시보드는 정상). xterm 은 기본 글꼴이 영문용 |
 
-**TRON1 보행 PPO 학습은 이 Docker 환경의 대상이 아닙니다.** 컨테이너에 GPU 가 없어 JAX 가 CPU 로만 돌고, 학습용 `.venv-biped-train` 볼륨도 없습니다. 정책 학습은 GPU PC([DGX Spark](dgx-spark.md#8-tron1-보행-ppo-학습용-가상환경-venv-biped-train--jax-gpu) · 우분투 24.04 + RTX 3090 등)에서 하고, 결과 `.npz` 만 저장소로 가져와 쓰세요. TRON1 시뮬·교육 자체는 Docker 에서 할 수 있습니다.
+**TRON1 보행 PPO 학습은 이 Docker 환경의 대상이 아닙니다.** 컨테이너에 GPU 가 없어 JAX 가 CPU 로만 돌고, 학습용 `.venv-biped-train` 볼륨도 없습니다. 정책 학습은 GPU PC([DGX Spark](dgx-spark.md#7-tron1-보행-ppo-학습용-가상환경-venv-biped-train--jax-gpu) · 우분투 24.04 + RTX 3090 등)에서 하고, 결과 `.npz` 만 저장소로 가져와 쓰세요. TRON1 시뮬·교육 자체는 Docker 에서 할 수 있습니다.
 
 ### 확인한 것과 못 한 것
 

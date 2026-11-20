@@ -1,11 +1,11 @@
 #!/bin/bash
-# 바퀴형 회귀 시험: 사용  [VIEW=1] [MAX_STEPS=20] bash mission_test.sh <기록 이름> ["자연어 명령"]   (04_setup_workspace.sh 로 빌드 후. 로그: $LOG_DIR, 기본 /tmp/wheel_logs)
+# 바퀴형 회귀 시험: 사용  [VIEW=1] [MAX_STEPS=20] bash mission_test.sh <기록 이름> ["자연어 명령"]   (mobile_openarm/scripts/setup_workspace.sh 로 빌드 후. 로그: $LOG_DIR, 기본 /tmp/wheel_logs)
 # 전체 시스템(시뮬 + Nav2 + MoveIt + 작업 관리자 + 오프라인 플래너)을 띄우고 자연어 명령 하나를 끝까지 실행한 뒤,
 # /sim/objects 정답 위치로 상자가 놓기 작업대 위에 있는지, 팔이 어디에 닿았는지(contact_recorder.py) 확인한다. 명령 전달·기록은 mission_cli.py.
 # MAX_STEPS: 계획 최대 단계(바퀴형 기본 12 — "상자 모두 옮기고 돌아와" 13 단계는 20 으로 올려야 함)
 tag=$1; cmd=${2:-"빨간 상자를 왼쪽 작업대로 옮기고 돌아와"}
 S=${LOG_DIR:-/tmp/wheel_logs}; mkdir -p $S; D=$(cd "$(dirname "$0")" && pwd)
-cd "$D/../.." && source /opt/ros/jazzy/setup.bash && source .venv-mobile/bin/activate && source install/setup.bash
+cd "$D/../.." && source scripts/env.sh   # ROS 2 + .venv-mobile + 휠형 install
 [ -n "${MAX_STEPS:-}" ] && export OPENARM_MAX_STEPS=$MAX_STEPS
 V=$([ -n "${VIEW:-}" ] && echo true || echo false)
 L=$S/full_$tag.log

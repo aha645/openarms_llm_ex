@@ -28,14 +28,14 @@ md5sum tron1_openarm/src/tron1_openarm_sim/deployed_policies/tron1sf_openarm_pol
 
 ## 2. 새 컴퓨터 준비
 
-전제: Ubuntu 24.04 + ROS 2 Jazzy. 설치는 [Ubuntu 24.04 설치](../setup/ubuntu24-native.md) (Mac 은 [Docker](../setup/imac-docker.md), DGX Spark 는 [DGX](../setup/dgx-spark.md)).
+전제: Ubuntu 24.04 + ROS 2 Jazzy. 설치는 [Ubuntu 24.04 + RTX 3090 설치](../setup/ubuntu24-rtx3090.md) (Mac 은 [Docker](../setup/imac-docker.md), DGX Spark 는 [DGX](../setup/dgx-spark.md)).
 GPU 가 없어도 돌지만 느립니다 (아래 7절).
 
 ```bash
 git clone https://github.com/aha645/openarms_llm_ex.git
 cd openarms_llm_ex
 bash tron1_openarm/scripts/setup_workspace.sh          # .venv-biped 생성, 자체 점검, TRON1 빌드 (휠형 설치 불필요)
-source tron1_openarm/install/setup.bash                # 새 터미널마다
+source tron1_openarm/scripts/env.sh                    # 새 터미널마다 (ROS 2 + .venv-biped + TRON1 패키지)
 ```
 
 - 스크립트는 저장소의 모델을 **덮어쓰지 않습니다**. 자체 점검이 `총 10개 중 실패 0개`면 정상입니다.
@@ -77,7 +77,7 @@ ros2 launch tron1_openarm_sim full_system.launch.py foot:=sf planner:=offline bo
 ```bash
 # (a) 웹 대시보드: 브라우저 http://localhost:8080 → 명령 입력
 # (b) 터미널 2:
-source tron1_openarm/install/setup.bash
+source tron1_openarm/scripts/env.sh
 ros2 topic pub --once /task/command std_msgs/msg/String "data: '빨간 상자를 왼쪽 작업대로 옮기고 돌아와'"
 # (c) 진행 기록까지 보기:
 python3 tron1_openarm/tools/validation/mission_cli.py "초록 상자를 오른쪽 작업대로 옮기고 돌아와" 1500
@@ -124,7 +124,7 @@ cp 새정책.npz tron1_openarm/src/tron1_openarm_sim/deployed_policies/tron1sf_o
 git checkout tron1_openarm/src/tron1_openarm_sim/deployed_policies/tron1sf_openarm_policy.npz     # 저장소 버전으로 되돌리기
 ```
 
-정책 학습·평가는 [보행 학습](locomotion-rl.md) (`tron1_openarm/scripts/12_train_mjx.sh`, `rl/eval_policy.py`).
+정책 학습·평가는 [보행 학습](locomotion-rl.md) (`tron1_openarm/scripts/train_ppo_gpu.sh`, `rl/eval_policy.py`).
 
 ## 7. 느린 컴퓨터 · 문제 해결
 
@@ -142,9 +142,9 @@ git checkout tron1_openarm/src/tron1_openarm_sim/deployed_policies/tron1sf_opena
 원본은 `third_party/` 에 받고(git 에 안 올라감), 생성 파일을 덮어씁니다.
 
 ```bash
-bash tron1_openarm/scripts/13_regen_tron1_models.sh     # TRON1: limxdynamics/tron1-robot-description + openarm_mujoco
+bash tron1_openarm/scripts/regen_models.sh     # TRON1: limxdynamics/tron1-robot-description + openarm_mujoco
 git diff --stat                                          # 바뀐 생성 파일 확인
-# 특정 원본 커밋으로: TRON1_DESC_REF=<커밋> OPENARM_MUJOCO_REF=<커밋> bash tron1_openarm/scripts/13_regen_tron1_models.sh
+# 특정 원본 커밋으로: TRON1_DESC_REF=<커밋> OPENARM_MUJOCO_REF=<커밋> bash tron1_openarm/scripts/regen_models.sh
 ```
 
 현재 저장소 모델은 아래 원본 커밋으로 다시 만들면 **바이트 단위로 같게** 나옵니다 (`MESHES_NOTICE.md`):

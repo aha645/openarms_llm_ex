@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# 노트북 사양/상태 점검 (설치 전에 실행)
+# Ubuntu 24.04 PC 사양/상태 점검 (설치 전에 실행, 휠형·TRON1 공통)
+#   사용: bash doc/setup/check_system.sh   (출력만 하고 아무것도 설치하지 않음)
 echo "== OS ==";      lsb_release -ds 2>/dev/null || cat /etc/os-release | head -2
 echo "== 커널 ==";    uname -r
 echo "== CPU ==";     lscpu | grep -E "Model name|^CPU\(s\)"

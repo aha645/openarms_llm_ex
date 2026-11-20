@@ -7,7 +7,7 @@
 #       SIM_START=2.70,2.45,1.5708 bash pick_test.sh sf _o1  → 시뮬레이터 속 로봇만 다른 곳에 세움 (집기 앱은 2.5, 2.45 로 믿음 = 지도 위치 오차 흉내)
 # 시뮬 + MoveIt 을 띄우고, 정답 기록기(grasp_recorder.py)를 켠 채 pick_place 를 한 번 실행한 뒤 결과를 요약한다
 foot=$1; tag=$2; S=${LOG_DIR:-/tmp/tron1_logs}; mkdir -p $S; D=$(cd "$(dirname "$0")" && pwd)
-cd "$D/../.." && source install/setup.bash   # tron1_openarm 워크스페이스 (바퀴형과 같이 쓰는 패키지도 이 안에 빌드됨)
+cd "$D/../.." && source scripts/env.sh   # ROS 2 + .venv-biped + TRON1 install
 V=false; [ "${VIEW:-0}" = 1 ] && V=true
 BA=(); [ -n "${BOXES:-}" ] && BA=("box_poses:=$BOXES")   # 빈 값(box_poses:=)은 ros2 launch 가 거부
 BA+=("box_source:=${BOX_SOURCE:-color}")

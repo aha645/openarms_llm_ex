@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""학습 과정 보기 — 학습(train_mjx.py)은 GPU 에서 화면 없이 수천 대를 동시에 돌리므로, 두 창으로 따로 본다.
+"""학습 과정 보기 — 학습(train_ppo_gpu.py)은 GPU 에서 화면 없이 수천 대를 동시에 돌리므로, 두 창으로 따로 본다.
 
     python3 watch_training.py plot <학습 폴더>    # 학습 지표 그래프 (10 s 마다 log.json 을 다시 그림)
     python3 watch_training.py play <학습 폴더>    # MuJoCo 뷰어: 가장 최근 중간 정책으로 앞·뒤·옆 걷기를 되풀이 (가벼운 모델)
     python3 watch_training.py play <학습 폴더> --full   # 전체 메시 모델 (학습이 GPU 를 다 쓰는 동안에는 느림)
-    (학습 폴더 = train_mjx.py --out. 중간 정책은 --ck-min 분마다 ckNNNmin.npz 로 저장됨)
+    (학습 폴더 = train_ppo_gpu.py --out. 중간 정책은 --ck-min 분마다 ckNNNmin.npz 로 저장됨)
 
 play: (OpenCV 창, q 로 끝내기) 전진 0.6 → 후진 0.4 → 왼쪽 0.3 → 오른쪽 0.3 m/s (각 6 s, 사이 2 s 서기)를 반복하고, 한 바퀴가 끝날 때 새 중간 정책이
 있으면 바꿔 끼운다. 화면 왼쪽 위: 정책 파일, 명령, 실제 속도(몸통 기준, 1 s 평균), 발 들기(두 발 높이 차, 관절 각도 정기구학
