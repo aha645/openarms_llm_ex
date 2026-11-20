@@ -2,9 +2,8 @@
 """MJCF 의 양손(openarm_*_hand)에 손목 카메라를 단다 (그 자리에서 파일 수정, 이미 있으면 건드리지 않음).
 값은 mobile_openarm_sim/wrist_cameras.py. 학습용 모델(*_train.xml)에는 달지 않는다 (카메라를 안 쓰고, MJX 모델을 바꾸지 않으려고).
 
-    python3 tools/wrist_cameras.py mjcf/mobile_openarm.xml mjcf/mobile_openarm_light.xml          # 바퀴형
-    python3 tools/wrist_cameras.py mjcf/sf/tron1_openarm.xml mjcf/sf/tron1_openarm_light.xml mjcf/tron1_openarm.xml mjcf/tron1_openarm_light.xml
-05_regen_models.sh(바퀴형)·build_tron1_openarm.py(TRON1) 가 모델을 새로 만들 때도 자동으로 적용한다.
+    python3 tools/wrist_cameras.py mjcf/mobile_openarm.xml mjcf/mobile_openarm_light.xml
+05_regen_models.sh 가 모델을 새로 만들 때도 자동으로 적용한다.
 """
 import os
 import re

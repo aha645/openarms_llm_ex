@@ -8,7 +8,7 @@
 > 오른팔로 **집어서 같은 작업대의 다른 자리에 내려놓는다.** 그다음 초록·파란 상자로도 해 본다.
 
 > **상자 인식 기본값은 색(`box_source:=color`)입니다.** 상자 윗면 마커를 지우고 빨강·초록·파랑 색 영역 + 깊이로 윗면 중심·방향을 구해
-> 마커와 같은 번호(id 0·1·2)로 냅니다(`color_boxes.py`, TRON1 과 같음). 이 장의 ArUco 마커 인식 과정을 직접 보려면
+> 마커와 같은 번호(id 0·1·2)로 냅니다(`color_boxes.py`). 이 장의 ArUco 마커 인식 과정을 직접 보려면
 > 시뮬레이터 launch 명령 끝에 `box_source:=aruco` 를 붙이세요. 집기·놓기 앱은 두 방식에서 똑같이 동작합니다.
 
 ## 이 장에 나오는 용어
@@ -44,7 +44,7 @@
 3. **깊이 보정**: 4 cm 마커는 640×480 영상에서 약 23픽셀이라 PnP만으로는 거리 오차가 5~15%(4.5~11 cm) 납니다. 그래서 RGB-D(Red Green Blue + Depth, 컬러+깊이) 카메라처럼 **깊이 영상**으로 거리를 다시 잽니다. 오차 1~3 mm.
 4. **좌표 변환(TF)**: `head_camera_optical_frame` 기준 → `base_footprint`(로봇 바닥 중심) 기준으로 바꿔 `/aruco/detections` 에 JSON으로 발행합니다.
 
-시뮬레이션에서는 카메라 서버 `sim_cameras`(`camera_server.py`, TRON1 과 같은 코드)가 별도 프로세스에서 **머리 RGB-D 카메라와 양 손목 카메라**를 렌더링·검출합니다(`camera_process:=false` 면 예전처럼 `mujoco_bridge` 가 머리 카메라만). 실로봇에서는 `aruco_detector` 노드가 같은 형식으로 대신합니다.
+시뮬레이션에서는 카메라 서버 `sim_cameras`(`camera_server.py`)가 별도 프로세스에서 **머리 RGB-D 카메라와 양 손목 카메라**를 렌더링·검출합니다(`camera_process:=false` 면 예전처럼 `mujoco_bridge` 가 머리 카메라만). 실로봇에서는 `aruco_detector` 노드가 같은 형식으로 대신합니다.
 
 **손목 카메라**는 손의 바깥쪽(손 −x, 8.5 cm 브래킷)에 달려 손끝 앞 상자를 비스듬히 내려다봅니다. 카메라와 손끝이 한 몸이라 '손끝 기준 상자 위치'(`/wrist_*_camera/aruco/detections` 의 `position_tcp`)를 팔 처짐과 상관없이 바로 잽니다. 집기 앱은 이 검출이 들어오면 접근점·파지 위치에서 손을 상자에 맞추며(`visual_servo`) 들어갑니다.
 

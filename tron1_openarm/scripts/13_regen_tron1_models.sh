@@ -30,26 +30,23 @@ echo "tron1-robot-description: $(git -C "$T1/third_party/tron1-robot-description
 echo "openarm_mujoco:          $(git -C "$T1/third_party/openarm_mujoco" log -1 --format='%H %cs')"
 D=$T1/third_party/tron1-robot-description/pointfoot
 OA=$T1/third_party/openarm_mujoco/v1/openarm_bimanual.xml
-WT=$T1/src/mobile_openarm_sim/tools                         # 공통 생성 도구 (월드·URDF 변환·손목 카메라)
-SRDF_TOOL=$T1/src/mobile_openarm_moveit_config/tools/make_srdf.py
+SRDF_TOOL=$T1/src/tron1_openarm_moveit_config/tools/make_srdf.py
 cd "$SIM"
 # Point-foot
 "$PY" tools/build_tron1_openarm.py --tron1 "$D/PF_TRON1A" --openarm "$OA" --out mjcf
-"$PY" tools/build_world_tron1.py --wheeled-tools "$WT" --out mjcf --config config
-"$PY" tools/make_urdf_tron1.py --wheeled-tools "$WT" --mjcf mjcf/tron1_openarm.xml --out urdf/tron1_openarm.urdf
+"$PY" tools/build_world_tron1.py --out mjcf --config config
+"$PY" tools/make_urdf_tron1.py --mjcf mjcf/tron1_openarm.xml --out urdf/tron1_openarm.urdf
 "$PY" "$SRDF_TOOL" --mjcf mjcf/tron1_openarm.xml --out "$MV/tron1_openarm.srdf" --samples 2000
-sed -i 's/<robot name="mobile_openarm">/<robot name="tron1_openarm">/' "$MV/tron1_openarm.srdf"
 "$PY" tools/patch_srdf_home.py "$MV/tron1_openarm.srdf"
 # Sole-foot (교육 기준). SF 월드는 PF 와 같은 config 를 쓰므로 여기서 생기는 config 는 버린다
 "$PY" tools/build_tron1_openarm.py --foot sf --base-height 0.73 --tron1 "$D/SF_TRON1A" --openarm "$OA" --out mjcf/sf
 TMPCFG=$(mktemp -d)
-"$PY" tools/build_world_tron1.py --wheeled-tools "$WT" --out mjcf/sf --config "$TMPCFG"
+"$PY" tools/build_world_tron1.py --out mjcf/sf --config "$TMPCFG"
 rm -rf "$TMPCFG"
-"$PY" tools/make_urdf_tron1.py --wheeled-tools "$WT" --mjcf mjcf/sf/tron1_openarm.xml --out urdf/tron1_openarm_sf.urdf \
+"$PY" tools/make_urdf_tron1.py --mjcf mjcf/sf/tron1_openarm.xml --out urdf/tron1_openarm_sf.urdf \
         --base-height 0.73 --mesh-prefix package://tron1_openarm_sim/mjcf/sf/
 "$PY" "$SRDF_TOOL" --mjcf mjcf/sf/tron1_openarm.xml --out "$MV/tron1_openarm_sf.srdf" --samples 2000
-sed -i 's/<robot name="mobile_openarm">/<robot name="tron1_openarm">/' "$MV/tron1_openarm_sf.srdf"
 "$PY" tools/patch_srdf_home.py "$MV/tron1_openarm_sf.srdf"
-"$PY" tools/make_nav2_params_tron1.py --src "$T1/src/mobile_openarm_sim/config/nav2_params.yaml" --out config/nav2_params_tron1.yaml
+"$PY" tools/make_nav2_params_tron1.py --src tools/nav2_params_base.yaml --out config/nav2_params_tron1.yaml
 echo "모델 재생성 완료. git diff 로 확인한 뒤 setup_workspace.sh(자체 점검·빌드)를 다시 실행하세요."
 echo "원본 버전을 바꿨다면 src/tron1_openarm_sim/mjcf/MESHES_NOTICE.md 의 커밋도 고치세요."

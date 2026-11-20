@@ -8,7 +8,7 @@ mode: new = 시뮬의 파지 보조(sim_core._update_attached), weld = 이 스�
 import sys, os, math, json
 import numpy as np, mujoco
 SIM = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
-sys.path.insert(0, SIM); sys.path.insert(0, SIM + '/../mobile_openarm_sim')
+sys.path.insert(0, SIM)
 from tron1_openarm_sim.biped_core import BipedOpenArmSim
 from tron1_openarm_sim.arm_poses import POSES
 mode = sys.argv[1]

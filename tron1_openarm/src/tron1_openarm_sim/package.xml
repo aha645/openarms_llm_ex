@@ -2,16 +2,30 @@
 <package format="3">
   <name>tron1_openarm_sim</name>
   <version>0.1.0</version>
-  <description>LimX TRON1 Point-foot 하반신 + OpenArm v1 양팔 상반신 MuJoCo 시뮬레이션과 ROS 2 브리지 (보행 RL 정책 포함)</description>
+  <description>LimX TRON1 (Point-foot / Sole-foot) 하반신 + OpenArm v1 양팔 상반신 MuJoCo 시뮬레이션과 ROS 2 브리지 (보행 RL 정책, 카메라 서버 포함)</description>
   <maintainer email="user@example.com">student</maintainer>
   <license>Apache-2.0</license>
-  <exec_depend>mobile_openarm_sim</exec_depend>
   <exec_depend>rclpy</exec_depend>
+  <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>std_srvs</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>nav_msgs</exec_depend>
+  <exec_depend>visualization_msgs</exec_depend>
+  <exec_depend>rosgraph_msgs</exec_depend>
+  <exec_depend>control_msgs</exec_depend>
+  <exec_depend>tf2_ros</exec_depend>
   <exec_depend>robot_state_publisher</exec_depend>
+  <exec_depend>robot_localization</exec_depend>
   <exec_depend>rviz2</exec_depend>
   <exec_depend>nav2_bringup</exec_depend>
   <exec_depend>slam_toolbox</exec_depend>
   <exec_depend>xacro</exec_depend>
+  <exec_depend>python3-opencv</exec_depend>
+  <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
+  <!-- mujoco 파이썬 패키지는 rosdep 키가 없어 pip 로 .venv-biped 에 설치 (scripts/setup_venv_biped.sh) -->
   <export>
     <build_type>ament_python</build_type>
   </export>

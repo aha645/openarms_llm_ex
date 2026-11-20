@@ -12,7 +12,7 @@
 | 🆕 / 🟢 / ⚪ | 새로 열기 / 계속 실행 / 바로 끝남 | 상태표 표기. 🟢 는 launch·teleop·`echo`·`hz` 처럼 끝나지 않고 터미널을 붙잡는 명령, ⚪ 는 결과를 받으면 프롬프트가 돌아오는 명령 |
 | `Ctrl+C` | — | 그 터미널에서 실행 중인 프로그램을 멈추는 키. 🟢 터미널에 다른 명령을 입력하려면 먼저 누름 |
 | `source` | — | 설정 파일(`setup.bash`, `activate`)을 **현재 터미널에만** 적용하는 셸 명령. 새 터미널마다 다시 필요(또는 `~/.bashrc` 에 넣어 자동화) |
-| `export` | — | 환경 변수를 현재 터미널에 설정 (예: `OPENAI_API_KEY`, `OPENARM_BIPED`). 다른 터미널에는 전달되지 않음 |
+| `export` | — | 환경 변수를 현재 터미널에 설정 (예: `OPENAI_API_KEY`, `OPENARM_MAX_STEPS`). 다른 터미널에는 전달되지 않음 |
 
 ## 로봇·ROS 기본
 
@@ -30,7 +30,7 @@
 | DDS | Data Distribution Service, 데이터 분배 서비스 | ROS 2가 내부에서 쓰는 통신 표준 |
 | lifecycle | managed node, 수명 주기 노드 | 설정 → 활성 순서로 켜지는 노드. Nav2 노드가 이 방식이며 `Managed nodes are active` 는 모두 활성화되어 준비됐다는 뜻 |
 | rosdep | — | 패키지가 필요로 하는 시스템(apt) 의존성을 찾아 설치하는 도구 |
-| overlay / underlay | — | 이미 빌드한 워크스페이스(underlay, 예: `/opt/ros/jazzy`) 위에 다른 워크스페이스(overlay)를 겹쳐 쓰는 방식. 나중에 `source` 한 쪽의 같은 이름 패키지가 앞선다. 이 저장소의 `mobile_openarm/` 과 `tron1_openarm/` 은 서로 겹치지 않는 독립 워크스페이스 |
+| overlay / underlay | — | 이미 빌드한 워크스페이스(underlay, 예: `/opt/ros/jazzy`) 위에 다른 워크스페이스(overlay)를 겹쳐 쓰는 방식. 나중에 `source` 한 쪽의 같은 이름 패키지가 앞선다. 이 저장소의 `mobile_openarm/` 과 `tron1_openarm/` 은 서로 겹치지 않는 독립 워크스페이스이고, 패키지 이름도 다르다(`mobile_openarm_*` / `tron1_openarm_*`) |
 | `--symlink-install` | — | colcon 옵션. 설치 폴더에 소스 파일을 복사하지 않고 링크를 걸어, Python 소스를 고치면 다시 빌드하지 않아도 반영됨 |
 
 ## 시뮬레이션·모델

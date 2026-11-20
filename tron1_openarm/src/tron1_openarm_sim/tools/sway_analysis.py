@@ -7,7 +7,7 @@
   팔 몫   = 실제 손끝 − (실제 몸통 자세 + 명령 관절각) = 관절 추종 오차(중력 처짐)
 """
 import sys, json, math, numpy as np, mujoco
-sys.path.insert(0, '.'); sys.path.insert(0, '../mobile_openarm_sim')
+sys.path.insert(0, '.')
 from tron1_openarm_sim.biped_core import BipedOpenArmSim
 from tron1_openarm_sim.arm_poses import RIGHT as ARM_POSES
 world, policy, variant = sys.argv[1], sys.argv[2], sys.argv[3]

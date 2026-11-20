@@ -6,7 +6,7 @@
     ros2 launch mobile_openarm_sim sim.launch.py box_source:=aruco       # 상자 윗면 ArUco 마커로 인식 (기본 color: 마커 없이 색+깊이)
 
 카메라 (camera_process:=true, 기본): 머리 RGB-D 카메라와 양 손목 카메라를 별도 프로세스(sim_cameras = camera_server.py)가
-렌더링·검출·JPEG 압축해 발행한다 (TRON1 과 같은 코드). 손목 카메라 검출(/wrist_*_camera/aruco/detections)이 들어오면
+렌더링·검출·JPEG 압축해 발행한다. 손목 카메라 검출(/wrist_*_camera/aruco/detections)이 들어오면
 집기 앱이 손끝 기준 상자 위치로 손을 맞추며(visual_servo) 잡는다.
 """
 import os
@@ -24,7 +24,7 @@ SHM = "mobile_sim_state"
 
 def _setup(context):
     """브리지 (+ camera_process 면 카메라 서버). 카메라 서버가 있으면 브리지는 자기 카메라를 끄고 렌더링에 필요한 상태만
-    공유 메모리로 넘긴다 (TRON1 sim.launch.py 와 같은 방식)."""
+    공유 메모리로 넘긴다."""
     lc = LaunchConfiguration
     on = lambda n: lc(n).perform(context).lower() in ("true", "1")  # noqa: E731
     share = get_package_share_directory("mobile_openarm_sim")

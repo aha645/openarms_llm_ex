@@ -1,10 +1,10 @@
 #!/bin/bash
 # 바퀴형 회귀 시험: 사용  [VIEW=1] [MAX_STEPS=20] bash mission_test.sh <기록 이름> ["자연어 명령"]   (04_setup_workspace.sh 로 빌드 후. 로그: $LOG_DIR, 기본 /tmp/wheel_logs)
 # 전체 시스템(시뮬 + Nav2 + MoveIt + 작업 관리자 + 오프라인 플래너)을 띄우고 자연어 명령 하나를 끝까지 실행한 뒤,
-# /sim/objects 정답 위치로 상자가 놓기 작업대 위에 있는지, 팔이 어디에 닿았는지(contact_recorder.py) 확인한다. 명령 전달·기록은 TRON1 의 mission_cli.py 를 같이 쓴다.
+# /sim/objects 정답 위치로 상자가 놓기 작업대 위에 있는지, 팔이 어디에 닿았는지(contact_recorder.py) 확인한다. 명령 전달·기록은 mission_cli.py.
 # MAX_STEPS: 계획 최대 단계(바퀴형 기본 12 — "상자 모두 옮기고 돌아와" 13 단계는 20 으로 올려야 함)
 tag=$1; cmd=${2:-"빨간 상자를 왼쪽 작업대로 옮기고 돌아와"}
-S=${LOG_DIR:-/tmp/wheel_logs}; mkdir -p $S; D=$(cd "$(dirname "$0")" && pwd); ROOT=$(cd "$D/../../.." && pwd)
+S=${LOG_DIR:-/tmp/wheel_logs}; mkdir -p $S; D=$(cd "$(dirname "$0")" && pwd)
 cd "$D/../.." && source /opt/ros/jazzy/setup.bash && source .venv-mobile/bin/activate && source install/setup.bash
 [ -n "${MAX_STEPS:-}" ] && export OPENARM_MAX_STEPS=$MAX_STEPS
 V=$([ -n "${VIEW:-}" ] && echo true || echo false)
@@ -24,7 +24,7 @@ fi
 python3 $D/contact_recorder.py $S/contacts_$tag.log > /dev/null 2>&1 &
 CR=$!
 T0=$(date +%s)
-timeout 6000 python3 $ROOT/tron1_openarm/tools/validation/mission_cli.py "$cmd" 5800 > $S/mission_$tag.log 2>&1
+timeout 6000 python3 $D/mission_cli.py "$cmd" 5800 > $S/mission_$tag.log 2>&1
 echo "=== 미션 ($(( $(date +%s) - T0 )) s): $cmd"; grep -E "^LOG|state=|FINAL" $S/mission_$tag.log | tail -40
 python3 - <<'PY'
 import json, rclpy

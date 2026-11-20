@@ -13,10 +13,10 @@ import sys
 
 import numpy as np
 
-sys.path.insert(0, '.'); sys.path.insert(0, '../mobile_openarm_sim')
+sys.path.insert(0, '.')
 from tron1_openarm_sim.biped_core import BipedOpenArmSim  # noqa: E402
 from tron1_openarm_sim.arm_poses import POSES  # noqa: E402
-from mobile_openarm_sim.sim_core import yaw_of  # noqa: E402
+from tron1_openarm_sim.sim_core import yaw_of  # noqa: E402
 
 
 def tilt_deg(q):

@@ -366,9 +366,8 @@ class MobileOpenArmSim:
     def _update_attached(self):
         """파지 보조: 그리퍼를 닫는 중 두 손가락이 모두 상자에 닿으면 그때의 상대 자세로 손끝↔상자 weld 를 켠다. 열면 끈다.
         예전에는 손가락 하나만 닿아도 '부착' 하고, 매 스텝 상자 위치를 손끝 기준으로 덮어쓰며 속도를 0 으로 만들었다.
-        그러면 상자가 공중에 고정된 무한 질량 물체가 되어, 나머지 손가락이 닫히며 그 상자를 400 N 넘게 밀고 반작용이 팔→몸통→다리로
-        그대로 전해졌다 (이족: 쥐고·놓을 때마다 하체가 떨리고 발을 디딤, 상자가 손가락 사이 1 cm 비켜 있으면 1 m 밀려 넘어짐 —
-        오프라인 비교). weld 는 손과 상자 사이의 내력이라 쥐는 힘이 몸통을 밀지 않는다 (같은 조건 0.35 cm, 서기 풀림 0)."""
+        그러면 상자가 공중에 고정된 무한 질량 물체가 되어, 나머지 손가락이 닫히며 그 상자를 400 N 넘게 밀고 반작용이 팔→몸통으로
+        그대로 전해졌다. weld 는 손과 상자 사이의 내력이라 쥐는 힘이 몸통을 밀지 않는다."""
         if not self.grasp_assist:
             return
         m, d = self.m, self.d
@@ -495,7 +494,6 @@ class MobileOpenArmSim:
             self.renderer = mujoco.Renderer(self.m, self.cam_h, self.cam_w)
         with self.lock:
             self.renderer.update_scene(self.d, camera=self.cam_id)
-            self._camera_scene_hook(self.renderer.scene)
             T_base_opt = self.camera_optical_in_base()
         rgb = self.renderer.render().copy()
         dets = self.aruco.detect(rgb)
@@ -504,7 +502,6 @@ class MobileOpenArmSim:
             # (640x480 에서 4cm 마커는 ~23px 라 PnP 깊이 오차가 5~15% 로 큼)
             self.renderer.enable_depth_rendering()
             self.renderer.update_scene(self.d, camera=self.cam_id)
-            self._camera_scene_hook(self.renderer.scene)
             depth = self.renderer.render().copy()
             self.renderer.disable_depth_rendering()
             self.last_depth = depth
@@ -525,9 +522,6 @@ class MobileOpenArmSim:
         self.last_image = rgb
         self.last_detections = dets
         return rgb, dets
-
-    def _camera_scene_hook(self, scene):
-        """카메라 렌더 직전 장면 설정을 바꿀 자리 (기본: 그대로). 하위 클래스가 그림자 끄기 등에 사용."""
 
     def camera_optical_in_base(self):
         """base_link → head_camera_optical_frame (x 오른쪽, y 아래, z 전방) 변환 4x4."""
@@ -550,7 +544,7 @@ class MobileOpenArmSim:
         sim0 = self.d.time
         last_view = 0.0
         # 뷰어 갱신 주기. sync 는 뷰어가 한 장면을 다 그릴 때까지 기다리므로 그동안 물리가 멈춘다.
-        # TRON1 전체 메시 모델·큰 창(2560x1440)에서 한 장면 약 26 ms → 30 Hz 면 1 초 중 0.78 s 를 기다려 실시간의 0.5 배로 돌았다
+        # 메시가 많은 모델·큰 창(2560x1440)에서 한 장면 약 26 ms → 30 Hz 면 1 초 중 0.78 s 를 기다려 실시간의 0.5 배로 돈 적이 있다
         view_period = 1.0 / float(os.environ.get("SIM_VIEW_HZ", 30.0))
         while not stop_event.is_set():
             self.step(steps_per_tick)

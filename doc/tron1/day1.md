@@ -19,9 +19,10 @@ ros2 pkg prefix tron1_openarm_sim
 
 1. 시뮬용 가상환경 `tron1_openarm/.venv-biped` 생성 (`setup_venv_biped.sh` — mujoco·openai·pydantic v2·flask, NumPy 는 ROS 버전 고정)
 2. 시뮬 자체 점검 (ROS 없이 서기·걷기·회전·팔 동작·LiDAR·카메라, `총 10개 중 실패 0개` 면 정상)
-3. `tron1_openarm/src` 의 패키지 5 개를 이 가상환경의 Python 으로 빌드
-   - TRON1: `tron1_openarm_sim`(모델·월드·브리지·launch·보행 정책), `tron1_openarm_moveit_config`
-   - 공통: `mobile_openarm_sim`(시뮬 코어·카메라 서버), `mobile_openarm_apps`(집기 앱·작업 관리자·LLM·대시보드), `mobile_openarm_moveit_config` — 휠형과 같은 코드를 TRON1 폴더에 따로 둔 것
+3. `tron1_openarm/src` 의 패키지 3 개를 이 가상환경의 Python 으로 빌드 (휠형 코드는 쓰지 않음)
+   - `tron1_openarm_sim`: 모델·월드·보행 정책·브리지(`tron1_bridge`)·카메라 서버(`tron1_cameras`)·launch
+   - `tron1_openarm_moveit_config`: MoveIt 설정(다리 포함 URDF·SRDF)
+   - `tron1_openarm_apps`: 로봇 스킬(집기·놓기·옆걸음)·작업 관리자·LLM 계획기·웹 대시보드·실습 노드
 
 모델·메시·보행 정책(SF v3)은 저장소에 들어 있어 내려받거나 만들지 않습니다. 직접 다시 빌드할 때: `cd tron1_openarm && .venv-biped/bin/python -m colcon build --symlink-install --base-paths src`.
 
@@ -55,18 +56,19 @@ source tron1_openarm/.venv-biped/bin/activate   # python3 를 직접 실행할 �
 ```text
 tron1_openarm/src/tron1_openarm_sim/
   tools/build_tron1_openarm.py       # TRON1 description + OpenArm 결합, PF/SF
-  tools/build_world_tron1.py         # 공통 월드 생성 도구 재사용
-  tools/make_urdf_tron1.py           # ROS용 URDF 생성
+  tools/build_world_tron1.py         # 실습 월드 생성 (tools/build_world.py)
+  tools/make_urdf_tron1.py           # ROS용 URDF 생성 (tools/mjcf_to_urdf.py)
   tron1_openarm_sim/
     locomotion_policy.py            # npz 정책 추론
-    biped_core.py                   # 다리 제어·보행·오도메트리
-    bridge_biped.py                 # 공통 ROS 인터페이스에 이족 코어 연결
+    biped_core.py                   # 다리 제어·보행·오도메트리 (sim_core.py 의 팔·센서·파지 보조 기반 클래스를 상속)
+    bridge_node.py                  # ROS 2 인터페이스 (실행 파일 tron1_bridge)
+    camera_server.py                # 머리·손목 카메라 렌더·검출 (실행 파일 tron1_cameras)
   launch/                           # sim, slam, nav, full_system
   deployed_policies/                # 시뮬이 불러오는 PF/SF 보행 정책
   mjcf/                             # PF, sf/ 아래 SF 월드
 ```
 
-`/cmd_vel → 보행 정책 → 다리 관절 제어`가 하반신의 핵심 차이입니다. 휠형처럼 좌우 바퀴 속도로 변환하지 않습니다. 상위 앱은 `mobile_openarm/src/mobile_openarm_apps`를 재사용합니다. 자세한 설계: [모델 결합](design.md), [보행 정책](locomotion-rl.md).
+`/cmd_vel → 보행 정책 → 다리 관절 제어`가 하반신의 핵심 차이입니다. 휠형처럼 좌우 바퀴 속도로 변환하지 않습니다. 상위 앱은 TRON1 전용 패키지 `tron1_openarm/src/tron1_openarm_apps` 에 있습니다. 토픽·액션 이름은 휠형과 같아서 휠형 교육의 설명을 그대로 따라 읽을 수 있습니다. 자세한 설계: [모델 결합](design.md), [보행 정책](locomotion-rl.md).
 
 ### 휠형 명령과의 대응표
 
@@ -77,12 +79,12 @@ tron1_openarm/src/tron1_openarm_sim/
 | 1-03 TF | `tools/mjcf_to_urdf.py` | `tools/make_urdf_tron1.py`, `view_frames` 에 다리 링크 추가 |
 | 1-04 SLAM | `ros2 launch mobile_openarm_sim slam.launch.py` | `ros2 launch tron1_openarm_sim slam.launch.py` |
 | 1-05 Nav2 | `ros2 launch mobile_openarm_sim nav.launch.py` | `ros2 launch tron1_openarm_sim nav.launch.py` |
-| 1-06 순찰 | `ros2 run mobile_openarm_apps patrol` | 같음 (Nav2 만 TRON1 것을 켜 두면 됨) |
+| 1-06 순찰 | `ros2 run mobile_openarm_apps patrol` | `ros2 run tron1_openarm_apps patrol` (TRON1 nav 를 켜 둔 채) |
 | 2-01 MoveIt | `ros2 launch mobile_openarm_moveit_config move_group.launch.py` | `ros2 launch tron1_openarm_moveit_config move_group.launch.py` |
-| 2-02 Pick&Place | `sim.launch.py start_x:=2.5 start_y:=2.45 start_yaw:=1.5708` + `pick_place` | `tron1_openarm_sim sim.launch.py` 같은 인자 + 같은 `pick_place` |
-| 2-03 Nav+Pick | nav + move_group + `nav_pick_place` | TRON1 nav + TRON1 move_group + 같은 `nav_pick_place` |
-| 2-04 LLM | `llm_planner` | 같음 (로봇과 무관) |
-| 2-05 Task Manager | `task_manager` | 같음 |
+| 2-02 Pick&Place | `sim.launch.py start_x:=2.5 start_y:=2.45 start_yaw:=1.5708` + `pick_place` | `tron1_openarm_sim sim.launch.py` 같은 인자 + `ros2 run tron1_openarm_apps pick_place` |
+| 2-03 Nav+Pick | nav + move_group + `nav_pick_place` | TRON1 nav + TRON1 move_group + `tron1_openarm_apps nav_pick_place` |
+| 2-04 LLM | `mobile_openarm_apps llm_planner` | `tron1_openarm_apps llm_planner` (계획 규칙은 같고, 프롬프트의 로봇 설명·최대 단계 수 20 이 다름) |
+| 2-05 Task Manager | `mobile_openarm_apps task_manager` | `tron1_openarm_apps task_manager` |
 | 2-06 최종 | `ros2 launch mobile_openarm_apps full_system.launch.py` | `ros2 launch tron1_openarm_sim full_system.launch.py` |
 
 모든 TRON1 launch 공통 인자: `foot:=sf|pf`(기본 sf), `world:=world_light.xml`(저사양), `viewer:=false`, `rviz:=false`, `policy:=<npz>`(보행 정책 바꾸기, `foot` 와 같은 발 형태). 느린 PC·GPU 없는 Docker는 `camera_hz:=5.0 lidar_rays:=180 rate_factor:=0.5`(sim·nav·full_system, slam은 `camera_hz` 제외).
@@ -129,7 +131,7 @@ T3 창을 클릭한 뒤 안내에 따라 속도를 낮춰 약 0.2~0.3 m/s로 짧
 
 **확인 기준:** 넘어짐 여부, 몸통 높이·기울기, 명령·추정속도, 정지 시 동작을 기록합니다. `/joint_states`에는 바퀴 대신 다리 관절이 포함됩니다. `/odom`과 `/ground_truth/pose`를 비교할 수 있지만 정답 위치를 실제 로봇에서 얻을 수 있는 센서값으로 혼동하지 않습니다.
 
-**소스:** `bridge_biped.py → biped_core.py → locomotion_policy.py`. `sim.launch.py`가 발 형태에 맞는 URDF·월드·정책을 선택하고 `TRON1_POLICY`를 설정합니다.
+**소스:** `bridge_node.py → biped_core.py → locomotion_policy.py`. `sim.launch.py`가 발 형태에 맞는 URDF·월드·정책을 선택하고 `TRON1_POLICY`를 설정합니다.
 
 **휠형과 다른 점** (통합 전 PF 기준 기록. 수치는 SF 와 다를 수 있음)
 
@@ -273,12 +275,12 @@ RViz Nav2 Goal로 빈 공간 목표를 지정합니다. 기본값은 생성된 `
 Nav2 유지, T2:
 
 ```bash
-ros2 run mobile_openarm_apps patrol --ros-args -p loops:=1 -p mode:=waypoints
+ros2 run tron1_openarm_apps patrol --ros-args -p loops:=1 -p mode:=waypoints
 ```
 
-**테스트:** 하반신이 바뀌어도 같은 Nav2 앱으로 순찰·home 복귀가 가능한지 확인합니다. 앱은 `mobile_openarm_sim/config/locations.yaml`을 읽으므로 휠 패키지도 설치되어 있어야 합니다.
+**테스트:** 하반신이 바뀌어도 같은 방식의 Nav2 앱으로 순찰·home 복귀가 가능한지 확인합니다. 앱은 `tron1_openarm_sim/config/locations.yaml` 을 읽습니다.
 
-**소스:** `mobile_openarm/src/mobile_openarm_apps/mobile_openarm_apps/patrol.py`는 그대로 사용하고 TRON1 Nav2/브리지만 교체합니다.
+**소스:** `tron1_openarm/src/tron1_openarm_apps/tron1_openarm_apps/patrol.py` (휠형 patrol 과 같은 코드를 TRON1 패키지에 둔 것).
 
 ## 1일차 완료 체크
 

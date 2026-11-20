@@ -5,10 +5,8 @@
     ... camera_hz:=5.0 lidar_rays:=180 rate_factor:=0.5   # 느린 PC / GPU 없는 Docker
     ... dashboard_host:=0.0.0.0                     # 같은 네트워크의 휴대폰에서도 접속 (인증 없음 주의)
 
-바퀴형 mobile_openarm_apps/full_system.launch.py 와 같은 구성. 하반신 관련 두 줄만 다르다:
-  nav.launch.py      : mobile_openarm_sim → tron1_openarm_sim (보행 브리지, 이족용 Nav2 파라미터)
-  move_group.launch  : mobile_openarm_moveit_config → tron1_openarm_moveit_config (URDF 에 다리 포함)
-Task Manager·대시보드·LLM 계획기·robot_skills 는 mobile_openarm_apps 의 것을 코드 수정 없이 그대로 쓴다.
+구성: nav.launch.py(시뮬 + 보행 브리지 + 카메라 서버 + Nav2) → 5 s 뒤 move_group.launch.py(MoveIt, URDF 에 다리 포함)
+→ 12 s 뒤 tron1_openarm_apps 의 task_manager(LLM 계획기 + robot_skills)·dashboard.
 """
 import os
 
@@ -20,14 +18,11 @@ from launch.substitutions import EnvironmentVariable, LaunchConfiguration
 from launch_ros.actions import Node
 
 
-def _srdf_env(context):
-    mv = get_package_share_directory("tron1_openarm_moveit_config")
+def _check_foot(context):
     foot = LaunchConfiguration("foot").perform(context)
     if foot not in ("pf", "sf"):
         raise RuntimeError(f"foot:={foot!r} 은(는) 잘못된 값입니다. foot 는 pf(Point-foot) 또는 sf(Sole-foot, 교육 기준) 입니다")
-    # robot_skills(DAY2 앱)가 이족용 이름 자세(팔을 벌린 home)를 쓰도록
-    return [SetEnvironmentVariable("OPENARM_SRDF", os.path.join(mv, "config", "tron1_openarm.srdf" if foot == "pf"
-                                                                else "tron1_openarm_sf.srdf"))]
+    return []
 
 
 def generate_launch_description():
@@ -36,10 +31,9 @@ def generate_launch_description():
     lc = LaunchConfiguration
     return LaunchDescription([
         DeclareLaunchArgument("foot", default_value="sf", description="sf = Sole-foot(발목 있음, 교육 기준), pf = Point-foot"),
-        OpaqueFunction(function=_srdf_env),
-        SetEnvironmentVariable("OPENARM_BIPED", "1"),      # robot_skills: 옆걸음(strafe)·출렁임 대기 사용
+        OpaqueFunction(function=_check_foot),
         DeclareLaunchArgument("planner", default_value="offline"),
-        # 계획 최대 단계 수 (llm_planner.MAX_STEPS, 공통 기본 12): 상자 3 개 운반이 13 단계라 TRON1 은 20
+        # 계획 최대 단계 수 (llm_planner.MAX_STEPS 기본 20 = 상자 3 개 운반 13 단계 + 순찰)
         DeclareLaunchArgument("max_steps", default_value="20"),
         SetEnvironmentVariable("OPENARM_MAX_STEPS", LaunchConfiguration("max_steps")),
         DeclareLaunchArgument("viewer", default_value="true"),
@@ -68,9 +62,9 @@ def generate_launch_description():
             PythonLaunchDescriptionSource(os.path.join(mv, "launch", "move_group.launch.py")),
             launch_arguments={"rviz": "false", "foot": lc("foot")}.items())]),
         TimerAction(period=12.0, actions=[
-            Node(package="mobile_openarm_apps", executable="task_manager", output="screen",
+            Node(package="tron1_openarm_apps", executable="task_manager", output="screen",
                  parameters=[{"planner": lc("planner")}]),
-            Node(package="mobile_openarm_apps", executable="dashboard", output="screen",
+            Node(package="tron1_openarm_apps", executable="dashboard", output="screen",
                  parameters=[{"host": lc("dashboard_host")}]),
         ]),
     ])

@@ -1,4 +1,4 @@
-# 자동 생성: tools/make_nav2_params_tron1.py (원본: mobile_openarm_sim/config/nav2_params.yaml)
+# 자동 생성: tools/make_nav2_params_tron1.py (원본: tools/nav2_params_base.yaml)
 amcl:
   ros__parameters:
     alpha1: 0.1

@@ -38,6 +38,6 @@ setup(
     maintainer_email="user@example.com",
     description="TRON1 (point-foot / sole-foot) + OpenArm MuJoCo simulation and ROS 2 bridge",
     license="Apache-2.0",
-    entry_points={"console_scripts": ["tron1_bridge = tron1_openarm_sim.bridge_biped:main",
-                                    "tron1_cameras = mobile_openarm_sim.camera_server:main"]},
+    entry_points={"console_scripts": ["tron1_bridge = tron1_openarm_sim.bridge_node:main",
+                                    "tron1_cameras = tron1_openarm_sim.camera_server:main"]},   # 머리 RGB-D + 양 손목 카메라 (별도 프로세스)
 )

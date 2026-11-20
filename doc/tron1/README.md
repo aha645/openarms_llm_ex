@@ -2,7 +2,7 @@
 
 [README](../../README.md) · [휠형 교육](../wheel/README.md) · [용어집](../glossary.md)
 
-바퀴형 실습 환경(`mobile_openarm/`)은 그대로 두고, `tron1_openarm/` 폴더에 **하반신만 LimX TRON1(이족)** 으로 바꾼 로봇을 따로 만들었습니다. 상반신 OpenArm 양팔, 실습 월드, SLAM·Nav2·MoveIt·ArUco·LLM 미션·웹 대시보드는 바퀴형과 같습니다. 교육은 전체 미션 완주 기록이 있는 **Sole-foot(SF)** 기준이며, launch 기본값도 SF(`foot:=sf`)입니다. Point-foot 은 `foot:=pf` 로 비교합니다.
+바퀴형 실습 환경(`mobile_openarm/`)은 그대로 두고, `tron1_openarm/` 폴더에 **하반신만 LimX TRON1(이족)** 으로 바꾼 로봇을 따로 만들었습니다. 상반신 OpenArm 양팔, 실습 월드, SLAM·Nav2·MoveIt·ArUco·LLM 미션·웹 대시보드는 바퀴형과 같은 구성이지만, 코드는 `tron1_openarm/src/` 의 TRON1 전용 패키지 3개(`tron1_openarm_sim`·`tron1_openarm_moveit_config`·`tron1_openarm_apps`)에 따로 들어 있고 휠형 코드를 쓰지 않습니다. 그래서 TRON1 에 맞춘 변경(옆걸음, 출렁임 대기, 팔·카메라 구성 변경 등)은 이 폴더 안에서만 하면 됩니다. 교육은 전체 미션 완주 기록이 있는 **Sole-foot(SF)** 기준이며, launch 기본값도 SF(`foot:=sf`)입니다. Point-foot 은 `foot:=pf` 로 비교합니다.
 
 ![TRON1 + OpenArm](../images/tron1_openarm.png)
 
@@ -49,12 +49,17 @@ tron1_openarm/
 │   ├── tron1_openarm_sim/          ROS 2 패키지: 모델·월드·브리지·launch·Nav2 설정·보행 정책
 │   │   ├── urdf/tron1_openarm.urdf.xacro   ← 새로 작성 (LimX xacro include + 상반신 마운트)
 │   │   ├── tools/build_tron1_openarm.py    ← xacro→URDF→MJCF + OpenArm 접목
-│   │   ├── tools/build_world_tron1.py, make_urdf_tron1.py, make_nav2_params_tron1.py, selftest_tron1.py
-│   │   ├── tron1_openarm_sim/locomotion_policy.py, biped_core.py, bridge_biped.py
+│   │   ├── tools/build_world_tron1.py(+build_world.py), make_urdf_tron1.py(+mjcf_to_urdf.py), make_nav2_params_tron1.py(+nav2_params_base.yaml),
+│   │   │         wrist_cameras.py, selftest_tron1.py, 오프라인 시험(color_box_test.py, table_edge_test.py …)
+│   │   ├── tron1_openarm_sim/locomotion_policy.py, biped_core.py(이족 시뮬), sim_core.py(팔·센서·파지 보조 기반 클래스),
+│   │   │                     bridge_node.py(ROS 2 브리지, 실행 파일 tron1_bridge), camera_server.py(실행 파일 tron1_cameras),
+│   │   │                     aruco_utils.py, color_boxes.py, table_edge.py, wrist_cameras.py, wrist_markers.py, sim_state_shm.py
 │   │   ├── mjcf/ (모델·메시, MESHES_NOTICE.md 에 출처), urdf/
 │   │   ├── deployed_policies/tron1sf_openarm_policy.npz (SF v3, 교육 기준), tron1_openarm_policy.npz (PF), limx_pf_tron1a_pretrained.npz (LimX 원본)
 │   │   └── launch/sim, slam, nav, full_system
-│   └── tron1_openarm_moveit_config/  MoveIt (다리 포함 URDF·SRDF, 팔 설정은 바퀴형과 동일)
+│   ├── tron1_openarm_moveit_config/  MoveIt (다리 포함 URDF·SRDF, tools/make_srdf.py)
+│   └── tron1_openarm_apps/         robot_skills(집기·놓기·옆걸음·시각 도킹·시각 피드백), task_manager, llm_planner, dashboard,
+│                                   실습 노드(arm_demo, pick_place, nav_pick_place, patrol, aruco_detector)
 ├── rl/                             강화학습: train_mjx.py, eval_policy.py, watch_training.py, export_onnx.py …
 │   ├── pretrained_limx/            학습 시작점 — LimX 공개 정책 원본 (PF·SF)
 │   └── eval_records/               평가 기록 (eval_results.json, eval_gait_history.json, gait_pick_tests.json)
