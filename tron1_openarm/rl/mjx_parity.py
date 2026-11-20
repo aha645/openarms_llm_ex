@@ -5,7 +5,7 @@
 랜덤화·밀기는 끄고, 환경 N 개 평균. 팔 자세는 두 환경 모두 같은 규칙으로 무작위.
 MJX 에서 학습한 정책이 CPU(배포 쪽 물리)에서도 같게 움직이려면 이 표가 비슷해야 한다.
 
-    python3 mjx_parity.py --foot sf --policy ../src/tron1_openarm_sim/policies/tron1sf_openarm_policy.npz
+    python3 mjx_parity.py --foot sf --policy ../src/tron1_openarm_sim/deployed_policies/tron1sf_openarm_policy.npz
 """
 import argparse
 import json
@@ -105,7 +105,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--foot", default="sf")
     ap.add_argument("--xml", default="")
-    ap.add_argument("--policy", default=os.path.join(ROOT, "src/tron1_openarm_sim/policies/tron1sf_openarm_policy.npz"))
+    ap.add_argument("--policy", default=os.path.join(ROOT, "src/tron1_openarm_sim/deployed_policies/tron1sf_openarm_policy.npz"))
     ap.add_argument("--n", type=int, default=256)
     ap.add_argument("--impl", choices=["jax", "warp"], default="jax", help="MJX 백엔드")
     ap.add_argument("--iterations", type=int, default=16)

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """보행 정책 평가 — 학습에 쓰지 않은 '배포 조건'(실습 월드, 물리 2 ms, 상반신 충돌 켜짐)에서 시험.
 
-    python3 eval_policy.py ../src/tron1_openarm_sim/policies/tron1sf_openarm_policy.npz ../src/tron1_openarm_sim/policies/tron1_openarm_policy.npz
-      (배포 정책 SF·PF 는 src/tron1_openarm_sim/policies/, ../policies/ 에는 LimX 사전학습 정책과 이 평가 기록만 있다)
+    python3 eval_policy.py ../src/tron1_openarm_sim/deployed_policies/tron1sf_openarm_policy.npz ../src/tron1_openarm_sim/deployed_policies/tron1_openarm_policy.npz
+      (배포 정책 SF·PF 는 src/tron1_openarm_sim/deployed_policies/, LimX 사전학습 정책은 rl/pretrained_limx/, 평가 기록은 rl/eval_records/)
 
 시험 항목 (각 정책, 시드 3개) — 바닥만 남기고 벽·기둥·작업대 충돌은 끔 (긴 걷기 시험이 벽에 막히지 않게)
   1. 제자리 30 s (명령 0)           : 넘어짐, 흐름(drift) 속도 [m/s], 회전 흐름 [rad/s]
@@ -183,8 +183,8 @@ def evaluate(npz, seeds=(0, 1, 2)):
 
 if __name__ == "__main__":
     allres = {}
-    # --out=<경로>: 결과 저장 위치 (기본: 저장소에 커밋된 policies/eval_results.json 을 덮어씀)
-    out_path = os.path.join(ROOT, "policies", "eval_results.json")
+    # --out=<경로>: 결과 저장 위치 (기본: 저장소에 커밋된 rl/eval_records/eval_results.json 을 덮어씀)
+    out_path = os.path.join(ROOT, "rl", "eval_records", "eval_results.json")
     args = []
     for x in sys.argv[1:]:
         if x.startswith("--out="):

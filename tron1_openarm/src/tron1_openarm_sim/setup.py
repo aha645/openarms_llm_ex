@@ -29,7 +29,7 @@ setup(
         ("share/" + package_name + "/urdf", glob("urdf/*")),
         ("share/" + package_name + "/rviz", glob("rviz/*.rviz")),
         ("share/" + package_name + "/maps", glob("maps/*")),
-        ("share/" + package_name + "/policies", glob("policies/*")),
+        ("share/" + package_name + "/deployed_policies", glob("deployed_policies/*")),   # 시뮬이 불러오는 보행 정책
         ("share/" + package_name + "/tools", glob("tools/*.py")),
     ] + tree("mjcf", "mjcf"),
     install_requires=["setuptools"],

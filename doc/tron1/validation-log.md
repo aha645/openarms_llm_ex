@@ -95,9 +95,7 @@ flowchart LR
 
 ```bash
 # T1 (저장소 루트에서)
-(cd mobile_openarm && .venv-mobile/bin/python -m colcon build --symlink-install --base-paths src)        # 휠형 (underlay)
-(cd tron1_openarm && source ../mobile_openarm/install/setup.bash && \
-  ../mobile_openarm/.venv-mobile/bin/python -m colcon build --symlink-install --base-paths src)         # TRON1 (overlay)
+(cd tron1_openarm && .venv-biped/bin/python -m colcon build --symlink-install --base-paths src)        # TRON1 워크스페이스 (휠형과 독립)
 source tron1_openarm/install/setup.bash
 ros2 launch tron1_openarm_sim sim.launch.py foot:=sf viewer:=true              # 화면에서 서 있는 로봇 보기
 ```
@@ -421,13 +419,11 @@ roll 0° 에서는 ±y 면이 위(카메라 쪽)를 향하므로 네 면에 모�
 
 ```bash
 # 모델 재생성 (손목 마커 포함)
-source mobile_openarm/.venv-mobile/bin/activate
+source tron1_openarm/.venv-biped/bin/activate
 cd tron1_openarm/src/tron1_openarm_sim
 python3 tools/build_tron1_openarm.py --tron1 <PF_TRON1A> --openarm <openarm_bimanual.xml> --out mjcf
 python3 tools/build_tron1_openarm.py --foot sf --base-height 0.73 --tron1 <SF_TRON1A> --openarm <...> --out mjcf/sf
-cd ../../.. && (cd mobile_openarm && .venv-mobile/bin/python -m colcon build --symlink-install --base-paths src --packages-select mobile_openarm_apps)   # 저장소 루트로
-(cd tron1_openarm && source ../mobile_openarm/install/setup.bash && \
-  ../mobile_openarm/.venv-mobile/bin/python -m colcon build --symlink-install --base-paths src --packages-select tron1_openarm_sim)
+cd ../../.. && (cd tron1_openarm && .venv-biped/bin/python -m colcon build --symlink-install --base-paths src --packages-select mobile_openarm_apps tron1_openarm_sim)
 source tron1_openarm/install/setup.bash
 
 # 집기 시험 (시뮬 + MoveIt + 정답 기록기 + pick_place) — 다른 launch 를 모두 끈 상태에서. 끝에 ROS 프로세스를 kill -9 함
@@ -524,9 +520,7 @@ SF 정책의 제자리 회전 성능이 약한 문제([보행 학습](locomotion
 
 ```bash
 # 모델·패키지 준비 (5절 + 이 절 변경 반영) 후
-(cd mobile_openarm && .venv-mobile/bin/python -m colcon build --symlink-install --base-paths src --packages-select mobile_openarm_apps)
-(cd tron1_openarm && source ../mobile_openarm/install/setup.bash && \
-  ../mobile_openarm/.venv-mobile/bin/python -m colcon build --symlink-install --base-paths src --packages-select tron1_openarm_sim)
+(cd tron1_openarm && .venv-biped/bin/python -m colcon build --symlink-install --base-paths src --packages-select mobile_openarm_apps tron1_openarm_sim)
 LOG_DIR=/tmp/tron1_logs bash tron1_openarm/tools/validation/mission_test.sh sf 16
 # → 전체 시스템(시뮬+Nav2+MoveIt+작업 관리자+오프라인 LLM 플래너)을 띄우고 자연어 명령을 실행,
 #   끝나면 '상자가 왼쪽 작업대 위에 있는가' 를 정답으로 판정해 출력
@@ -542,7 +536,7 @@ LOG_DIR=/tmp/tron1_logs bash tron1_openarm/tools/validation/mission_test.sh sf 1
 | 직진 중 방향이 13~17° 돌아감, 제자리 회전 0.01 rad/s | 3차: 회전 추종 가중치 3→5 / 4차: 허용 폭 0.05→0.25(좁으면 '조금 더 도는' 기울기가 없음), 가중치 6, 제자리 회전 명령 30% | 회전 0.5 rad/s × 6 s → 172°/172°, 직진 방향 흐름 −0.5° |
 
 `rl/tron1_env.py` (`TRON1_SF_STAGE`), 학습: `train_ppo.py --foot sf --init <이전 best> --minutes 110 --init-std 0.2 --lr 1e-4` (2 코어 CPU 110 분).
-배포 정책: `policies/tron1sf_openarm_policy.npz` = `runs/sf_v4/best.npz`.
+배포 정책: `deployed_policies/tron1sf_openarm_policy.npz` = `runs/sf_v4/best.npz`.
 (이후 발 충돌을 상자로 바꾸며 `runs/box/seed3/best.npz` 로 교체 — [보행 학습 10절](locomotion-rl.md#10-sf-발바닥-상자로-통일).)
 
 #### 6-2-2. SF 오도메트리 (`biped_core.py`)
@@ -614,24 +608,22 @@ LOG_DIR=/tmp/tron1_logs bash tron1_openarm/tools/validation/mission_test.sh sf 1
 번호마다 블록을 나눴습니다. 모두 저장소 루트에서 시작합니다. 🟢 launch 는 다음 번호로 넘어가기 전에 `Ctrl+C` 로 끕니다. 표기: 🆕 새로 열기 · 🟢 계속 실행 · ⚪ 바로 끝남 ([휠형 공통 규칙](../wheel/README.md#1-터미널-여러-개-쓰기)).
 
 ```bash
-# 1) 모델·월드·URDF·SRDF 생성 + overlay 빌드 (10 이 빌드까지 함)
-bash tron1_openarm/scripts/10_setup_tron1.sh
+# 1) 가상환경·자체 점검·빌드 (모델은 저장소에 있음. 원본에서 다시 만들 때만 13_regen_tron1_models.sh)
+bash tron1_openarm/scripts/setup_workspace.sh
 ```
 
 ```bash
 # 1-1) (소스만 고쳤을 때) 수동 빌드 — 1)을 했다면 불필요
-(cd mobile_openarm && .venv-mobile/bin/python -m colcon build --symlink-install --base-paths src)        # 휠형 (underlay)
-(cd tron1_openarm && source ../mobile_openarm/install/setup.bash && \
-  ../mobile_openarm/.venv-mobile/bin/python -m colcon build --symlink-install --base-paths src)         # TRON1 (overlay)
+(cd tron1_openarm && .venv-biped/bin/python -m colcon build --symlink-install --base-paths src)        # TRON1 워크스페이스 (휠형과 독립)
 ```
 
 ```bash
 # 2) 시뮬 단독 자체 시험 (ROS 불필요, 10개 항목) — 한 터미널, 모두 ⚪
-source mobile_openarm/.venv-mobile/bin/activate
+source tron1_openarm/.venv-biped/bin/activate
 cd tron1_openarm/src/tron1_openarm_sim
 python3 tools/selftest_tron1.py                                                  # PF
-python3 tools/selftest_tron1.py sf/world_light.xml policies/tron1sf_openarm_policy.npz   # SF
-python3 tools/sway_analysis.py mjcf/world_light.xml policies/tron1_openarm_policy.npz normal   # 흔들림 분해
+python3 tools/selftest_tron1.py sf/world_light.xml deployed_policies/tron1sf_openarm_policy.npz   # SF
+python3 tools/sway_analysis.py mjcf/world_light.xml deployed_policies/tron1_openarm_policy.npz normal   # 흔들림 분해
 ```
 
 3) 학습·평가는 [locomotion-rl.md 8-8](locomotion-rl.md#8-8-실행-명령과-버전-이력)을 보세요.
@@ -720,10 +712,10 @@ ROS 확인: `sim.launch.py foot:=sf` + `move_group.launch.py foot:=sf` → `/joi
 - SF 의 '제자리 서기 8 s' 실패는 이번 변경과 무관하다 (변경 전에도 실패). 판정 범위 0.62~0.74 m 가 PF 기준인데 SF 는 0.73 m 를 목표로 서서 0.75 m 가 나온다. → 이후 판정을 발 형태별 기준 높이 ± 0.06 m 로 바꿔 SF·PF 모두 10/10.
 
 ```bash
-# 재현 (tron1_openarm/src/tron1_openarm_sim 에서, mjcf/sf/meshes 가 있어야 함 — 10_setup_tron1.sh 가 만듦)
-source ../../../mobile_openarm/.venv-mobile/bin/activate
-for g in 0 1; do TRON1_ARM_GRAVCOMP=$g python3 tools/sway_analysis.py mjcf/sf/world_light.xml policies/tron1sf_openarm_policy.npz fixed_base; done
-python3 tools/selftest_tron1.py sf/world_light.xml policies/tron1sf_openarm_policy.npz
+# 재현 (tron1_openarm/src/tron1_openarm_sim 에서, mjcf/sf/meshes 는 저장소에 들어 있음)
+source ../../.venv-biped/bin/activate
+for g in 0 1; do TRON1_ARM_GRAVCOMP=$g python3 tools/sway_analysis.py mjcf/sf/world_light.xml deployed_policies/tron1sf_openarm_policy.npz fixed_base; done
+python3 tools/selftest_tron1.py sf/world_light.xml deployed_policies/tron1sf_openarm_policy.npz
 python3 tools/base_tilt_urdf.py urdf/tron1_openarm.urdf urdf/tron1_openarm_sf.urdf   # 이미 적용됨 (URDF 를 새로 만들면 make_urdf_tron1.py 가 자동 적용)
 ```
 
@@ -853,7 +845,7 @@ for i in 1 2 3 4 5; do LOG_DIR=/tmp/tron1_logs bash tron1_openarm/tools/validati
 ```bash
 # 오프라인 서기 흐름 (raw: 바로잡기 끄고 정책만)
 cd tron1_openarm/src/tron1_openarm_sim
-python3 tools/stand_drift.py mjcf/sf/world_light.xml policies/tron1sf_openarm_policy.npz home arm [raw]
+python3 tools/stand_drift.py mjcf/sf/world_light.xml deployed_policies/tron1sf_openarm_policy.npz home arm [raw]
 ```
 
 ## 11. 다리 오도메트리·브리지 지연·EKF·Nav2 Omni, 서기 정책 재학습
@@ -954,7 +946,7 @@ SF 집기 **3/5 → 5/5**.
 ```bash
 # 오프라인 서기 흐름 (raw = 바로잡기 끄고 정책만)
 cd tron1_openarm/src/tron1_openarm_sim
-python3 tools/stand_drift.py mjcf/sf/world_light.xml policies/tron1sf_openarm_policy.npz home arm raw
+python3 tools/stand_drift.py mjcf/sf/world_light.xml deployed_policies/tron1sf_openarm_policy.npz home arm raw
 # 주행 시험 (nav.launch.py 를 띄운 뒤)
 python3 tron1_openarm/tools/validation/nav_goal_test.py 2.5 2.15 90 /tmp/nav.jsonl
 # 집기 시험 (화면 보기)
@@ -1251,7 +1243,7 @@ AMCL 위치 오차 (정답 대비): 미션 21 평균 10.6 / 최대 41.8 cm, 미�
 "상자 모두" (3 개) 는 13 단계라 계획기 최대 단계(12)를 넘는다 → 최대 단계를 환경 변수 `OPENARM_MAX_STEPS` 로 바꿀 수 있게 하고
 (공통 기본 12 유지 — 바퀴형 2일차 실습이 이 거부를 예시·과제로 씀), TRON1 `full_system.launch.py` 는 `max_steps:=20` 기본.
 
-배포 정책 오프라인 평가 갱신 (`tron1_openarm/policies/eval_results.json`, 예전에는 sf_v4 기록이었음):
+배포 정책 오프라인 평가 갱신 (`tron1_openarm/rl/eval_records/eval_results.json`, 예전에는 sf_v4 기록이었음):
 
 | 정책 | 서기 기울기 | 걷기 | 회전 | 팔 동작 / 밀기 / 한 팔 기울기 | 넘어짐 |
 |---|---|---|---|---|---|

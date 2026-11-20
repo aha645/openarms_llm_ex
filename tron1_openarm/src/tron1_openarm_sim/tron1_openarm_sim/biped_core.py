@@ -88,9 +88,9 @@ def default_policy_path():
         return env
     try:
         from ament_index_python.packages import get_package_share_directory
-        return os.path.join(get_package_share_directory("tron1_openarm_sim"), "policies", "tron1_openarm_policy.npz")
+        return os.path.join(get_package_share_directory("tron1_openarm_sim"), "deployed_policies", "tron1_openarm_policy.npz")
     except Exception:  # noqa: BLE001
-        return os.path.join(os.path.dirname(__file__), "..", "policies", "tron1_openarm_policy.npz")
+        return os.path.join(os.path.dirname(__file__), "..", "deployed_policies", "tron1_openarm_policy.npz")
 
 
 class BipedOpenArmSim(W.MobileOpenArmSim):

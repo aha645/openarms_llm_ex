@@ -1,5 +1,5 @@
 # shellcheck shell=bash
-# GPU 고르기 (setup_venv_biped.sh · 11_train_policy.sh · 12_train_mjx.sh 가 source 해서 씀)
+# GPU 고르기 (setup_venv_biped_train_ppo.sh · 11_train_policy.sh · 12_train_mjx.sh 가 source 해서 씀)
 #
 # 정하는 값
 #   GPU_UUID / GPU_NAME / GPU_CC  : compute capability 가 가장 높은 NVIDIA GPU (같으면 메모리 큰 쪽)

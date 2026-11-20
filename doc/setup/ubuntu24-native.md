@@ -29,12 +29,12 @@ bash mobile_openarm/scripts/00_check_system.sh
 
 **터미널:** 1~4절은 **한 터미널에서 순서대로** 진행합니다. `export OPENARM_WS` 같은 설정은 그 터미널에서만 유효하므로, 중간에 터미널을 닫았다면 각 절 첫 줄의 `cd ~/Documents/openarms_llm_ex`(다른 위치에 받았다면 그 경로)부터 다시 입력하세요.
 
-저장소 루트 아래 두 폴더가 각각 colcon 워크스페이스입니다.
+저장소 루트 아래 두 폴더가 각각 **서로 독립된** colcon 워크스페이스입니다. 쓰려는 쪽만 설치해도 됩니다.
 
 ```text
 openarms_llm_ex/
   mobile_openarm/   # 휠형: scripts/, src/, .venv-mobile/, build/ install/ log/
-  tron1_openarm/    # TRON1 이족: mobile_openarm 위에 겹쳐(overlay) 빌드, PPO 학습용 .venv-biped/
+  tron1_openarm/    # TRON1 이족: scripts/, src/, .venv-biped/(시뮬·미션), .venv-biped-train/(GPU 학습), build/ install/ log/
 ```
 
 ## 2. 그래픽 준비
@@ -183,4 +183,23 @@ nvidia-smi dmon -s u     # (NVIDIA GPU 가 있을 때만) 뷰어·카메라가 G
 
 모든 노드가 시뮬 시간을 쓰므로 실시간보다 느려도 동작 결과는 같습니다. 전원 연결·성능 모드에서 실행하세요.
 
-설치가 끝났다면 **[휠형 교육](../wheel/README.md)** 으로 이동합니다. TRON1 은 [별도 모델 생성·빌드](../tron1/day1.md)가 추가로 필요합니다.
+설치가 끝났다면 **[휠형 교육](../wheel/README.md)** 으로 이동합니다.
+
+## TRON1 설치 (휠형과 독립)
+
+ROS 2 Jazzy 설치(3절까지) 뒤, 휠형 설치 없이 바로 할 수 있습니다.
+
+```bash
+cd ~/Documents/openarms_llm_ex
+bash tron1_openarm/scripts/setup_workspace.sh       # 시뮬용 가상환경 .venv-biped → 자체 점검 → 빌드 (CPU)
+source tron1_openarm/install/setup.bash             # TRON1 터미널마다
+```
+
+NVIDIA GPU(예: RTX 3090)로 보행 정책을 직접 학습할 때만:
+
+```bash
+bash tron1_openarm/scripts/setup_venv_biped_train_ppo.sh   # 학습용 가상환경 .venv-biped-train (JAX GPU)
+bash tron1_openarm/scripts/12_train_mjx.sh 30 sf           # 30 분 학습 → 평가
+```
+
+가상환경 구성: [Python 가상환경](python-venv.md). 교육: [TRON1 1일차](../tron1/day1.md).

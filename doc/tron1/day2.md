@@ -4,7 +4,7 @@
 
 ## 전제·오늘의 목표
 
-Ubuntu 24.04 / ROS 2 Jazzy / 휠형·TRON1 에셋 생성과 두 워크스페이스(`mobile_openarm/`, 그 위에 overlay한 `tron1_openarm/`)의 빌드 완료를 전제로 합니다.
+Ubuntu 24.04 / ROS 2 Jazzy / TRON1 워크스페이스(`tron1_openarm/`, `setup_workspace.sh`) 빌드 완료를 전제로 합니다 (휠형 설치는 필요 없음).
 
 기준은 **Sole-foot(SF)**이며 launch 기본값도 SF입니다. 헷갈리지 않도록 명령에는 `foot:=sf`를 그대로 적어 둡니다. 공통 앱·LLM 원리는 [휠형 2일차](../wheel/README.md)와 같지만 아래에 이족형 실행 명령을 따로 제공합니다. 기존 SF 완주는 1회 기록이며 실제 노트북·iMac의 반복 성공을 보장하지 않습니다.
 
@@ -12,8 +12,8 @@ Ubuntu 24.04 / ROS 2 Jazzy / 휠형·TRON1 에셋 생성과 두 워크스페이�
 
 ```bash
 source /opt/ros/jazzy/setup.bash
-source tron1_openarm/install/setup.bash         # 휠형 mobile_openarm underlay 포함
-source mobile_openarm/.venv-mobile/bin/activate # python3 를 직접 실행할 때 필요
+source tron1_openarm/install/setup.bash
+source tron1_openarm/.venv-biped/bin/activate   # python3 를 직접 실행할 때 필요
 export OPENARM_BIPED=1
 export OPENARM_SRDF="$(ros2 pkg prefix --share tron1_openarm_moveit_config)/config/tron1_openarm_sf.srdf"
 ```

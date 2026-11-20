@@ -8,7 +8,7 @@ mode: new = 시뮬의 파지 보조(sim_core._update_attached), weld = 이 스�
 import sys, os, math, json
 import numpy as np, mujoco
 SIM = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
-sys.path.insert(0, SIM); sys.path.insert(0, SIM + '/../../../mobile_openarm/src/mobile_openarm_sim')
+sys.path.insert(0, SIM); sys.path.insert(0, SIM + '/../mobile_openarm_sim')
 from tron1_openarm_sim.biped_core import BipedOpenArmSim
 from tron1_openarm_sim.arm_poses import POSES
 mode = sys.argv[1]
@@ -19,7 +19,7 @@ if mode == 'weld':
 tmp = SIM + '/mjcf/sf/_grasp_exp.xml'
 open(tmp, 'w').write(xml)
 try:
-    sim = BipedOpenArmSim(tmp, enable_camera=False, move_person=False, policy_path=SIM + '/policies/tron1sf_openarm_policy.npz')
+    sim = BipedOpenArmSim(tmp, enable_camera=False, move_person=False, policy_path=SIM + '/deployed_policies/tron1sf_openarm_policy.npz')
 finally:
     os.remove(tmp)
 m, d = sim.m, sim.d

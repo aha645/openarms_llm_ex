@@ -37,7 +37,7 @@ def _setup(context):
     sub, urdf, pol = FOOT_FILES[foot]
     with open(os.path.join(share, "urdf", urdf), encoding="utf-8") as f:
         robot_description = f.read()
-    policy = lc("policy").perform(context) or os.path.join(share, "policies", pol)
+    policy = lc("policy").perform(context) or os.path.join(share, "deployed_policies", pol)
     ekf = lc("ekf").perform(context).lower() in ("true", "1")
     cam_proc = lc("camera_process").perform(context).lower() in ("true", "1")
     camera_on = lc("camera").perform(context).lower() in ("true", "1")
@@ -105,7 +105,7 @@ def generate_launch_description():
         DeclareLaunchArgument("box_source", default_value="color",
                               description="상자 인식: aruco = 윗면 마커, color = 마커 없이 색(빨강·초록·파랑)+깊이 (camera_server.py)"),
         DeclareLaunchArgument("policy", default_value="",
-                              description="보행 정책 가중치(npz). 비우면 발 형태별 기본값. LimX 사전학습: policies/limx_pf_tron1a_pretrained.npz"),
+                              description="보행 정책 가중치(npz). 비우면 발 형태별 기본값. LimX 사전학습: deployed_policies/limx_pf_tron1a_pretrained.npz"),
     ]
     # MuJoCo 뷰어 갱신 20 Hz (기본 30): 뷰어가 한 장면(전체 메시, 큰 창)을 그리는 약 26 ms 동안 물리가 멈춰 30 Hz 에서는
     # 실시간의 0.5 배로 돌았다 (팔 이동·집기 전체가 2 배 느림). 20 Hz 에서 1.0 배. 따로 정하면 그 값 (SIM_VIEW_HZ)

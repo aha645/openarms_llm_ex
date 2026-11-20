@@ -15,7 +15,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 PKG = os.path.dirname(HERE)
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(PKG)))
 sys.path.insert(0, PKG)
-sys.path.insert(0, os.path.join(REPO, "mobile_openarm", "src", "mobile_openarm_sim"))
+sys.path.insert(0, os.path.join(REPO, "tron1_openarm", "src", "mobile_openarm_sim"))
 
 import numpy as np  # noqa: E402
 
@@ -23,7 +23,7 @@ from tron1_openarm_sim.biped_core import BipedOpenArmSim  # noqa: E402
 
 WORLD = os.path.join(PKG, "mjcf", sys.argv[1] if len(sys.argv) > 1 else "world_light.xml")
 _default_pol = "tron1sf_openarm_policy.npz" if (sys.argv[1:2] or [""])[0].startswith("sf/") else "tron1_openarm_policy.npz"
-POLICY = sys.argv[2] if len(sys.argv) > 2 else os.path.join(PKG, "policies", _default_pol)
+POLICY = sys.argv[2] if len(sys.argv) > 2 else os.path.join(PKG, "deployed_policies", _default_pol)
 results = []
 
 
