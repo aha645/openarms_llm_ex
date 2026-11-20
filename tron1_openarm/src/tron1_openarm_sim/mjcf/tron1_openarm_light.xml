@@ -73,6 +73,7 @@
   <worldbody>
     <light directional="true" pos="0 0 3" dir="0 0 -1" diffuse="0.6 0.6 0.6" />
     <body name="base_link" pos="0 0 0.71">
+      <geom name="pelvis_vis" type="box" pos="0.03 0 -0.21" size="0.07 0.10 0.05" rgba="0.75 0.78 0.9 1" group="2" contype="0" conaffinity="0" mass="0" />
       <freejoint name="base_free" />
       <geom name="base_collision" size="0.135 0.13 0.095" pos="0.03 0 -0.072" type="box" rgba="0.75 0.78 0.9 1" group="2" contype="1" conaffinity="1" />
         <geom name="base_handle_L_collision" type="box" size="0.067 0.013 0.02" pos="0 0.16 -0.1" rgba="0.75 0.78 0.9 1" group="2" contype="1" conaffinity="1" mass="0" />
@@ -82,18 +83,24 @@
         <inertial pos="0 0 0" mass="0.001" diaginertia="0.0001 0.0001 0.0001" />
       </body>
       <body name="abad_L_Link" pos="0.05556 0.105 -0.2602">
+        <geom name="abad_L_Link_bone_vis" type="capsule" size="0.035" fromto="0 0 0 -0.077 0.0205 0" rgba="0.75 0.78 0.9 1" group="2" contype="0" conaffinity="0" mass="0" />
         <geom name="abad_L_collision" type="cylinder" pos="-0.08 0 0" euler="1.57 0 0" size="0.05 0.025" rgba="0.75 0.78 0.9 1" group="2" contype="1" conaffinity="1" />
         <inertial pos="-0.06977 0.04479 0.00057" quat="0.595024 0.579772 0.394141 0.393019" mass="1.469" diaginertia="0.00252289 0.00208104 0.00139163" />
         <joint name="abad_L_joint" pos="0 0 0" axis="1 0 0" range="-0.383972 1.39626" actuatorfrcrange="-80 80" armature="0.01" damping="0.01" />
         <body name="hip_L_Link" pos="-0.077 0.0205 0">
-          <geom name="hip_L_collision" type="cylinder" pos="-0.1 -0.02 -0.14" euler="0 0.53 0" size="0.035 0.09" rgba="0.75 0.78 0.9 1" group="2" contype="1" conaffinity="1" />
+          <geom name="hip_L_joint_vis" type="cylinder" size="0.062" fromto="0 -0.04 0 0 0.04 0" rgba="0.75 0.78 0.9 1" group="2" contype="0" conaffinity="0" mass="0" />
+          <geom name="hip_L_Link_bone_vis" type="capsule" size="0.045" fromto="0 0 0 -0.15 -0.0205 -0.25981" rgba="0.75 0.78 0.9 1" group="2" contype="0" conaffinity="0" mass="0" />
+          <geom name="hip_L_collision" type="cylinder" pos="-0.1 -0.02 -0.14" euler="0 0.53 0" size="0.035 0.09" rgba="0.75 0.78 0.9 1" group="3" contype="1" conaffinity="1" />
           <inertial pos="-0.02869 -0.0477 -0.03992" quat="0.853885 0.192797 0.226903 0.426877" mass="2.3" diaginertia="0.0233264 0.0230229 0.00277548" />
           <joint name="hip_L_joint" pos="0 0 0" axis="0 1 0" range="-1.01229 1.39626" actuatorfrcrange="-80 80" armature="0.01" damping="0.01" />
           <body name="knee_L_Link" pos="-0.15 -0.0205 -0.25981">
-            <geom name="knee_L_collision" type="cylinder" pos="0.078 0 -0.12" euler="0 -0.55 0" size="0.015 0.13" rgba="0.75 0.78 0.9 1" group="2" contype="1" conaffinity="1" />
+            <geom name="knee_L_joint_vis" type="cylinder" size="0.042" fromto="0 -0.032 0 0 0.032 0" rgba="0.75 0.78 0.9 1" group="2" contype="0" conaffinity="0" mass="0" />
+            <geom name="knee_L_Link_bone_vis" type="capsule" size="0.024" fromto="0 0 0 0.145 0 -0.2598" rgba="0.75 0.78 0.9 1" group="2" contype="0" conaffinity="0" mass="0" />
+            <geom name="knee_L_collision" type="cylinder" pos="0.078 0 -0.12" euler="0 -0.55 0" size="0.015 0.13" rgba="0.75 0.78 0.9 1" group="3" contype="1" conaffinity="1" />
             <inertial pos="0.05168 0.00152 -0.08148" quat="0.668191 -0.202995 -0.19946 0.687408" mass="0.55" diaginertia="0.00419956 0.00414131 0.000138393" />
             <joint name="knee_L_joint" pos="0 0 0" axis="0 -1 0" range="-0.872665 1.36136" actuatorfrcrange="-80 80" armature="0.01" damping="0.01" />
             <body name="foot_L_Link" pos="0.145 0 -0.2598">
+              <geom name="foot_L_Link_bone_vis" type="sphere" size="0.032" rgba="0.75 0.78 0.9 1" group="2" contype="0" conaffinity="0" mass="0" />
               <inertial pos="-0.00129 -1e-05 0.00568" quat="0.689436 -0.0830159 -0.0800204 0.715111" mass="0.18" diaginertia="9.99215e-05 9.87928e-05 7.33657e-05" />
               <geom size="0.032" rgba="0.2 0.2 0.2 1" name="foot_L_collision" friction="0.8 0.005 0.0001" condim="3" group="3" />
               <site name="foot_L_site" pos="0 0 0" size="0.045" group="4" />
@@ -102,18 +109,24 @@
         </body>
       </body>
       <body name="abad_R_Link" pos="0.05556 -0.105 -0.2602">
+        <geom name="abad_R_Link_bone_vis" type="capsule" size="0.035" fromto="0 0 0 -0.077 -0.0205 0" rgba="0.75 0.78 0.9 1" group="2" contype="0" conaffinity="0" mass="0" />
         <geom name="abad_R_collision" type="cylinder" pos="-0.08 0 0" euler="1.57 0 0" size="0.05 0.025" rgba="0.75 0.78 0.9 1" group="2" contype="1" conaffinity="1" />
         <inertial pos="-0.06977 -0.04479 0.00057" quat="0.393019 0.394141 0.579772 0.595024" mass="1.469" diaginertia="0.00252289 0.00208104 0.00139163" />
         <joint name="abad_R_joint" pos="0 0 0" axis="1 0 0" range="-1.39626 0.383972" actuatorfrcrange="-80 80" armature="0.01" damping="0.01" />
         <body name="hip_R_Link" pos="-0.077 -0.0205 0">
-          <geom name="hip_R_collision" type="cylinder" pos="-0.10 0.025 -0.14" euler="0 0.53 0" size="0.035 0.09" rgba="0.75 0.78 0.9 1" group="2" contype="1" conaffinity="1" />
+          <geom name="hip_R_joint_vis" type="cylinder" size="0.062" fromto="0 -0.04 0 0 0.04 0" rgba="0.75 0.78 0.9 1" group="2" contype="0" conaffinity="0" mass="0" />
+          <geom name="hip_R_Link_bone_vis" type="capsule" size="0.045" fromto="0 0 0 -0.15 0.0205 -0.25981" rgba="0.75 0.78 0.9 1" group="2" contype="0" conaffinity="0" mass="0" />
+          <geom name="hip_R_collision" type="cylinder" pos="-0.10 0.025 -0.14" euler="0 0.53 0" size="0.035 0.09" rgba="0.75 0.78 0.9 1" group="3" contype="1" conaffinity="1" />
           <inertial pos="-0.02869 0.0477 -0.03992" quat="0.426877 0.226903 0.192797 0.853885" mass="2.3" diaginertia="0.0233264 0.0230229 0.00277548" />
           <joint name="hip_R_joint" pos="0 0 0" axis="0 -1 0" range="-1.39626 1.01229" actuatorfrcrange="-80 80" armature="0.01" damping="0.01" />
           <body name="knee_R_Link" pos="-0.15 0.0205 -0.25981">
-            <geom name="knee_R_collision" type="cylinder" pos="0.078 0 -0.12" euler="0 -0.55 0" size="0.015 0.13" rgba="0.75 0.78 0.9 1" group="2" contype="1" conaffinity="1" />
+            <geom name="knee_R_joint_vis" type="cylinder" size="0.042" fromto="0 -0.032 0 0 0.032 0" rgba="0.75 0.78 0.9 1" group="2" contype="0" conaffinity="0" mass="0" />
+            <geom name="knee_R_Link_bone_vis" type="capsule" size="0.024" fromto="0 0 0 0.145 0 -0.2598" rgba="0.75 0.78 0.9 1" group="2" contype="0" conaffinity="0" mass="0" />
+            <geom name="knee_R_collision" type="cylinder" pos="0.078 0 -0.12" euler="0 -0.55 0" size="0.015 0.13" rgba="0.75 0.78 0.9 1" group="3" contype="1" conaffinity="1" />
             <inertial pos="0.05168 -0.00152 -0.08148" quat="0.687408 -0.19946 -0.202995 0.668191" mass="0.55" diaginertia="0.00419956 0.00414131 0.000138393" />
             <joint name="knee_R_joint" pos="0 0 0" axis="0 1 0" range="-1.36136 0.872665" actuatorfrcrange="-80 80" armature="0.01" damping="0.01" />
             <body name="foot_R_Link" pos="0.145 0 -0.2598">
+              <geom name="foot_R_Link_bone_vis" type="sphere" size="0.032" rgba="0.75 0.78 0.9 1" group="2" contype="0" conaffinity="0" mass="0" />
               <inertial pos="-0.00129 1e-05 0.00568" quat="0.715111 -0.0800204 -0.0830159 0.689436" mass="0.18" diaginertia="9.99215e-05 9.87928e-05 7.33657e-05" />
               <geom size="0.032" rgba="0.2 0.2 0.2 1" name="foot_R_collision" friction="0.8 0.005 0.0001" condim="3" group="3" />
               <site name="foot_R_site" pos="0 0 0" size="0.045" group="4" />
