@@ -201,7 +201,7 @@ ros2 run mobile_openarm_apps llm_planner "빨간 상자를 왼쪽 작업대로 �
 |---|---|
 | `LLM 계획 실패: … api_key` | `OPENAI_API_KEY` 가 이 터미널에 없음. `echo ${OPENAI_API_KEY:0:5}` 로 앞 5글자 확인 |
 | `model … does not exist` | `OPENAI_MODEL` 을 내 계정에서 쓸 수 있는 모델로 |
-| `No module named openai` | `python3` 로 직접 실행했다면 가상환경 켜기: `source ~/openarm_mobile_ws/mobile_openarm/.venv-mobile/bin/activate`. 없으면 `bash mobile_openarm/scripts/setup_venv_mobile.sh` (openai·pydantic v2 설치) |
+| `No module named openai` | `python3` 로 직접 실행했다면 환경 불러오기: 저장소 루트에서 `source mobile_openarm/scripts/env.sh`. 없으면 `bash mobile_openarm/scripts/setup_venv_mobile.sh` (openai·pydantic v2 설치) |
 | 로컬 LLM에서 JSON 오류 | 더 큰 모델 사용, 또는 오프라인 모드 |
 
 ## 7. 더 해보기

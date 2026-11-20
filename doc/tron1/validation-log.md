@@ -4,7 +4,7 @@
 
 하반신을 TRON1 으로 바꾼 뒤 SLAM·Nav2·집기·LLM 미션을 **실제로 시험한 순서대로** 모은 기록입니다. 수치는 모두 이 저장소의 시뮬레이터에서 직접 잰 값입니다. 날짜가 뒤로 갈수록 최신이며, **현재 상태는 마지막 절(Sole-foot 전체 미션 완주)** 기준입니다. 한 번의 성공은 반복 성공률 보장이 아닙니다.
 
-> **패키지 이름 안내 (2026-11-20, [24절](#24-tron1-을-독립-시스템으로-tron1-전용-패키지-로봇-분기-제거)).** 23절까지의 기록은 TRON1 이 휠형 패키지를 같이 쓰던 때의 것입니다. 그 기록의 `mobile_openarm_apps`·`mobile_openarm_sim`·`bridge_biped.py`·`OPENARM_BIPED`/`OPENARM_SRDF` 는 지금 각각 `tron1_openarm_apps`·`tron1_openarm_sim`·`tron1_openarm_sim/bridge_node.py`·(환경 변수 없음, 이족 동작이 기본)입니다. 기록은 그때 상태 그대로 둡니다.
+> **패키지 이름 안내 (2026-11-20, [24절](#24-tron1-을-독립-시스템으로-tron1-전용-패키지-로봇-분기-제거)).** 23절까지의 기록은 TRON1 이 휠형 패키지를 같이 쓰던 때의 것입니다. 그 기록의 `mobile_openarm_apps`·`mobile_openarm_sim`·`bridge_biped.py`·`OPENARM_BIPED`/`OPENARM_SRDF` 는 지금 각각 `tron1_openarm_apps`·`tron1_openarm_sim`·`tron1_openarm_sim/bridge_node.py`·(환경 변수 없음, 이족 동작이 기본)입니다. 보행 학습 코드 `train_mjx`·`tron1_mjx_env`·`train_policy.sh`·`train_ppo.py`·`tron1_env.py` 는 지금 `train_ppo_gpu`·`tron1_env_gpu`·`train_ppo_cpu.sh`·`train_ppo_cpu.py`·`tron1_env_cpu.py` 입니다. 기록은 그때 상태 그대로 둡니다.
 
 | 절 | 내용 | 통합 전 문서 |
 |---|---|---|

@@ -3,7 +3,7 @@
 값은 mobile_openarm_sim/wrist_cameras.py. 학습용 모델(*_train.xml)에는 달지 않는다 (카메라를 안 쓰고, MJX 모델을 바꾸지 않으려고).
 
     python3 tools/wrist_cameras.py mjcf/mobile_openarm.xml mjcf/mobile_openarm_light.xml
-05_regen_models.sh 가 모델을 새로 만들 때도 자동으로 적용한다.
+mobile_openarm/scripts/regen_models.sh 가 모델을 새로 만들 때도 자동으로 적용한다.
 """
 import os
 import re

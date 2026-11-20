@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
-"""TRON1 + OpenArm 보행 정책 PPO 미세조정 (JAX, CPU/GPU 모두 동작).
+"""TRON1 + OpenArm 보행 정책 PPO — CPU 판 (물리: mujoco.rollout C 스레드, 신경망: JAX).
 
-    python3 train_ppo.py --minutes 90                 # 이 저장소 기본값 (2코어 CPU 에서 약 1천만 스텝)
-    python3 train_ppo.py --envs 512 --minutes 240      # 코어가 많은 PC
-    python3 train_ppo.py --init scratch                # 사전학습 없이 처음부터 (수억 스텝 필요 — GPU 권장)
+train_ppo_gpu.py(GPU 판)와 알고리즘·신경망·가중치 형식(npz)·커리큘럼·보상(train_config.py)이 같고, 물리를 CPU 에서 돌린다.
+GPU 가 없는 PC 에서 짧은 미세조정·원리 실습용 (GPU 판보다 수십 배 느림).
 
-시작점: LimX 가 Isaac Gym 으로 학습해 공개한 PF_TRON1A 정책(rl/pretrained_limx/limx_pf_tron1a_pretrained.npz).
-그대로는 OpenArm 14.4 kg 를 얹으면 옆으로 미끄러지듯 흐르고(약 0.1 m/s), 잡음·팔 동작이 있으면 넘어진다.
-→ 같은 네트워크 구조·관측 규약을 유지한 채 PPO 로 미세조정한다 (전이학습).
+    python3 train_ppo_cpu.py --foot sf --minutes 30                # 기본: 발 형태별 배포 정책에서 이어 학습
+    python3 train_ppo_cpu.py --foot pf --init pretrained_limx/limx_pf_tron1a_pretrained.npz   # LimX 원본에서
+    python3 train_ppo_cpu.py --envs 512 --minutes 240              # 코어가 많은 PC
+
+결과: <out>/best.npz · final.npz (locomotion_policy.py 가 그대로 읽음), last.pkl (이어 학습), log.json
 
 알고리즘 (LimX rsl_rl 변형과 같은 구성)
   * 액터  : 인코더(관측 기록 300 → 추정 선속도 3, 출력 detach) + 정책 MLP(36 → 512-256-128 → 6)
@@ -31,7 +32,7 @@ import optax
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import policy_jax as P  # noqa: E402
-from tron1_env import Tron1OpenArmEnv  # noqa: E402
+from tron1_env_cpu import Tron1EnvCpu  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -39,26 +40,34 @@ ROOT = os.path.dirname(HERE)
 
 def parse():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--xml", default=os.path.join(ROOT, "src/tron1_openarm_sim/mjcf/tron1_openarm_train.xml"))
-    ap.add_argument("--init", default=os.path.join(ROOT, "rl/pretrained_limx/limx_pf_tron1a_pretrained.npz"))
-    ap.add_argument("--out", default=os.path.join(ROOT, "runs", time.strftime("%Y%m%d_%H%M%S")))
+    ap.add_argument("--foot", choices=["pf", "sf"], default="sf", help="pf = Point-foot, sf = Sole-foot")
+    ap.add_argument("--xml", default="", help="기본: 발 형태별 *_train.xml")
+    ap.add_argument("--init", default="", help="npz 경로 또는 scratch. 기본: 발 형태별 배포 정책")
+    ap.add_argument("--out", default=os.path.join(ROOT, "runs", "cpu_" + time.strftime("%Y%m%d_%H%M%S")))
     ap.add_argument("--envs", type=int, default=128)
     ap.add_argument("--steps", type=int, default=24, help="반복당 환경별 스텝 수")
-    ap.add_argument("--minutes", type=float, default=90)
+    ap.add_argument("--minutes", type=float, default=30)
     ap.add_argument("--max-iters", type=int, default=100000)
-    ap.add_argument("--lr", type=float, default=2e-4)
-    ap.add_argument("--init-std", type=float, default=0.15)
-    ap.add_argument("--critic-warmup", type=int, default=30)
+    ap.add_argument("--lr", type=float, default=2e-5)
+    ap.add_argument("--init-std", type=float, default=0.1)
+    ap.add_argument("--critic-warmup", type=int, default=20)
     ap.add_argument("--threads", type=int, default=os.cpu_count() or 2)
     ap.add_argument("--seed", type=int, default=1)
+    ap.add_argument("--ck-min", type=int, default=10, help="중간 정책 저장 간격 [분] (watch_training.py 가 새로 저장될 때마다 보여 줌)")
     ap.add_argument("--max-difficulty", type=float, default=0.5,
                     help="랜덤화 강도 상한. 1.0 이면 LimX 수준 잡음·지연·밀기 (실로봇용), 높을수록 속도 추종이 보수적이 됨")
     ap.add_argument("--resume", default="")
     ap.add_argument("--payload-start", type=float, default=1.0, help="상반신 질량 배율 시작값 (무게 커리큘럼, 1.0 이면 끔)")
-    ap.add_argument("--foot", choices=["pf", "sf"], default="pf", help="pf = Point-foot, sf = Sole-foot (--xml 도 sf 모델로)")
     ap.add_argument("--train-encoder", type=int, default=1,
                     help="1: PPO 뒤에 인코더를 실제 선속도로 지도학습 (LimX 방식). 0: 사전학습 인코더 고정")
-    return ap.parse_args()
+    a = ap.parse_args()
+    sub = "sf" if a.foot == "sf" else ""
+    if not a.xml:
+        a.xml = os.path.join(ROOT, "src/tron1_openarm_sim/mjcf", sub, "tron1_openarm_train.xml")
+    if not a.init:
+        a.init = os.path.join(ROOT, "src/tron1_openarm_sim/deployed_policies",
+                              "tron1sf_openarm_policy.npz" if a.foot == "sf" else "tron1_openarm_policy.npz")
+    return a
 
 
 def critic_input(obs, lin, cmd, est):
@@ -73,7 +82,7 @@ def main():
     a = parse()
     os.makedirs(a.out, exist_ok=True)
     key = jax.random.PRNGKey(a.seed)
-    env = Tron1OpenArmEnv(a.xml, num_envs=a.envs, seed=a.seed, nthread=a.threads, foot=a.foot)
+    env = Tron1EnvCpu(a.xml, num_envs=a.envs, seed=a.seed, nthread=a.threads, foot=a.foot)
     nj, enc_in, pol_in = env.nj, env.HIST * env.obs_dim, 3 + env.obs_dim + env.n_cmd
 
     if a.resume:
@@ -166,6 +175,7 @@ def main():
     best = -1e9
     last_pl = 0
     ep_returns, ep_lens, fall_hist = [], [], []
+    ck_done = [0]
     obs, hist, cmd, lin = env.observe()
     it = 0
     while it < a.max_iters and (time.time() - t_start) < a.minutes * 60:
@@ -260,6 +270,11 @@ def main():
         score = rec["lin_track"] + 0.5 * rec["ang_track"] - 50 * fr + 0.5 * env.difficulty - 10 * (1 - env.payload)
         save = {"params": jax.device_get(params), "critic": jax.device_get(critic),
                 "log_std": jax.device_get(log_std), "difficulty": env.difficulty, "payload": env.payload, "it": it}
+        ck_s = a.ck_min * 60
+        if actor_on and (time.time() - t_start) // ck_s > ck_done[0]:      # ck_min 분마다 중간 정책 (GPU 판과 같음)
+            ck_done[0] = int((time.time() - t_start) // ck_s)
+            np.savez(os.path.join(a.out, f"ck{ck_done[0] * a.ck_min:03d}min.npz"), **P.to_npz_dict(params["encoder"], "encoder"),
+                     **P.to_npz_dict(params["policy"], "policy"))
         if it % 25 == 0:
             with open(os.path.join(a.out, "last.pkl"), "wb") as fp:
                 pickle.dump(save, fp)

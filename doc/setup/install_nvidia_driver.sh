@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# NVIDIA 드라이버 580 설치·고정 (노트북용, 선택 단계). Pascal(GTX 10xx)을 포함해 이후 세대 GPU 를 모두 지원한다.
+# NVIDIA 드라이버 580 설치·고정 (Ubuntu 24.04 PC, 선택 단계 — 드라이버가 없거나 525 미만일 때만). Pascal(GTX 10xx)부터 Ampere(RTX 3090)까지 지원한다.
 # 580 브랜치가 Pascal 을 지원하는 마지막 브랜치이며, 590 이상(open 커널 모듈 포함)은 GTX 10xx 를 지원하지 않으므로 580 으로 고정한다.
 # DGX Spark 에서는 실행하지 않는다 (전용 커널·드라이버가 이미 맞춰져 있음).
+#   사용: bash doc/setup/install_nvidia_driver.sh   (선택, 휠형·TRON1 공통. 끝나면 재부팅)
 set -e
 if [ -f /etc/dgx-release ]; then
   echo "DGX Spark 입니다. 이 스크립트를 실행하지 마세요 (doc/setup/dgx-spark.md 참고)."; exit 1

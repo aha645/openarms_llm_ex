@@ -165,7 +165,7 @@ cp arm_demo.py my_arm.py
 
 ```bash
 cd ~/openarm_mobile_ws
-source mobile_openarm/.venv-mobile/bin/activate   # ros2 run 과 같은 Python 으로 실행
+source mobile_openarm/scripts/env.sh      # ros2 run 과 같은 Python(.venv-mobile) 으로 실행
 python3 -m mobile_openarm_apps.my_arm          # 패키지 폴더 기준으로 import 되도록 -m 사용
 ```
 

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # ROS 2 Jazzy (Ubuntu 24.04 Noble) + Nav2 + SLAM Toolbox + MoveIt 2 + 도구
+#   사용: bash doc/setup/install_ros2_jazzy.sh   (Ubuntu 24.04 PC 용, 휠형·TRON1 공통. DGX Spark 는 doc/setup/dgx-spark.md 3절)
 #   주의: 안에서 'sudo apt upgrade -y' 를 실행한다. DGX Spark 는 커널·드라이버 짝이 깨질 수 있어 실행을 막는다.
 set -e
 if [ -f /etc/dgx-release ]; then

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""CPU 학습 환경(tron1_env, 메시 발·기본 솔버) ↔ MJX 학습 환경(tron1_mjx_env) 물리 비교.
+"""CPU 학습 환경(tron1_env_cpu, 메시 발·기본 솔버) ↔ MJX 학습 환경(tron1_env_gpu) 물리 비교.
 
 같은 정책(평균 행동, 탐색 잡음 없음)을 같은 명령으로 두 환경에서 돌려 결과가 비슷한지 본다.
 랜덤화·밀기는 끄고, 환경 N 개 평균. 팔 자세는 두 환경 모두 같은 규칙으로 무작위.
@@ -19,8 +19,8 @@ import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import policy_jax as P  # noqa: E402
-from tron1_env import Tron1OpenArmEnv  # noqa: E402
-from tron1_mjx_env import Tron1MjxEnv  # noqa: E402
+from tron1_env_cpu import Tron1EnvCpu  # noqa: E402
+from tron1_env_gpu import Tron1EnvGpu  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SCEN = {   # 이름: (vx, vy, wz, 제자리 서기)
@@ -49,8 +49,8 @@ def run_cpu(a, params, c):
     load = None
     if a.cpu_sole == "box":       # MJX 와 같은 발바닥 상자 + CPU 기본 솔버 → MJX 수치 차이만 따로 본다
         from mjx_model import build_mjx_model
-        load = lambda x: build_mjx_model(x)[0]  # noqa: E731
-    env = Tron1OpenArmEnv(a.xml, num_envs=a.n, seed=0, nthread=os.cpu_count(), randomize=False, push=False, foot=a.foot,
+        load = lambda x, feet: build_mjx_model(x, feet=feet)[0]  # noqa: E731
+    env = Tron1EnvCpu(a.xml, num_envs=a.n, seed=0, nthread=os.cpu_count(), randomize=False, push=False, foot=a.foot,
                           load_model=load)
     env.cmd[:] = c[:3]
     env.want_still[:] = c[3]
@@ -74,7 +74,7 @@ def run_cpu(a, params, c):
 
 
 def run_mjx(a, params, c, cone):
-    env = Tron1MjxEnv(a.xml, foot=a.foot, iterations=a.iterations, ls_iterations=a.ls_iterations, cone=cone,
+    env = Tron1EnvGpu(a.xml, foot=a.foot, iterations=a.iterations, ls_iterations=a.ls_iterations, cone=cone,
                       randomize=False, push=False, impl=a.impl, num_envs=a.n)
     rp = env.sample_rand(jax.random.PRNGKey(0), a.n)
     mb, axes = env.batched_model(rp, 0.0, 1.0)

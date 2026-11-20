@@ -242,7 +242,7 @@ ros2 service call /sim/reset std_srvs/srv/Trigger          # 로봇·상자를 �
 
 | 증상 | 해결 |
 |---|---|
-| `ros2 topic list` 에 아무것도 안 나옴 | T2에서 `source ~/openarm_mobile_ws/mobile_openarm/install/setup.bash`. Docker는 `ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST` 가 모든 터미널에 같아야 함 |
+| `ros2 topic list` 에 아무것도 안 나옴 | T2에서 저장소 루트로 가서 `source mobile_openarm/scripts/env.sh`. Docker는 `ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST` 가 모든 터미널에 같아야 함 |
 | 액션이 `Goal was rejected` | 관절 이름 오타, 또는 7개 중 빠진 관절. 브리지가 `bridge_node.py` 의 `check_arm_goal()` 에서 검사한다 |
 | 팔이 지정한 각도까지 안 감 | 관절 한계 밖 값은 한계에서 멈춘다. 한계는 `mobile_openarm/src/mobile_openarm_moveit_config/config/joint_limits.yaml` |
 | `/clock` 이 50 Hz 이하 | `world:=world_light.xml`, `camera_hz:=5.0`, `lidar_rays:=180` |

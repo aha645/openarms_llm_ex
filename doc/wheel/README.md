@@ -4,7 +4,7 @@
 
 차동구동 바퀴 하반신 + OpenArm v1 양팔 로봇으로 **1일차: 화면 확인 → 직접 운전 → 좌표계 → 지도 만들기 → 자율주행 → 순찰**, **2일차: 팔 계획 → 집기 → 운반 → 자연어 계획 → 작업 실행 → 웹 통합 미션**을 실습합니다. 각 장은 개념 → 실제로 쓰는 파일 → 따라하기(명령 풀이 포함) → 체크리스트 → 확인 질문 → 문제 해결 순서입니다.
 
-**시작 전에** Ubuntu 24.04, ROS 2 Jazzy, 저장소 clone, 에셋 생성과 빌드가 끝나 있어야 합니다. 환경에 맞는 설치 문서 하나를 먼저 진행하세요: [노트북](../setup/ubuntu24-native.md) · [DGX Spark](../setup/dgx-spark.md) · [iMac Docker](../setup/imac-docker.md).
+**시작 전에** Ubuntu 24.04, ROS 2 Jazzy, 저장소 clone, 휠형 가상환경(`.venv-mobile`)과 colcon 빌드가 끝나 있어야 합니다. 환경에 맞는 설치 문서 하나를 먼저 진행하세요: [Ubuntu 24.04 + RTX 3090](../setup/ubuntu24-rtx3090.md) · [DGX Spark](../setup/dgx-spark.md) · [iMac Docker](../setup/imac-docker.md).
 
 문서의 `~/openarm_mobile_ws` 는 저장소를 clone 한 폴더(저장소 루트)로 바꿔 읽으세요. Docker 내부 경로는 `/root/openarm_mobile_ws` 입니다. 모르는 약어(SLAM, TF, MJCF, AMCL …)는 [용어집](../glossary.md)에서 찾으세요. 각 장 맨 앞에도 그 장의 용어 풀이가 있습니다.
 
@@ -48,19 +48,19 @@ ROS 2는 **프로그램(노드)마다 터미널 하나**를 차지하는 경우�
 ### 2. 새 터미널마다 환경 불러오기
 
 ```bash
-cd ~/openarm_mobile_ws                                          # 저장소 루트로 이동
-source /opt/ros/jazzy/setup.bash                                # ROS 2 명령(ros2 ...) 사용 가능하게
-source mobile_openarm/install/setup.bash                        # 우리 패키지(mobile_openarm_*) 찾을 수 있게
-source mobile_openarm/.venv-mobile/bin/activate                 # python3 로 직접 실행할 때 (mujoco 등)
+cd ~/openarm_mobile_ws                     # 저장소 루트로 이동 (Docker 안에서는 /root/openarm_mobile_ws)
+source mobile_openarm/scripts/env.sh       # ROS 2 + 가상환경(.venv-mobile) + 휠형 패키지를 한 번에
 ```
 
-- `cd`: 현재 작업 폴더를 바꿉니다. 이후 `mobile_openarm/install/...`, `mobile_openarm/src/...` 같은 상대 경로가 저장소 안의 파일을 가리키게 합니다. Docker 안에서는 `cd /root/openarm_mobile_ws` 입니다.
-- `source`: 설정 파일을 **현재 터미널에 적용**합니다. 설치나 빌드를 하는 명령이 아닙니다. `/opt/ros/jazzy/setup.bash` 는 `ros2` 명령과 기본 ROS 패키지를, `mobile_openarm/install/setup.bash` 는 휠형 워크스페이스를 빌드하며 생긴 우리 패키지 경로를 등록합니다.
-- `.venv-mobile/bin/activate`: MuJoCo·OpenAI·Pydantic v2·Flask 가 든 Python 가상환경을 켭니다. 프롬프트 앞에 `(.venv-mobile)` 이 붙고 `python3` 가 이 환경을 가리킵니다. ROS 가 쓰는 NumPy 버전은 그대로입니다 ([Python 가상환경](../setup/python-venv.md)).
+- `cd`: 현재 작업 폴더를 바꿉니다. 이후 `mobile_openarm/src/...` 같은 상대 경로가 저장소 안의 파일을 가리키게 합니다.
+- `source mobile_openarm/scripts/env.sh`: 세 가지를 **현재 터미널에 적용**합니다. 설치나 빌드를 하는 명령이 아닙니다. `bash` 로 실행하면 별도 셸에서 끝나 지금 터미널에 남지 않으므로 반드시 `source` 로 부릅니다.
+  1. `/opt/ros/jazzy/setup.bash` — `ros2` 명령과 기본 ROS 패키지
+  2. `mobile_openarm/.venv-mobile` — MuJoCo·OpenAI·Pydantic v2·Flask 가 든 Python 가상환경. 프롬프트 앞에 `(.venv-mobile)` 이 붙고 `python3` 가 이 환경을 가리킵니다 ([Python 가상환경](../setup/python-venv.md))
+  3. `mobile_openarm/install/setup.bash` — 휠형 워크스페이스를 빌드하며 생긴 우리 패키지(`mobile_openarm_*`) 경로
 
-`04_setup_workspace.sh` 를 실행한 PC 와 Docker 이미지는 `~/.bashrc` 에 ROS·패키지 줄이 들어 있어 자동으로 적용됩니다. `Package 'mobile_openarm_sim' not found` 가 나오면 세 번째 줄을 다시 실행하세요. 가상환경 줄은 `python3 ...` 명령을 쓰는 터미널에서만 필요합니다. `ros2 run`/`ros2 launch` 는 빌드 때 가상환경의 Python 이 기록되어 있어 켜지 않아도 됩니다.
+마지막 줄에 `휠형 환경: ROS 2 jazzy · python …/.venv-mobile/bin/python3 · …/install` 이 나오면 준비된 것입니다. `Package 'mobile_openarm_sim' not found` 가 나오면 이 줄을 다시 실행하세요. 다시 빌드한 뒤에도 같은 줄로 새 패키지를 불러옵니다.
 
-휠형과 TRON1 은 서로 독립된 시스템입니다. 패키지 이름(`mobile_openarm_*` / `tron1_openarm_*`)과 가상환경(`.venv-mobile` / `.venv-biped`)이 다르므로, TRON1 을 실행했던 터미널이라면 새 터미널을 열어 위 세 줄로 시작하세요.
+휠형과 TRON1 은 서로 독립된 시스템입니다. TRON1 을 실행했던 터미널에서 이 줄을 부르면 TRON1 경로와 가상환경을 지우고 휠형 것만 남깁니다(TRON1 은 `source tron1_openarm/scripts/env.sh`).
 
 **명령을 읽는 규칙 두 가지**
 
@@ -77,7 +77,7 @@ ros2 launch 패키지이름  launch파일이름    launch에 줄 설정값 (이�
 ```bash
 cd ~/openarm_mobile_ws/mobile_openarm
 .venv-mobile/bin/python -m colcon build --symlink-install --base-paths src
-source install/setup.bash
+source scripts/env.sh
 ```
 
 ### 3. 멈추기·다시 시작하기

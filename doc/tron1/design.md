@@ -40,7 +40,7 @@ flowchart TB
     P["locomotion_policy.py<br/>보행 정책 실행기 (numpy)"]
     C["biped_core.py<br/>/cmd_vel→정책, 다리 오도메트리"]
     BR["bridge_node.py<br/>(ROS 2 브리지, 실행 파일 tron1_bridge)"]
-    RL["rl/ tron1_env.py · train_ppo.py<br/>PPO 미세조정"]
+    RL["rl/ tron1_env_cpu.py · train_ppo_cpu.py<br/>PPO 미세조정"]
     CFG["Nav2 파라미터 · MoveIt(SRDF·URDF) · launch"]
   end
   X --> B --> C
@@ -56,12 +56,12 @@ flowchart TB
 
 | 새로 만든 것 | 파일 | 하는 일 | 왜 필요한가 |
 |---|---|---|---|
-| ① 하반신 로봇 설명 가져오기 | `tron1_openarm/scripts/13_regen_tron1_models.sh` (생성 결과·메시는 저장소에 포함, `setup_workspace.sh` 는 받지 않음) | `limxdynamics/tron1-robot-description` 을 `tron1_openarm/third_party/` 로 clone | LimX 가 공개한 TRON1 의 링크 길이·관절 한계·질량·관성(CAD 값)을 그대로 쓰기 위해. 직접 재면 틀린다 |
+| ① 하반신 로봇 설명 가져오기 | `tron1_openarm/scripts/regen_models.sh` (생성 결과·메시는 저장소에 포함, `setup_workspace.sh` 는 받지 않음) | `limxdynamics/tron1-robot-description` 을 `tron1_openarm/third_party/` 로 clone | LimX 가 공개한 TRON1 의 링크 길이·관절 한계·질량·관성(CAD 값)을 그대로 쓰기 위해. 직접 재면 틀린다 |
 | ② 최상위 xacro | `urdf/tron1_openarm.urdf.xacro` | LimX `robot.xacro` 를 include + 상반신을 얹을 **마운트 판** 링크 추가 | LimX 파일은 수정하지 않고(업데이트 받기 쉽게) 우리 추가분만 따로 둔다. 마운트 위치(`mount_x`, `mount_z`)를 xacro 변수로 두어 바꿔 보기 쉽게 |
 | ③ 모델 생성기 | `tools/build_tron1_openarm.py` | xacro → URDF → MuJoCo 컴파일 → MJCF, LimX MuJoCo 충돌형상 이식, PD 구동기, OpenArm 접목, 센서 배치 | 시뮬레이터(MJCF)와 ROS(URDF)가 같은 기구학을 쓰도록 한 번에 자동 생성. 자세한 근거는 아래 [모델 만들기](#모델-만들기--로봇-설명-가져오기--xacro--mjcf-생성--상반신-고정) |
 | ④ 상반신 기둥 교체·위치 | 같은 파일 (`SHOULDER_HEIGHT`, `MOUNT_X`) | OpenArm 의 75 cm 기둥을 약 43 cm 로 바꿔 **어깨 1.08 m, 몸통 중심보다 8 cm 앞** | 작업대(0.70 m) 상자가 팔 도달거리 안에 들어와 DAY 2 조작 코드를 고치지 않아도 되고, 내린 손이 TRON1 엉덩이 모터와 6 cm 떨어진다. 원본 기둥(어깨 1.40 m)보다 무게중심이 낮다 |
 | ⑤ 보행 정책 | `deployed_policies/tron1_openarm_policy.npz`, `locomotion_policy.py` | /cmd_vel(속도 명령)을 다리 6관절 목표각으로 바꾸는 신경망 실행기 | 바퀴는 "바퀴 속도 = 공식"으로 끝나지만, 두 발은 **넘어지지 않게 발을 어디에 언제 디딜지** 매 순간 정해야 한다. 공식으로 풀기 어려워 RL 로 배운 정책을 쓴다. SF 배포 정책 `tron1sf_openarm_policy.npz` 는 서기 기울기 벌점으로 다시 학습한 v3 (서 있을 때 2.3°, [보행 학습 13-5](locomotion-rl.md#13-5-서-있을-때-기울기-줄이기-v3-처음엔-배포-안-함--파지-보조-수정-뒤-채택)) |
-| ⑥ PPO 미세조정 | `rl/tron1_env.py`, `rl/train_ppo.py` | LimX 사전학습 정책을 출발점으로, 상반신 14.4 kg·팔 동작·잡음 조건에서 추가 학습 | 사전학습 정책은 TRON1 **단독**(18.5 kg)용이다. 상반신을 얹으면 옆으로 흐르고(0.1 m/s), 팔을 움직이면 넘어졌다 → [보행 학습](locomotion-rl.md) |
+| ⑥ PPO 미세조정 | `rl/tron1_env_cpu.py`, `rl/train_ppo_cpu.py` | LimX 사전학습 정책을 출발점으로, 상반신 14.4 kg·팔 동작·잡음 조건에서 추가 학습 | 사전학습 정책은 TRON1 **단독**(18.5 kg)용이다. 상반신을 얹으면 옆으로 흐르고(0.1 m/s), 팔을 움직이면 넘어졌다 → [보행 학습](locomotion-rl.md) |
 | ⑦ 이족 시뮬레이션 코어 | `biped_core.py` | `sim_core.OpenArmSimBase`(팔·LiDAR·카메라·ArUco·파지 보조)를 상속하고, 모델 읽기·초기화와 하반신(명령→정책, 다리 오도메트리, 서 있는 자세 초기화)을 맡음 | 처음에는 바퀴형 시뮬 클래스를 상속해 하반신만 바꿨다. TRON1 을 독립 시스템으로 나누며 바퀴 부분을 걷어낸 기반 클래스를 TRON1 패키지에 두었다 |
 | ⑧ 다리 오도메트리 | 같은 파일 `_update_odom()` | "디딘 발은 미끄러지지 않는다"고 보고 관절각(기구학)+IMU 자세로 몸통 이동 계산. 공 모양 발이 **굴러가는 만큼** 보정, 속도는 보행 한 주기(0.5 s) 평균 | 바퀴가 없으니 바퀴 엔코더 오도메트리를 못 쓴다. 굴림 보정 전에는 거리가 10% 짧게 나왔다 (6 m 에 30~40 cm → 보정 후 2~5 cm) |
 | ⑧-2 제자리 유지 · 속도 외곽 루프 | 같은 파일 `_apply_base()` | 명령 0: 멈춘 자리로 되돌아가는 작은 속도. 명령 있음: 측정 속도와의 차이를 PI 로 보정(느림·옆 흐름·회전 흐름) | 정책만으로는 제자리에서 60 s 에 3.1 m 흘렀고(→ 0.12 m), Nav2 MPPI 의 작은 시작 명령(0.04 m/s)을 못 따라가 **주행이 시작되지 않는 교착**이 있었다 ([검증 기록 2-3](validation-log.md#2-3-nav2-시험--어떻게-했나)) |
@@ -113,7 +113,7 @@ TRON1 은 휠형과 코드를 나눠 쓰지 않는 독립 시스템입니다. �
 
 ```bash
 cd ~/openarm_mobile_ws
-bash tron1_openarm/scripts/13_regen_tron1_models.sh   # 아래 과정을 모두 자동으로 (모델 재생성, 선택)
+bash tron1_openarm/scripts/regen_models.sh   # 아래 과정을 모두 자동으로 (모델 재생성, 선택)
 ```
 
 스크립트가 하는 첫 일은 LimX 공개 저장소를 받는 것입니다.
@@ -165,7 +165,7 @@ git clone --depth 1 https://github.com/limxdynamics/tron1-robot-description.git 
 
 **`$(find robot_description)` 처리:** LimX xacro 는 ROS 패키지 `robot_description` 경로를 찾습니다. 빌더는 임시 폴더에 xacro 를 복사해 이 부분을 실제 경로로 바꾼 뒤 처리합니다. 그래서 LimX 저장소를 ROS 패키지로 빌드하지 않아도 됩니다. ROS 워크스페이스에 넣어 빌드해도 동작합니다(LimX 저장소에 `package.xml` 이 있음).
 
-직접 처리해 보기 (`13_regen_tron1_models.sh` 를 한 번 실행해 `.urdf.generated` 파일이 생긴 뒤에만 됩니다):
+직접 처리해 보기 (`regen_models.sh` 를 한 번 실행해 `.urdf.generated` 파일이 생긴 뒤에만 됩니다):
 
 ```bash
 cd ~/openarm_mobile_ws/tron1_openarm/src/tron1_openarm_sim
@@ -175,10 +175,10 @@ check_urdf mjcf/tron1_openarm.urdf.generated            # base_Link → abad/hip
 
 ### 3. xacro → URDF → MJCF (`tools/build_tron1_openarm.py`)
 
-> 설명용 명령입니다. `13_regen_tron1_models.sh` 가 같은 일을 하며, 실행하면 `mjcf/` 의 PF 모델 파일을 **다시 생성해 덮어씁니다**. 위 블록과 같은 폴더(`tron1_openarm_sim`)에서, 가상환경을 켠 터미널로 실행합니다.
+> 설명용 명령입니다. `regen_models.sh` 가 같은 일을 하며, 실행하면 `mjcf/` 의 PF 모델 파일을 **다시 생성해 덮어씁니다**. 위 블록과 같은 폴더(`tron1_openarm_sim`)에서, 가상환경을 켠 터미널로 실행합니다.
 
 ```bash
-source ~/openarm_mobile_ws/tron1_openarm/.venv-biped/bin/activate     # mujoco 가 든 TRON1 시뮬용 venv
+source ~/openarm_mobile_ws/tron1_openarm/scripts/env.sh                # mujoco 가 든 TRON1 시뮬용 venv 포함
 python3 tools/build_tron1_openarm.py \
     --tron1 ../../third_party/tron1-robot-description/pointfoot/PF_TRON1A \
     --openarm ../../third_party/openarm_mujoco/v1/openarm_bimanual.xml --out mjcf
@@ -324,7 +324,7 @@ ROS 쪽 URDF 에는 TRON1 다리뿐 아니라 OpenArm 팔·그리퍼, 카메라�
 한 터미널에서 위에서부터 차례로 실행합니다. `mujoco.viewer` 는 창을 닫아야 프롬프트가 돌아와 다음 줄이 실행됩니다.
 
 ```bash
-source ~/openarm_mobile_ws/tron1_openarm/.venv-biped/bin/activate     # mujoco 가 든 TRON1 시뮬용 venv
+source ~/openarm_mobile_ws/tron1_openarm/scripts/env.sh                # mujoco 가 든 TRON1 시뮬용 venv 포함
 cd ~/openarm_mobile_ws/tron1_openarm/src/tron1_openarm_sim
 python3 -m mujoco.viewer --mjcf=mjcf/world.xml          # 로봇 확인 (정책이 없어 다리 힘이 0 → 곧 주저앉음, 정상)
 check_urdf urdf/tron1_openarm.urdf | head -20          # base_footprint → base_link → 다리 / openarm_mount_link → 팔

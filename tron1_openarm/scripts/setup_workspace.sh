@@ -9,7 +9,7 @@
 #     tron1_openarm_apps           : 로봇 스킬(집기·놓기·옆걸음)·작업 관리자·LLM 계획기·웹 대시보드
 #
 #   사용법:  bash tron1_openarm/scripts/setup_workspace.sh
-#   끝나면 새 터미널마다:  source tron1_openarm/install/setup.bash
+#   끝나면 새 터미널마다:  source tron1_openarm/scripts/env.sh
 # ============================================================================
 set -e
 
@@ -18,7 +18,7 @@ PY=$T1/.venv-biped/bin/python          # 1단계에서 만드는 가상환경의
 
 # 0) ROS 가 설치돼 있는지
 if [ ! -f /opt/ros/jazzy/setup.bash ]; then
-  echo "[오류] ROS 2 Jazzy 가 없습니다. doc/setup/ 의 설치 문서를 먼저 따라 하세요."
+  echo "[오류] ROS 2 Jazzy 가 없습니다. 노트북은 bash doc/setup/install_ros2_jazzy.sh, 그 밖의 환경은 doc/setup/ 의 설치 문서를 따라 하세요."
   exit 1
 fi
 
@@ -45,7 +45,7 @@ rosdep install --from-paths src --ignore-src -r -y || true
 "$PY" -m colcon build --symlink-install --base-paths src
 
 echo
-echo "== 완료. 새 터미널에서:"
-echo "   source $T1/install/setup.bash"
+echo "== 완료. 터미널마다 (ROS 2 + .venv-biped + TRON1 install 을 한 번에):"
+echo "   source $T1/scripts/env.sh"
 echo "   ros2 launch tron1_openarm_sim sim.launch.py              # 시뮬만"
 echo "   bash tron1_openarm/tools/validation/mission_test.sh sf _m1   # 전체 미션 시험"
