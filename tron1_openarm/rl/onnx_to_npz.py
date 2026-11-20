@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """LimX 공개 정책(ONNX: policy.onnx + encoder.onnx) → 이 저장소의 numpy 정책 형식(npz).
 
-    python3 onnx_to_npz.py .../model/SF_TRON1A/policy/isaacgym ../policies/limx_sf_tron1a_pretrained.npz
+    python3 onnx_to_npz.py .../model/SF_TRON1A/policy/isaacgym pretrained_limx/limx_sf_tron1a_pretrained.npz
 
 LimX ONNX 는 MatMul → Add → Elu 가 반복되는 단순 MLP 이다. 가중치를 순서대로 꺼내
 encoder_W0, encoder_b0, … policy_W3, policy_b3 로 저장한다 (locomotion_policy.mlp 가 읽는 이름).

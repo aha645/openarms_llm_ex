@@ -1,10 +1,10 @@
 #!/bin/bash
-# 사용: [VIEW=1] [POLICY=정책.npz] [BOX_SOURCE=aruco(기본 color: 마커 없이 색)] [START=x,y,yaw(rad)] bash mission_test.sh <pf|sf> <기록 이름> ["자연어 명령"]   (10_setup_tron1.sh 로 tron1_openarm 빌드 후. 로그: $LOG_DIR, 기본 /tmp/tron1_logs)
+# 사용: [VIEW=1] [POLICY=정책.npz] [BOX_SOURCE=aruco(기본 color: 마커 없이 색)] [START=x,y,yaw(rad)] bash mission_test.sh <pf|sf> <기록 이름> ["자연어 명령"]   (setup_workspace.sh 로 tron1_openarm 빌드 후. 로그: $LOG_DIR, 기본 /tmp/tron1_logs)
 # 전체 시스템(시뮬 + Nav2 + MoveIt + 작업 관리자 + 오프라인 LLM 플래너)을 띄우고, 정답 기록기를 켠 채
 # 자연어 명령 하나를 끝까지 실행한 뒤 상자가 어디에 놓였는지 정답으로 확인한다.
 foot=$1; tag=$2; cmd=${3:-"빨간 상자를 왼쪽 작업대로 옮기고 돌아와"}
 S=${LOG_DIR:-/tmp/tron1_logs}; mkdir -p $S; D=$(cd "$(dirname "$0")" && pwd)
-cd "$D/../.." && source install/setup.bash   # tron1_openarm 워크스페이스 (mobile_openarm underlay 포함)
+cd "$D/../.." && source install/setup.bash   # tron1_openarm 워크스페이스 (바퀴형과 같이 쓰는 패키지도 이 안에 빌드됨)
 SA=(); [ -n "${POLICY:-}" ] && SA+=(policy:=$POLICY)   # 보행 정책 바꿔 시험
 if [ -n "${START:-}" ]; then IFS=, read -r sx sy syaw <<< "$START"; SA+=(start_x:=$sx start_y:=$sy start_yaw:=$syaw); fi
 (ros2 launch tron1_openarm_sim full_system.launch.py "${SA[@]}" foot:=$foot planner:=offline box_source:=${BOX_SOURCE:-color} viewer:=$([ -n "$VIEW" ] && echo true || echo false) rviz:=$([ -n "$VIEW" ] && echo true || echo false) > $S/${foot}_full${tag}.log 2>&1 &)

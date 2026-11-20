@@ -1,5 +1,5 @@
 # 주행형 OpenArm MuJoCo + ROS 2 Jazzy 실습용 이미지 (대상: Intel Mac, x86_64. 다른 환경은 검증하지 않음)
-#   - 보행 PPO 학습(tron1_openarm/.venv-biped)은 이 이미지의 대상이 아님 → GPU PC(DGX Spark 등)에서 진행
+#   - 보행 PPO 학습(tron1_openarm/.venv-biped-train)은 이 이미지의 대상이 아님 → GPU PC(DGX Spark 등)에서 진행
 #   - GPU 가속 없음: macOS 의 Docker 컨테이너는 Mac GPU 에 접근할 수 없으므로 Mesa llvmpipe(CPU) 로 OpenGL 4.5 렌더
 #   - 화면: 컨테이너 안 가상 데스크톱(Xvfb + fluxbox) → x11vnc(5901) → noVNC(6080, 브라우저)
 FROM osrf/ros:jazzy-desktop
@@ -20,8 +20,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # MuJoCo/OpenAI 를 pip 로 설치 (이미지 기본값).
-#  - 워크스페이스 준비(mobile_openarm/scripts/04_setup_workspace.sh)는 이 위에 .venv-mobile
-#    (--system-site-packages)을 만들므로, 여기서 설치한 패키지는 venv 안에서 그대로 재사용된다.
+#  - 워크스페이스 준비(바퀴형 mobile_openarm/scripts/04_setup_workspace.sh → .venv-mobile, TRON1 tron1_openarm/scripts/setup_workspace.sh → .venv-biped)는
+#    이 위에 --system-site-packages 가상환경을 만들므로, 여기서 설치한 패키지는 venv 안에서 그대로 재사용된다.
 #  - numpy 는 ROS apt 버전과 '정확히 같은' 버전으로 고정 (numpy 2.x 가 들어오면 apt 의 cv2·cv_bridge 가 깨짐)
 #  - --ignore-installed: apt 가 설치한 typing_extensions·idna 등을 pip 가 지우려다
 #    "Cannot uninstall ... installed by debian" 로 실패하는 문제 회피 (새 버전은 /usr/local 에 따로 설치됨)
@@ -47,7 +47,8 @@ COPY start-desktop.sh /usr/local/bin/start-desktop.sh
 # 새 터미널마다 ROS 와 워크스페이스 자동 불러오기. TRON1 이 빌드되어 있으면 TRON1 install(휠형 underlay 포함)을 우선 사용
 RUN chmod +x /usr/local/bin/start-desktop.sh && \
     echo 'source /opt/ros/jazzy/setup.bash' >> /root/.bashrc && \
-    echo 'if [ -f /root/openarm_mobile_ws/tron1_openarm/install/setup.bash ]; then source /root/openarm_mobile_ws/tron1_openarm/install/setup.bash; elif [ -f /root/openarm_mobile_ws/mobile_openarm/install/setup.bash ]; then source /root/openarm_mobile_ws/mobile_openarm/install/setup.bash; fi' >> /root/.bashrc
+    echo '# 휠형 install 만 자동으로 불러옴. TRON1 터미널은 직접: source /root/openarm_mobile_ws/tron1_openarm/install/setup.bash (휠형과 독립 워크스페이스)' >> /root/.bashrc && \
+    echo 'if [ -f /root/openarm_mobile_ws/mobile_openarm/install/setup.bash ]; then source /root/openarm_mobile_ws/mobile_openarm/install/setup.bash; fi' >> /root/.bashrc
 
 WORKDIR /root/openarm_mobile_ws
 EXPOSE 5901 6080 8080

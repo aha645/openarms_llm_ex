@@ -5,7 +5,7 @@ train_ppo.py(CPU 물리)와 알고리즘·신경망·가중치 형식(npz)·커�
   * 환경: tron1_mjx_env.Tron1MjxEnv (발바닥 상자, 솔버 반복 16) — 수천 개를 GPU 에서 한꺼번에
   * 수집(rollout)·GAE·PPO 갱신이 모두 jax.jit 안에서 돈다 (반복당 CPU↔GPU 복사는 기록용 숫자뿐)
 
-    python3 train_mjx.py --foot sf --init ../src/tron1_openarm_sim/policies/tron1sf_openarm_policy.npz --minutes 30
+    python3 train_mjx.py --foot sf --init ../src/tron1_openarm_sim/deployed_policies/tron1sf_openarm_policy.npz --minutes 30
     python3 train_mjx.py --foot sf --init scratch --envs 4096 --minutes 240     # 처음부터 (관측 규약을 바꿀 때)
 
 결과: <out>/best.npz · final.npz (locomotion_policy.py 가 그대로 읽음), last.pkl (이어 학습), log.json
@@ -59,7 +59,7 @@ def parse():
     if not a.xml:
         a.xml = os.path.join(ROOT, "src/tron1_openarm_sim/mjcf", sub, "tron1_openarm_train.xml")
     if not a.init:
-        a.init = os.path.join(ROOT, "src/tron1_openarm_sim/policies",
+        a.init = os.path.join(ROOT, "src/tron1_openarm_sim/deployed_policies",
                               "tron1sf_openarm_policy.npz" if a.foot == "sf" else "tron1_openarm_policy.npz")
     return a
 

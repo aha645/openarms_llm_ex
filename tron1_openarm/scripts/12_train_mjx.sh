@@ -9,8 +9,8 @@ T1=$(cd "$(dirname "$0")/.." && pwd)
 MIN=${1:-30}
 FOOT=${2:-sf}
 shift 2 2>/dev/null || shift $#
-VENV=$T1/.venv-biped
-[ -x "$VENV/bin/python" ] || bash "$T1/scripts/setup_venv_biped.sh"
+VENV=$T1/.venv-biped-train          # GPU 학습용 (시뮬·미션용 .venv-biped 와 별개)
+[ -x "$VENV/bin/python" ] || bash "$T1/scripts/setup_venv_biped_train_ppo.sh"
 source "$T1/scripts/_gpu_select.sh"
 pin_gpu
 PY=(env -u PYTHONPATH PYTHONNOUSERSITE=1 XLA_PYTHON_CLIENT_PREALLOCATE="${XLA_PYTHON_CLIENT_PREALLOCATE:-false}" "$VENV/bin/python")
@@ -23,7 +23,7 @@ RUN=$T1/runs/mjx_${FOOT}_$(date +%Y%m%d_%H%M%S)
 mkdir -p "$RUN"
 "${PY[@]}" train_mjx.py --foot "$FOOT" --minutes "$MIN" --out "$RUN" "$@" 2>&1 | grep -v "^Module .* load on device" | tee "$RUN.log"
 # 배포 조건(실습 월드·메시 발·물리 2 ms)에서 시작 정책과 비교. 결과는 run 폴더에만 저장 (커밋된 eval_results.json 은 그대로)
-BASE=$T1/src/tron1_openarm_sim/policies/$([ "$FOOT" = sf ] && echo tron1sf_openarm_policy.npz || echo tron1_openarm_policy.npz)
+BASE=$T1/src/tron1_openarm_sim/deployed_policies/$([ "$FOOT" = sf ] && echo tron1sf_openarm_policy.npz || echo tron1_openarm_policy.npz)
 CUDA_VISIBLE_DEVICES= "${PY[@]}" eval_policy.py "$BASE" "$RUN/best.npz" "$RUN/final.npz" --out="$RUN/eval.json"
 echo "평가 결과: $RUN/eval.json  (위 표: 첫 블록 = 지금 배포 정책, 다음 = 이번 학습)"
 echo "좋으면 배포 정책 교체 (먼저 원본 백업): cp $RUN/best.npz $BASE"

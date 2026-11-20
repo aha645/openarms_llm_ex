@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """학습한 정책(npz) → LimX 배포 형식 ONNX (encoder.onnx, policy.onnx).
 
-    python3 export_onnx.py ../policies/tron1_openarm_policy.npz ../policies/onnx
+    python3 export_onnx.py ../src/tron1_openarm_sim/deployed_policies/tron1_openarm_policy.npz onnx
 
 입출력 이름·크기가 LimX tron1-rl-deploy-python 과 같다 (입력 'mlp_input': 인코더 300 / 정책 36).
 → 실로봇에서 LimX 배포 코드(PointfootController.py)의 model 폴더에 넣어 시험할 수 있는 형태.

@@ -1,29 +1,38 @@
-# 프로젝트 Python 가상환경 — `.venv-mobile` / `.venv-biped`
+# 프로젝트 Python 가상환경 — `.venv-mobile` / `.venv-biped` / `.venv-biped-train`
 
 [README](../../README.md) · [노트북 환경 설정](ubuntu24-native.md)
 
-## 1. 왜 가상환경이 두 개인가
+## 1. 왜 가상환경이 세 개인가
+
+휠형(`mobile_openarm/`)과 TRON1(`tron1_openarm/`)은 **서로 독립된 워크스페이스**입니다. 어느 한쪽만 설치해도 되고, 각자 자기 가상환경을 씁니다.
+TRON1 은 여기에 GPU 학습용 가상환경이 하나 더 있습니다.
 
 ```text
 openarms_llm_ex/
-  mobile_openarm/
-    scripts/setup_venv_mobile.sh   # .venv-mobile 생성 (04_setup_workspace.sh 가 자동 호출)
-    .venv-mobile/                  # ROS 실행용: apt 의 rclpy·cv_bridge·NumPy 1.26 + mujoco·openai·pydantic v2·flask
-  tron1_openarm/
-    scripts/setup_venv_biped.sh    # .venv-biped 생성 (11_train_policy.sh 가 없으면 자동 호출)
-    .venv-biped/                   # PPO 학습용: ROS 와 완전 분리, JAX(GPU)·optax·mujoco + NumPy 2.x
+  mobile_openarm/                              # 휠형
+    scripts/setup_venv_mobile.sh               # .venv-mobile 생성 (04_setup_workspace.sh 가 자동 호출)
+    .venv-mobile/                              # 휠형 ROS 실행용 (CPU)
+  tron1_openarm/                               # TRON1 (휠형 설치 없이 이 폴더만으로)
+    scripts/setup_venv_biped.sh                # .venv-biped 생성 (setup_workspace.sh 가 자동 호출)
+    scripts/setup_workspace.sh                 # .venv-biped → 자체 점검 → colcon build
+    scripts/setup_venv_biped_train_ppo.sh      # .venv-biped-train 생성 (12_train_mjx.sh 가 없으면 자동 호출)
+    .venv-biped/                               # TRON1 ROS 실행·미션·정책 평가용 (CPU)
+    .venv-biped-train/                         # TRON1 보행 PPO 학습용 (GPU)
 ```
 
-| | `.venv-mobile` | `.venv-biped` |
-|---|---|---|
-| 하는 일 | MuJoCo 시뮬·ROS 브리지, SLAM·Nav2·MoveIt 연동, LLM 계획기, Flask 대시보드 (휠형·TRON1 ROS 실행 공용) | TRON1+OpenArm 보행 정책 PPO 학습(팔 자세가 계속 바뀌는 상태), 평가, ONNX 내보내기 |
-| 시스템 패키지 | 보임 (`--system-site-packages`) | 안 보임 (독립) |
-| NumPy | ROS(apt) 버전 **고정** (Ubuntu 24.04 = 1.26) | pip 가 JAX 에 맞는 버전 설치 (2.x) |
-| ROS 와 함께 | 함께 씀 | **ROS 를 source 하지 않은 터미널** 권장 |
+| | `.venv-mobile` (휠형) | `.venv-biped` (TRON1 시뮬) | `.venv-biped-train` (TRON1 학습) |
+|---|---|---|---|
+| 하는 일 | 휠형 시뮬·ROS 브리지, SLAM·Nav2·MoveIt, LLM 계획기, 대시보드 | TRON1 시뮬·ROS 브리지·카메라, 집기 앱·작업 관리자·LLM·대시보드, 보행 정책 평가(`eval_policy.py`)·학습 보기(`watch_training.py`) | 보행 정책 PPO 학습(`train_mjx.py`), ONNX 내보내기 |
+| 장치 | CPU | CPU | **GPU** |
+| 설치 패키지 | mujoco 3.5.0, openai, pydantic v2, flask | (같음) | JAX(GPU)·optax·mujoco-mjx·mujoco-warp·onnx |
+| 시스템 패키지 | 보임 (`--system-site-packages`) | 보임 | 안 보임 (독립) |
+| NumPy | ROS(apt) 버전 **고정** (1.26) | ROS(apt) 버전 **고정** | pip 가 JAX 에 맞는 2.x |
+| ROS 와 함께 | 함께 씀 | 함께 씀 | **ROS 와 분리** |
 
-ROS 2 Jazzy 의 `cv_bridge` 등은 apt 의 NumPy 1.26 에 맞춰 빌드되어 있어, ROS 실행 환경에 NumPy 2.x 가 들어오면 import 오류가 납니다. 반대로 최신 JAX·optax 는 NumPy 2.x 를 요구합니다. 한 환경에 둘 수 없으므로 학습 환경을 따로 둡니다.
+ROS 2 Jazzy 의 `cv_bridge` 등은 apt 의 NumPy 1.26 에 맞춰 빌드되어 있어, ROS 실행 환경에 NumPy 2.x 가 들어오면 import 오류가 납니다. 반대로 최신 JAX·optax 는 NumPy 2.x 를 요구합니다.
+그래서 TRON1 은 ROS 로 도는 시뮬 환경(`.venv-biped`)과 GPU 학습 환경(`.venv-biped-train`)을 나눕니다. 학습 결과(`best.npz`)는 NumPy 배열 파일이라 시뮬 쪽에서 그대로 읽습니다.
 
-venv 폴더는 Git 에서 제외되고(`.gitignore`), colcon 이 안의 패키지를 찾지 않도록 `COLCON_IGNORE` 가 생깁니다. 두 스크립트 모두 실행 위치와 무관하게 자기 워크스페이스 아래에 만들며, 여러 번 실행해도 기존 환경을 재사용합니다. x86/ARM64 모두 `/usr/bin/python3` 를 쓰므로 **다른 컴퓨터의 venv 를 복사하지 말고** 장치마다 새로 만드세요.
+venv 폴더는 Git 에서 제외되고(`.gitignore`), colcon 이 안의 패키지를 찾지 않도록 `COLCON_IGNORE` 가 생깁니다. 모든 스크립트가 실행 위치와 무관하게 자기 워크스페이스 아래에 만들며, 여러 번 실행해도 기존 환경을 재사용합니다. **다른 컴퓨터의 venv 를 복사하지 말고** 장치마다 새로 만드세요.
 
 준비:
 
@@ -31,7 +40,7 @@ venv 폴더는 Git 에서 제외되고(`.gitignore`), colcon 이 안의 패키�
 sudo apt install -y python3-venv
 ```
 
-## 2. `.venv-mobile` — ROS 실행용
+## 2. `.venv-mobile` — 휠형 ROS 실행용
 
 보통은 따로 실행할 필요가 없습니다. `bash mobile_openarm/scripts/04_setup_workspace.sh` 가 먼저 이 환경을 만들고, 모델 생성과 colcon 빌드까지 이 환경의 Python 으로 실행합니다. 환경만 다시 만들거나 의존성만 다시 맞출 때:
 
@@ -69,11 +78,11 @@ head -n 1 mobile_openarm/install/mobile_openarm_apps/lib/mobile_openarm_apps/tas
 ```bash
 source /opt/ros/jazzy/setup.bash
 source mobile_openarm/.venv-mobile/bin/activate
-source mobile_openarm/install/setup.bash        # TRON1 은 tron1_openarm/install/setup.bash
+source mobile_openarm/install/setup.bash
 python -c 'import sys, mujoco; print(sys.executable, mujoco.__version__)'
 ```
 
-출력 경로가 `mobile_openarm/.venv-mobile/bin/python` 이어야 합니다. TRON1 ROS 노드도 이 venv 로 빌드·실행합니다(`10_setup_tron1.sh`).
+출력 경로가 `mobile_openarm/.venv-mobile/bin/python` 이어야 합니다. (TRON1 은 이 venv 를 쓰지 않습니다 — 3절)
 
 ### 예전 `pip --user` 설치가 남아 있는 경우
 
@@ -85,13 +94,50 @@ python -c 'import sys, mujoco; print(sys.executable, mujoco.__version__)'
 
 `python3` 를 직접 실행하는 터미널에서는 `export PYTHONNOUSERSITE=1` 로 `~/.local` 을 끌 수도 있습니다. 스크립트들은 내부에서 이 값을 설정합니다.
 
-## 3. `.venv-biped` — TRON1 보행 PPO 학습용
+## 3. `.venv-biped` — TRON1 시뮬·미션용 (CPU)
+
+보통은 따로 실행할 필요가 없습니다. ROS 2 Jazzy 설치 뒤 다음 한 줄이 이 환경을 만들고, 자체 점검과 colcon 빌드까지 이 환경의 Python 으로 실행합니다.
 
 ```bash
-bash tron1_openarm/scripts/setup_venv_biped.sh
+bash tron1_openarm/scripts/setup_workspace.sh
 ```
 
-`11_train_policy.sh` 가 환경이 없으면 자동으로 호출하므로 바로 학습을 시작해도 됩니다.
+환경만 다시 만들 때: `bash tron1_openarm/scripts/setup_venv_biped.sh`
+
+하는 일 (`setup_venv_biped.sh`):
+
+1. `tron1_openarm/.venv-biped` 를 `--system-site-packages` 로 생성 → apt 의 ROS Python 패키지(rclpy, cv_bridge, OpenCV, NumPy, colcon) 그대로 사용
+2. apt NumPy 버전을 `ros-constraints.txt` 에 기록하고 고정한 채 `mujoco==3.5.0`, `openai>=1.60`, `pydantic>=2.5`, `flask` 설치
+3. NumPy 가 apt 버전 그대로인지 확인
+
+`setup_workspace.sh` 는 이어서 `src/` 의 패키지 5 개를 이 venv 의 Python 으로 빌드합니다.
+TRON1 패키지 2 개(`tron1_openarm_sim`, `tron1_openarm_moveit_config`)와, 시뮬 코어·카메라 서버·집기 앱·작업 관리자·LLM·대시보드가 든 공통 패키지 3 개
+(`mobile_openarm_sim`, `mobile_openarm_apps`, `mobile_openarm_moveit_config` — 휠형에서 가져온 코드, 휠형 로봇 모델은 뺐음)입니다.
+그래서 **TRON1 의 모든 `ros2 run`/`ros2 launch` 실행 파일이 `.venv-biped` 로 돕니다**. 확인:
+
+```bash
+head -n 1 tron1_openarm/install/mobile_openarm_apps/lib/mobile_openarm_apps/task_manager
+# #!/.../tron1_openarm/.venv-biped/bin/python
+```
+
+`python3` 로 도구를 직접 실행할 때(`eval_policy.py`, `watch_training.py`, 모델 생성 도구)는 활성화합니다:
+
+```bash
+source /opt/ros/jazzy/setup.bash
+source tron1_openarm/.venv-biped/bin/activate
+source tron1_openarm/install/setup.bash
+```
+
+> 공통 패키지 3 개는 휠형(`mobile_openarm/src`)과 TRON1(`tron1_openarm/src`)에 각각 따로 있습니다. 한쪽에서 고친 공통 코드(집기 앱 등)는
+> 다른 쪽에 저절로 반영되지 않으므로, 양쪽에 필요한 수정이면 두 곳 모두 고칩니다.
+
+## 4. `.venv-biped-train` — TRON1 보행 PPO 학습용 (GPU)
+
+```bash
+bash tron1_openarm/scripts/setup_venv_biped_train_ppo.sh
+```
+
+`12_train_mjx.sh`(`11_train_policy.sh`)가 환경이 없으면 자동으로 호출하므로 바로 학습을 시작해도 됩니다.
 
 하는 일:
 
@@ -103,48 +149,48 @@ bash tron1_openarm/scripts/setup_venv_biped.sh
    | 드라이버 ≥ 525 (예: 드라이버 550 + RTX 3090) | `jax[cuda12]` + `mujoco-warp` + `warp-lang==1.12.1` |
    | NVIDIA GPU 없음 / 드라이버 < 525 | `jax[cpu]` |
 
-   CUDA 13 wheel 은 드라이버 580 이상이 필요합니다. 예전 스크립트는 compute capability 만 봐서 드라이버 550 PC 에 `cuda13` 을 깔아 실패할 수 있었습니다.
    GPU 가 여러 대(예: GTX 1080 Ti + RTX 3090)면 학습 스크립트가 `CUDA_VISIBLE_DEVICES` 를 가장 좋은 GPU 로 고정합니다 (JAX 는 PCI 순서상 첫 GPU 에 계산을 올리기 때문).
 
-2. `tron1_openarm/.venv-biped` 를 시스템 패키지가 **안 보이는** 독립 venv 로 생성 (ROS 의 `PYTHONPATH` 도 지우고 실행)
-3. JAX, optax, `mujoco==3.5.0`(ROS 쪽과 같은 버전 → 같은 모델 파일 사용), `mujoco-mjx==3.5.0`, onnx, onnxruntime, pyyaml, scipy 설치 (+ GPU 면 MuJoCo Warp)
-4. NumPy 버전, `jax.devices()`, GPU 행렬곱을 출력해 GPU 사용 여부 확인
+2. `tron1_openarm/.venv-biped-train` 을 시스템 패키지가 **안 보이는** 독립 venv 로 생성 (ROS 의 `PYTHONPATH` 도 지우고 실행)
+3. JAX, optax, `mujoco==3.5.0`(시뮬 쪽과 같은 버전 → 같은 모델 파일), `mujoco-mjx==3.5.0`, onnx, onnxruntime, pyyaml, scipy 설치 (+ GPU 면 MuJoCo Warp)
+4. NumPy 버전, `jax.devices()` 를 출력해 GPU 사용 여부 확인
 
 JAX 는 소스에서 빌드하지 않습니다. 공식 wheel 에 CUDA 런타임이 들어 있어 **NVIDIA 드라이버만 있으면** 됩니다(CUDA Toolkit 불필요). 자동 선택이 맞지 않으면:
 
 ```bash
-rm -rf tron1_openarm/.venv-biped
-JAX_SPEC='jax[cuda12]' bash tron1_openarm/scripts/setup_venv_biped.sh
+rm -rf tron1_openarm/.venv-biped-train
+JAX_SPEC='jax[cuda12]' bash tron1_openarm/scripts/setup_venv_biped_train_ppo.sh
 ```
 
 ### 학습 실행
 
 ```bash
-bash tron1_openarm/scripts/11_train_policy.sh 90     # CPU 물리: 90분 학습 → 평가
 bash tron1_openarm/scripts/12_train_mjx.sh 30 sf     # GPU 물리(MJX + MuJoCo Warp): 30분 학습 → 배포 조건 평가
+bash tron1_openarm/scripts/11_train_policy.sh 90     # (예전) CPU 물리: 90분 학습 → 평가
 ```
 
-`12_train_mjx.sh` 는 물리까지 GPU 에서 돌립니다 (RTX 3090 기준 약 4배 빠름). 자세한 내용: [보행 학습 9절](../tron1/locomotion-rl.md#9-gpu-물리-학습-mjx--mujoco-warp).
+자세한 학습 흐름(보상 추가 → 학습 → 이어 학습 → 시험 → 판정): [보행 학습 14-11절](../tron1/locomotion-rl.md).
 
-`11_train_policy.sh` 는 `.venv-biped` 의 Python 을 `PYTHONPATH` 없이 실행합니다. 학습 환경(`tron1_openarm/rl/tron1_env.py`)은 에피소드 도중에도 팔 목표 자세를 이름 자세·무작위 자세로 1.5~3초에 걸쳐 계속 바꾸면서 보행을 학습합니다. 신경망(PPO 업데이트)은 JAX GPU, MuJoCo 물리 rollout 은 CPU 스레드에서 돕니다. JAX 가 GPU 메모리를 미리 75% 잡지 않도록 `XLA_PYTHON_CLIENT_PREALLOCATE=false` 를 기본으로 둡니다(CPU·GPU 메모리를 공유하는 DGX Spark 에서 중요).
-
-직접 실행할 때는 새 터미널에서 다음을 입력합니다. `04`·`03` 스크립트가 `~/.bashrc` 에 ROS 줄을 넣었다면 새 터미널에도 ROS 가 자동으로 불러와져 있으므로, `python` 명령 앞에 `env -u PYTHONPATH` 를 붙여 ROS 경로를 지웁니다(아래 설명 참고).
+직접 실행할 때는 `python` 앞에 `env -u PYTHONPATH` 를 붙여 ROS 경로를 지웁니다 (`~/.bashrc` 가 ROS 를 자동으로 불러오는 터미널이어도 되게):
 
 ```bash
 export PYTHONNOUSERSITE=1
-source tron1_openarm/.venv-biped/bin/activate
 cd tron1_openarm/rl
-env -u PYTHONPATH python train_ppo.py --minutes 90 --init-std 0.08 --lr 2e-5 --out ../runs/my_run
+env -u PYTHONPATH ../.venv-biped-train/bin/python train_mjx.py --foot sf --minutes 30 --out ../runs/my_run
 ```
 
-`env -u PYTHONPATH` 가 필요한 이유: venv 는 환경 변수까지 격리하지 않아서, ROS 가 설정한 `PYTHONPATH`(NumPy 1.26 용 패키지 경로)가 남아 있으면 JAX 쪽 NumPy 2.x 와 섞입니다. `~/.bashrc` 에 ROS 줄이 없는 터미널이라면 붙이지 않아도 됩니다. 학습 결과(`best.npz`)는 NumPy 배열 파일이라 `.venv-mobile` 쪽 ROS 브리지에서 그대로 읽습니다.
+`env -u PYTHONPATH` 가 필요한 이유: venv 는 환경 변수까지 격리하지 않아서, ROS 가 설정한 `PYTHONPATH`(NumPy 1.26 용 패키지 경로)가 남아 있으면 JAX 쪽 NumPy 2.x 와 섞입니다.
 
-## 4. 사용 종료·재생성
+## 5. 사용 종료·재생성
 
 ```bash
 deactivate                                   # 현재 셸의 venv 해제
 rm -rf mobile_openarm/.venv-mobile           # 다시 만들기: bash mobile_openarm/scripts/04_setup_workspace.sh
-rm -rf tron1_openarm/.venv-biped             # 다시 만들기: bash tron1_openarm/scripts/setup_venv_biped.sh
+rm -rf tron1_openarm/.venv-biped             # 다시 만들기: bash tron1_openarm/scripts/setup_workspace.sh
+rm -rf tron1_openarm/.venv-biped-train       # 다시 만들기: bash tron1_openarm/scripts/setup_venv_biped_train_ppo.sh
 ```
 
-`.venv-mobile` 을 지우고 다시 만들면 venv 경로가 같으므로 기존 빌드의 shebang 은 그대로 유효합니다. 저장소 폴더를 옮겼다면 venv 와 `build/ install/` 을 모두 지우고 `04`(TRON1 은 `10`도)를 다시 실행하세요. 환경 간 전환에는 새 터미널을 쓰는 것이 명확합니다.
+venv 를 같은 경로에 다시 만들면 기존 빌드의 shebang 은 그대로 유효합니다. 저장소 폴더를 옮겼다면 venv 와 `build/ install/` 을 모두 지우고 설치 스크립트를 다시 실행하세요.
+
+> 예전 구조(2026-11 이전)에서는 `tron1_openarm/.venv-biped` 가 **학습용**이었고 TRON1 ROS 노드는 `.venv-mobile` 로 돌았습니다.
+> 예전 `.venv-biped` 가 남아 있으면 `setup_venv_biped.sh` 가 알려 줍니다 → `rm -rf tron1_openarm/.venv-biped tron1_openarm/build tron1_openarm/install` 후 `setup_workspace.sh`.

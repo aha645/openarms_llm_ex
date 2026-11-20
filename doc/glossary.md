@@ -30,7 +30,7 @@
 | DDS | Data Distribution Service, 데이터 분배 서비스 | ROS 2가 내부에서 쓰는 통신 표준 |
 | lifecycle | managed node, 수명 주기 노드 | 설정 → 활성 순서로 켜지는 노드. Nav2 노드가 이 방식이며 `Managed nodes are active` 는 모두 활성화되어 준비됐다는 뜻 |
 | rosdep | — | 패키지가 필요로 하는 시스템(apt) 의존성을 찾아 설치하는 도구 |
-| overlay / underlay | — | 이미 빌드한 워크스페이스(underlay, 여기서는 `mobile_openarm/`) 위에 다른 워크스페이스(overlay, `tron1_openarm/`)를 겹쳐 빌드하는 방식. overlay 의 `setup.bash` 하나로 둘 다 불러옴 |
+| overlay / underlay | — | 이미 빌드한 워크스페이스(underlay, 예: `/opt/ros/jazzy`) 위에 다른 워크스페이스(overlay)를 겹쳐 쓰는 방식. 나중에 `source` 한 쪽의 같은 이름 패키지가 앞선다. 이 저장소의 `mobile_openarm/` 과 `tron1_openarm/` 은 서로 겹치지 않는 독립 워크스페이스 |
 | `--symlink-install` | — | colcon 옵션. 설치 폴더에 소스 파일을 복사하지 않고 링크를 걸어, Python 소스를 고치면 다시 빌드하지 않아도 반영됨 |
 
 ## 시뮬레이션·모델
@@ -134,9 +134,9 @@
 | noVNC | — | 브라우저에서 VNC 화면을 보는 프로그램 |
 | Xvfb | X virtual framebuffer, X 가상 화면 | 모니터 없이 메모리 안에 만드는 가상 화면 |
 | EGL | — | 화면(창) 없이 GPU 로 그림을 그리는 OpenGL 인터페이스. selftest·카메라 오프스크린 렌더에 사용 (`MUJOCO_GL=egl`) |
-| 가상환경 (venv) | Python virtual environment | 프로젝트 전용 Python 패키지 폴더. `.venv-mobile`(ROS 실행용)과 `.venv-biped`(보행 학습용) 두 개 ([Python 가상환경](setup/python-venv.md)) |
-| `PYTHONPATH` | — | Python 이 패키지를 찾는 추가 경로. ROS 를 `source` 하면 설정되며, `.venv-biped` 학습 때는 `env -u PYTHONPATH` 로 지움 |
-| shebang | — | 실행 파일 첫 줄의 `#!/경로/python`. 어떤 Python 으로 실행할지 정함. `ros2 run` 이 venv 를 켜지 않아도 `.venv-mobile` 을 쓰는 이유 |
+| 가상환경 (venv) | Python virtual environment | 프로젝트 전용 Python 패키지 폴더. `.venv-mobile`(휠형 ROS 실행), `.venv-biped`(TRON1 시뮬·미션), `.venv-biped-train`(TRON1 보행 학습, GPU) 세 개 ([Python 가상환경](setup/python-venv.md)) |
+| `PYTHONPATH` | — | Python 이 패키지를 찾는 추가 경로. ROS 를 `source` 하면 설정되며, `.venv-biped-train` 학습 때는 `env -u PYTHONPATH` 로 지움 |
+| shebang | — | 실행 파일 첫 줄의 `#!/경로/python`. 어떤 Python 으로 실행할지 정함. `ros2 run` 이 venv 를 켜지 않아도 `.venv-mobile`(TRON1 은 `.venv-biped`)을 쓰는 이유 |
 
 ## TRON1·보행 학습
 
@@ -146,7 +146,7 @@
 | PF / SF | Point-foot / Sole-foot | TRON1 발 형태. SF 는 발바닥이 있는 발(교육 기준, launch 기본값 `foot:=sf`), PF 는 점 발(`foot:=pf` 로 비교) |
 | 보행 정책 (policy) | — | 센서 값을 받아 다리 관절 목표각을 내는 신경망. `.npz` 파일 |
 | PPO | Proximal Policy Optimization | 정책을 미세조정할 때 쓴 강화학습 알고리즘 |
-| JAX | — | Google 의 수치 계산 라이브러리. PPO 학습을 GPU 에서 돌릴 때 사용 (`.venv-biped`) |
+| JAX | — | Google 의 수치 계산 라이브러리. PPO 학습을 GPU 에서 돌릴 때 사용 (`.venv-biped-train`) |
 | ONNX | Open Neural Network Exchange | 신경망 교환 파일 형식. LimX 배포 코드가 읽는 형식 |
 | sim-to-sim / sim-to-real | — | 한 시뮬레이터에서 만든 정책을 다른 시뮬레이터 / 실제 로봇으로 옮기는 것. 질량·마찰·지연·센서 잡음 차이 때문에 그대로는 잘 안 됨 |
 | limxsdk | — | LimX 로봇과 통신하는 SDK (RobotState/ImuData 받기, RobotCmd 보내기) |

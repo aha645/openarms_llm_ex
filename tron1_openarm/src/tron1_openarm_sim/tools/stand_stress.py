@@ -19,8 +19,8 @@ import sys
 import mujoco
 import numpy as np
 
-sys.path.insert(0, '.'); sys.path.insert(0, '../../../mobile_openarm/src/mobile_openarm_sim')
-sys.path.insert(0, '../../../mobile_openarm/src/mobile_openarm_apps')
+sys.path.insert(0, '.'); sys.path.insert(0, '../mobile_openarm_sim')
+sys.path.insert(0, '../mobile_openarm_apps')
 from tron1_openarm_sim.biped_core import BipedOpenArmSim  # noqa: E402
 from tron1_openarm_sim.arm_poses import POSES  # noqa: E402
 from mobile_openarm_apps.geometry import approach_rotation  # noqa: E402

@@ -11,18 +11,18 @@
 
 | 무엇 | 위치 | 비고 |
 |---|---|---|
-| 보행 정책 (Sole-foot, 교육 기준) | `tron1_openarm/src/tron1_openarm_sim/policies/tron1sf_openarm_policy.npz` | v3 = `runs/upright/seed1/final.npz`, 서 있을 때 기울기 2.3° ([보행 학습 13-5](locomotion-rl.md)) |
-| 보행 정책 (Point-foot, 비교용) | `.../policies/tron1_openarm_policy.npz` | `foot:=pf` |
+| 보행 정책 (Sole-foot, 교육 기준) | `tron1_openarm/src/tron1_openarm_sim/deployed_policies/tron1sf_openarm_policy.npz` | v3 = `runs/upright/seed1/final.npz`, 서 있을 때 기울기 2.3° ([보행 학습 13-5](locomotion-rl.md)) |
+| 보행 정책 (Point-foot, 비교용) | `.../deployed_policies/tron1_openarm_policy.npz` | `foot:=pf` |
 | 로봇·월드 모델 (MJCF) | `.../mjcf/`, `.../mjcf/sf/` | 생성 도구로 만든 결과 그대로 |
 | 메시 (OpenArm·TRON1) | `.../mjcf/meshes/`, `.../mjcf/sf/meshes/`, `mobile_openarm/src/mobile_openarm_sim/mjcf/meshes/` | Apache-2.0, 출처: 각 `mjcf/MESHES_NOTICE.md` |
 | ROS 용 URDF·SRDF | `.../urdf/`, `tron1_openarm_moveit_config/config/` | |
 | 지도·Nav2 설정·위치 | `.../maps/`, `.../config/` | |
-| 정책 평가 기록 | `tron1_openarm/policies/eval_results.json` | 배포 SF·PF 정책의 오프라인 평가 (`rl/eval_policy.py`). 같은 폴더의 `limx_*_pretrained.npz` 는 학습 시작점이며 실행에 쓰이지 않음 |
+| 정책 평가 기록 | `tron1_openarm/rl/eval_records/eval_results.json` | 배포 SF·PF 정책의 오프라인 평가 (`rl/eval_policy.py`). 학습 시작점인 LimX 원본 정책은 `tron1_openarm/rl/pretrained_limx/` (실행에 쓰이지 않음) |
 
 배포 정책이 맞는지 확인 (마지막 검증 때의 파일):
 
 ```bash
-md5sum tron1_openarm/src/tron1_openarm_sim/policies/tron1sf_openarm_policy.npz
+md5sum tron1_openarm/src/tron1_openarm_sim/deployed_policies/tron1sf_openarm_policy.npz
 # e9593d270975860f634091cdd5fd289c  ← v3 (= runs/upright/seed1/final.npz)
 ```
 
@@ -34,14 +34,13 @@ GPU 가 없어도 돌지만 느립니다 (아래 7절).
 ```bash
 git clone https://github.com/aha645/openarms_llm_ex.git
 cd openarms_llm_ex
-bash mobile_openarm/scripts/04_setup_workspace.sh      # .venv-mobile, 자체 점검, 바퀴형 빌드 (5~15 분)
-bash tron1_openarm/scripts/10_setup_tron1.sh           # 모델·정책 확인, 자체 점검(PF·SF), TRON1 빌드
-source tron1_openarm/install/setup.bash                # 새 터미널마다 (바퀴형 underlay 포함)
+bash tron1_openarm/scripts/setup_workspace.sh          # .venv-biped 생성, 자체 점검, TRON1 빌드 (휠형 설치 불필요)
+source tron1_openarm/install/setup.bash                # 새 터미널마다
 ```
 
-- 두 스크립트는 저장소의 모델을 **덮어쓰지 않습니다**. 자체 점검이 `총 10개 중 실패 0개`(PF·SF 각각)면 정상입니다.
+- 스크립트는 저장소의 모델을 **덮어쓰지 않습니다**. 자체 점검이 `총 10개 중 실패 0개`면 정상입니다.
 - `third_party/` 폴더는 생기지 않습니다. 원본에서 모델을 다시 만드는 일은 8절(선택)입니다.
-- 이미 설치한 컴퓨터에서 최신으로 바꿀 때: `git pull` 뒤 `bash tron1_openarm/scripts/10_setup_tron1.sh` (또는 `cd tron1_openarm && colcon build --symlink-install --base-paths src`).
+- 이미 설치한 컴퓨터에서 최신으로 바꿀 때: `git pull` 뒤 `bash tron1_openarm/scripts/setup_workspace.sh` (또는 `cd tron1_openarm && .venv-biped/bin/python -m colcon build --symlink-install --base-paths src`).
 
 ## 3. 전체 미션 — 시험 스크립트로 한 번에
 
@@ -119,10 +118,10 @@ BOX_SOURCE=color bash tron1_openarm/tools/validation/series_run.sh s1 r1 r2 r3 r
 ```bash
 ros2 launch tron1_openarm_sim full_system.launch.py foot:=sf policy:=/절대/경로/새정책.npz box_source:=color
 # 시험 스크립트는 설치된 기본 정책을 쓰므로, 바꿔 보려면 파일을 바꿔 넣고 되돌린다
-cp tron1_openarm/src/tron1_openarm_sim/policies/tron1sf_openarm_policy.npz /tmp/policy_backup.npz
-cp 새정책.npz tron1_openarm/src/tron1_openarm_sim/policies/tron1sf_openarm_policy.npz   # symlink 설치라 다시 빌드 불필요
+cp tron1_openarm/src/tron1_openarm_sim/deployed_policies/tron1sf_openarm_policy.npz /tmp/policy_backup.npz
+cp 새정책.npz tron1_openarm/src/tron1_openarm_sim/deployed_policies/tron1sf_openarm_policy.npz   # symlink 설치라 다시 빌드 불필요
 # ... 시험 ...
-git checkout tron1_openarm/src/tron1_openarm_sim/policies/tron1sf_openarm_policy.npz     # 저장소 버전으로 되돌리기
+git checkout tron1_openarm/src/tron1_openarm_sim/deployed_policies/tron1sf_openarm_policy.npz     # 저장소 버전으로 되돌리기
 ```
 
 정책 학습·평가는 [보행 학습](locomotion-rl.md) (`tron1_openarm/scripts/12_train_mjx.sh`, `rl/eval_policy.py`).

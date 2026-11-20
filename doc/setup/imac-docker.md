@@ -194,7 +194,16 @@ ros2 pkg prefix mobile_openarm_apps
 
 `04` 가 `mobile_openarm/.venv-mobile` 가상환경(`--system-site-packages`)을 만들고, OpenArm 에셋·모델을 생성한 뒤 `mobile_openarm/` 에서 venv Python 으로 `colcon build --symlink-install --base-paths src` 를 수행합니다. 이미지에 pip 로 넣어 둔 MuJoCo·OpenAI·Pydantic 은 venv 에서 그대로 재사용되므로 새로 내려받지 않습니다. 이미지를 폴더 재구성 전에 빌드했다면 `python3-venv` 가 없으므로 `docker compose build` 를 다시 실행하세요. `rosdep init` 이 이미 초기화되었다고 실패하면 다음 명령으로 진행하세요. `04` 내부 자체 점검(selftest 14개)·rosdep 실패가 무시될 수 있으므로 로그와 빌드 요약을 별도로 확인합니다.
 
-저장소는 Mac 폴더와 공유되지만 컨테이너 내부 경로는 **`/root/openarm_mobile_ws`** 로 고정됩니다. `mobile_openarm/`·`tron1_openarm/` 의 `build/`, `install/`, `log/` 와 `mobile_openarm/.venv-mobile` 은 Compose named volume 입니다. 폴더 재구성 전에 만든 볼륨(`ws_build` 등)은 더 이상 쓰지 않으므로 `docker volume ls` 로 확인 후 지워도 됩니다. **Mac 호스트에서 colcon 을 실행하거나 호스트의 install 경로를 source 하지 마세요.**
+TRON1 도 쓸 때는 컨테이너 터미널에서 이어서 (휠형과 독립 — 휠형 빌드 없이도 됨):
+
+```bash
+cd /root/openarm_mobile_ws
+bash tron1_openarm/scripts/setup_workspace.sh      # .venv-biped 생성 → 자체 점검 → 빌드
+source tron1_openarm/install/setup.bash
+ros2 pkg prefix tron1_openarm_sim
+```
+
+저장소는 Mac 폴더와 공유되지만 컨테이너 내부 경로는 **`/root/openarm_mobile_ws`** 로 고정됩니다. `mobile_openarm/`·`tron1_openarm/` 의 `build/`, `install/`, `log/` 와 가상환경 `mobile_openarm/.venv-mobile`·`tron1_openarm/.venv-biped` 는 Compose named volume 입니다. 폴더 재구성 전에 만든 볼륨(`ws_build` 등)은 더 이상 쓰지 않으므로 `docker volume ls` 로 확인 후 지워도 됩니다. **Mac 호스트에서 colcon 을 실행하거나 호스트의 install 경로를 source 하지 마세요.**
 
 ## 4. 화면 보기
 
@@ -233,7 +242,7 @@ rviz2      # 실패하면 LIBGL_ALWAYS_INDIRECT=1 을 붙여 보고, 그래도 �
 | T2 | 🆕 컨테이너 (Mac 터미널에서 `docker compose exec openarm bash`) | 🟢 | `/task/status` 계속 출력. **결과 관찰은 여기서** |
 | T3 | 🆕 컨테이너 (같은 방법으로 하나 더) | ⚪ | 시험 명령 한 번 보내고 끝남 |
 
-표기: 🆕 새로 열기 · 🟢 계속 실행(터미널을 붙잡음) · ⚪ 바로 끝남 — [휠형 공통 규칙](../wheel/README.md#1-터미널-여러-개-쓰기)과 같습니다. 컨테이너 터미널은 이미지의 `~/.bashrc` 가 ROS·패키지를 자동으로 불러오므로 아래 `source` 두 줄은 확인용이며 생략해도 됩니다. TRON1 을 빌드한 뒤에는 `~/.bashrc` 가 TRON1 install(휠형 underlay 포함)을 우선 불러오며, 휠형 교육에도 그대로 쓸 수 있습니다.
+표기: 🆕 새로 열기 · 🟢 계속 실행(터미널을 붙잡음) · ⚪ 바로 끝남 — [휠형 공통 규칙](../wheel/README.md#1-터미널-여러-개-쓰기)과 같습니다. 컨테이너 터미널은 이미지의 `~/.bashrc` 가 ROS·패키지를 자동으로 불러오므로 아래 `source` 두 줄은 확인용이며 생략해도 됩니다. `~/.bashrc` 는 휠형 install 만 불러옵니다. TRON1 터미널은 새로 열 때마다 `source /root/openarm_mobile_ws/tron1_openarm/install/setup.bash` 를 직접 입력합니다 (TRON1 은 휠형과 독립 워크스페이스. 이미지를 이 변경 전에 빌드했다면 `docker compose build` 로 다시 빌드).
 
 T1(컨테이너):
 
@@ -328,7 +337,7 @@ docker compose down
 | 컨테이너 재시작 후 화면이 안 뜸 | 남은 X 잠금 파일 | 시작 스크립트가 `/tmp/.X1-lock` 을 지움. 안 되면 `docker compose down && docker compose up -d` |
 | 한글이 □ 로 보임 | 글꼴 없음 | 이미지에 `fonts-noto-cjk` 포함됨(RViz·대시보드는 정상). xterm 은 기본 글꼴이 영문용 |
 
-**TRON1 보행 PPO 학습은 이 Docker 환경의 대상이 아닙니다.** 컨테이너에 GPU 가 없어 JAX 가 CPU 로만 돌고, `.venv-biped` 용 볼륨도 없습니다. 정책 학습은 GPU PC([DGX Spark](dgx-spark.md#8-tron1-보행-ppo-학습용-가상환경-venv-biped--jax-gpu) 등)에서 하고, 결과 `.npz` 만 저장소로 가져와 쓰세요. TRON1 시뮬·교육 자체는 Docker 에서 할 수 있습니다.
+**TRON1 보행 PPO 학습은 이 Docker 환경의 대상이 아닙니다.** 컨테이너에 GPU 가 없어 JAX 가 CPU 로만 돌고, 학습용 `.venv-biped-train` 볼륨도 없습니다. 정책 학습은 GPU PC([DGX Spark](dgx-spark.md#8-tron1-보행-ppo-학습용-가상환경-venv-biped-train--jax-gpu) · 우분투 24.04 + RTX 3090 등)에서 하고, 결과 `.npz` 만 저장소로 가져와 쓰세요. TRON1 시뮬·교육 자체는 Docker 에서 할 수 있습니다.
 
 ### 확인한 것과 못 한 것
 

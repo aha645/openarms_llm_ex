@@ -3,7 +3,7 @@
 
     python3 build_tron1_openarm.py \
         --tron1 ~/openarm_mobile_ws/tron1_openarm/third_party/tron1-robot-description/pointfoot/PF_TRON1A \
-        --openarm ~/openarm_mobile_ws/mobile_openarm/third_party/openarm_mujoco/v1/openarm_bimanual.xml \
+        --openarm ~/openarm_mobile_ws/tron1_openarm/third_party/openarm_mujoco/v1/openarm_bimanual.xml \
         --out ../mjcf
 
 생성물 (mjcf/)
@@ -409,7 +409,7 @@ def build(tron1_dir, openarm_xml, out_dir, xacro_file, mount_x=None, shoulder=No
         fp.write(header + ET.tostring(train, encoding="unicode"))
     # 양손 손목 카메라 (시뮬·저사양 모델만, 학습 모델 제외 — 바퀴형과 같은 정의: mobile_openarm_sim/wrist_cameras.py)
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../../../mobile_openarm/src/mobile_openarm_sim/tools"))
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../mobile_openarm_sim/tools"))
     from wrist_cameras import apply_wrist_cameras
     for fn in ("tron1_openarm.xml", "tron1_openarm_light.xml"):
         print(f"[cam] {fn}: 손목 카메라 {apply_wrist_cameras(os.path.join(out_dir, fn))}")

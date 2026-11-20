@@ -346,155 +346,112 @@ ros2 topic pub --once /task/command std_msgs/msg/String "{data: '순찰하고 �
 
 원격(SSH)으로 접속해 화면이 없으면 `viewer:=false` 를 붙이고 대시보드(포트 8080)로 봅니다. 여기까지 되면 [휠형 교육](../wheel/README.md)으로 넘어갑니다.
 
-## 7. (TRON1) 모델 생성·overlay 빌드
+## 7. (TRON1) 워크스페이스 — 가상환경 `.venv-biped`·빌드
 
-> **TRON1 모델·메시·정책도 저장소에 들어 있습니다.** 아래 모델 생성 블록(third_party clone ~ Nav2 파라미터)은 건너뛰고,
-> 이 절의 자체 점검·빌드 부분만 하면 됩니다 (한 번에: `bash tron1_openarm/scripts/10_setup_tron1.sh`).
-> 원본(LimX TRON1·OpenArm)에서 다시 만들 때만 생성 블록을 씁니다 (한 번에: `bash tron1_openarm/scripts/13_regen_tron1_models.sh`). [실행 안내](../tron1/run-guide.md)
+TRON1 은 휠형과 **독립**입니다. 4~6절(휠형)을 건너뛰고 3절(ROS) 다음에 바로 해도 됩니다. 한 번에 하는 스크립트는 `bash tron1_openarm/scripts/setup_workspace.sh` 이고,
+아래는 그것을 한 줄씩 나눈 것입니다. 모델·메시·보행 정책은 저장소에 들어 있어 따로 만들지 않습니다
+(원본 LimX TRON1·OpenArm 에서 다시 만들 때만 `bash tron1_openarm/scripts/13_regen_tron1_models.sh`). [실행 안내](../tron1/run-guide.md)
 
-`tron1_openarm/scripts/10_setup_tron1.sh` 를 나눈 것입니다. 5절까지 끝난 상태에서 시작합니다. 6절의 full_system 은 `Ctrl+C` 로 끈 뒤, 그 터미널(또는 새 터미널)에서 7절을 **끝까지 한 터미널로** 진행합니다. 아래 셋째 블록이 정하는 `PY W D M` 변수는 그 터미널에서만 유효하므로, 중간에 새 터미널을 열었다면 첫 블록과 셋째 블록을 다시 입력하세요.
-
-```bash
-cd ~/Documents/openarms_llm_ex && mkdir -p tron1_openarm/third_party && touch tron1_openarm/third_party/COLCON_IGNORE
-```
+**터미널:** 🆕 새 터미널 하나에서 7절 끝까지 진행합니다.
 
 ```bash
-git clone --depth 1 https://github.com/limxdynamics/tron1-robot-description.git tron1_openarm/third_party/tron1-robot-description
+cd ~/Documents/openarms_llm_ex/tron1_openarm && export PYTHONNOUSERSITE=1
 ```
+
+① 시뮬용 가상환경 — ROS 의 rclpy·OpenCV·NumPy 를 같이 쓰도록 `--system-site-packages`
 
 ```bash
-cd tron1_openarm/src/tron1_openarm_sim && PY=../../../mobile_openarm/.venv-mobile/bin/python && W=../../../mobile_openarm && D=../../third_party/tron1-robot-description/pointfoot && M=../tron1_openarm_moveit_config/config
+/usr/bin/python3 -m venv --system-site-packages .venv-biped && touch .venv-biped/COLCON_IGNORE
 ```
 
-변수: `PY` 가상환경 Python, `W` 휠형 워크스페이스, `D` TRON1 description, `M` MoveIt 설정 폴더.
-
-Point-foot 모델:
+② NumPy 를 ROS(apt) 버전으로 고정 (pip 가 2.x 를 깔면 cv_bridge 가 깨짐)
 
 ```bash
-$PY tools/build_tron1_openarm.py --tron1 $D/PF_TRON1A --openarm $W/third_party/openarm_mujoco/v1/openarm_bimanual.xml --out mjcf
+env -u PYTHONPATH /usr/bin/python3 -c 'import numpy; print("numpy==" + numpy.__version__)' > .venv-biped/ros-constraints.txt && cat .venv-biped/ros-constraints.txt
 ```
+
+③ 패키지 설치 — mujoco(물리), openai·pydantic(LLM 계획기), flask(대시보드)
 
 ```bash
-$PY tools/build_world_tron1.py --wheeled-tools $W/src/mobile_openarm_sim/tools --out mjcf --config config
+env -u PYTHONPATH .venv-biped/bin/python -m pip install -c .venv-biped/ros-constraints.txt 'mujoco==3.5.0' 'openai>=1.60' 'pydantic>=2.5' flask
 ```
+
+④ ROS 를 깨끗하게 불러오기 (다른 워크스페이스가 섞이지 않게)
 
 ```bash
-$PY tools/make_urdf_tron1.py --wheeled-tools $W/src/mobile_openarm_sim/tools --mjcf mjcf/tron1_openarm.xml --out urdf/tron1_openarm.urdf
+unset AMENT_PREFIX_PATH CMAKE_PREFIX_PATH COLCON_PREFIX_PATH PYTHONPATH && source /opt/ros/jazzy/setup.bash
 ```
+
+⑤ 시뮬 자체 점검 (ROS 없이: 서기·걷기·회전·팔 동작·LiDAR·카메라) — `총 10개 중 실패 0개`
 
 ```bash
-$PY $W/src/mobile_openarm_moveit_config/tools/make_srdf.py --mjcf mjcf/tron1_openarm.xml --out $M/tron1_openarm.srdf --samples 2000
+cd src/tron1_openarm_sim && MUJOCO_GL=egl ../../.venv-biped/bin/python tools/selftest_tron1.py sf/world_light.xml deployed_policies/tron1sf_openarm_policy.npz; cd ../..
 ```
+
+⑥ 빌드 — `src/` 의 패키지 5 개(TRON1 2 개 + 시뮬 코어·집기 앱·작업 관리자 등 공통 3 개). **가상환경의 python 으로 colcon 을 실행**해야 실행 파일이 이 가상환경으로 돕니다
 
 ```bash
-sed -i 's/<robot name="mobile_openarm">/<robot name="tron1_openarm">/' $M/tron1_openarm.srdf && $PY tools/patch_srdf_home.py $M/tron1_openarm.srdf
+rosdep install --from-paths src --ignore-src -r -y; .venv-biped/bin/python -m colcon build --symlink-install --base-paths src
 ```
 
-Sole-foot 모델 (교육 기준):
+⑦ 확인
 
 ```bash
-$PY tools/build_tron1_openarm.py --foot sf --base-height 0.73 --tron1 $D/SF_TRON1A --openarm $W/third_party/openarm_mujoco/v1/openarm_bimanual.xml --out mjcf/sf
+head -n 1 install/mobile_openarm_apps/lib/mobile_openarm_apps/task_manager
 ```
 
-```bash
-$PY tools/build_world_tron1.py --wheeled-tools $W/src/mobile_openarm_sim/tools --out mjcf/sf --config /tmp/tron1_sf_cfg
-```
+`#!/.../tron1_openarm/.venv-biped/bin/python` 이 나와야 합니다. 이후 TRON1 터미널은 `source tron1_openarm/install/setup.bash` 하나면 됩니다. 교육은 [TRON1 1일차](../tron1/day1.md)부터입니다.
 
-```bash
-$PY tools/make_urdf_tron1.py --wheeled-tools $W/src/mobile_openarm_sim/tools --mjcf mjcf/sf/tron1_openarm.xml --out urdf/tron1_openarm_sf.urdf --base-height 0.73 --mesh-prefix package://tron1_openarm_sim/mjcf/sf/
-```
-
-```bash
-$PY $W/src/mobile_openarm_moveit_config/tools/make_srdf.py --mjcf mjcf/sf/tron1_openarm.xml --out $M/tron1_openarm_sf.srdf --samples 2000
-```
-
-```bash
-sed -i 's/<robot name="mobile_openarm">/<robot name="tron1_openarm">/' $M/tron1_openarm_sf.srdf && $PY tools/patch_srdf_home.py $M/tron1_openarm_sf.srdf
-```
-
-Nav2 파라미터·지도:
-
-```bash
-$PY tools/make_nav2_params_tron1.py --src $W/src/mobile_openarm_sim/config/nav2_params.yaml --out config/nav2_params_tron1.yaml && cp -n $W/src/mobile_openarm_sim/maps/world_map.* maps/
-```
-
-점검 (Sole-foot 정책):
-
-```bash
-MUJOCO_GL=egl $PY tools/selftest_tron1.py sf/world_light.xml policies/tron1sf_openarm_policy.npz
-```
-
-overlay 빌드 — 휠형 install 을 먼저 불러온 뒤 `tron1_openarm/` 만 빌드합니다.
-
-```bash
-cd ~/Documents/openarms_llm_ex/tron1_openarm && source ../mobile_openarm/install/setup.bash
-```
-
-```bash
-../mobile_openarm/.venv-mobile/bin/python -m colcon build --symlink-install --base-paths src
-```
-
-```bash
-source install/setup.bash && ros2 pkg prefix tron1_openarm_sim
-```
-
-이후 TRON1 터미널은 `source tron1_openarm/install/setup.bash` 하나로 휠형 underlay 까지 불러옵니다. 교육은 [TRON1 1일차](../tron1/day1.md)부터입니다.
-
-## 8. (TRON1) 보행 PPO 학습용 가상환경 `.venv-biped` — JAX GPU
+## 8. (TRON1) 보행 PPO 학습용 가상환경 `.venv-biped-train` — JAX GPU
 
 ROS 쪽 NumPy(1.26)와 JAX 가 요구하는 NumPy(2.x)가 충돌하므로 **시스템 패키지를 보지 않는 독립 가상환경**을 따로 만듭니다.
+한 번에 하는 스크립트: `bash tron1_openarm/scripts/setup_venv_biped_train_ppo.sh` (GPU·드라이버를 보고 JAX 종류를 고름).
 
-**터미널:** 🆕 새 터미널 하나에서 8절 끝까지 진행합니다. 3-7·5-4에서 `~/.bashrc` 에 ROS 줄을 넣었기 때문에 새 터미널도 ROS 가 자동으로 불러와져 있습니다. 그래서 아래 명령은 모두 `env -u PYTHONPATH` 로 **ROS 의 `PYTHONPATH` 를 지우고** 실행합니다. 이 접두어를 빼지 마세요. ROS launch 가 켜져 있어도 상관없지만 학습이 CPU 를 많이 쓰므로 끄는 편이 좋습니다.
+**터미널:** 🆕 새 터미널 하나에서 8절 끝까지 진행합니다. `~/.bashrc` 가 ROS 를 자동으로 불러오는 터미널이어도 되도록 모든 명령을 `env -u PYTHONPATH` 로 **ROS 의 `PYTHONPATH` 를 지우고** 실행합니다. 이 접두어를 빼지 마세요.
 
 ```bash
-cd ~/Documents/openarms_llm_ex && export PYTHONNOUSERSITE=1
+cd ~/Documents/openarms_llm_ex/tron1_openarm && export PYTHONNOUSERSITE=1
 ```
 
 ```bash
-nvidia-smi --query-gpu=name,compute_cap --format=csv
+nvidia-smi --query-gpu=name,compute_cap,driver_version --format=csv
 ```
 
-GB10 은 `12.1` 입니다. compute capability ≥ 7.5 이므로 CUDA 13 용 JAX 를 씁니다.
+GB10 은 compute capability `12.1`, 드라이버 580 이상이므로 CUDA 13 용 JAX 를 씁니다.
 
 ```bash
-env -u PYTHONPATH /usr/bin/python3 -m venv tron1_openarm/.venv-biped && touch tron1_openarm/.venv-biped/COLCON_IGNORE
-```
-
-```bash
-env -u PYTHONPATH tron1_openarm/.venv-biped/bin/python -m pip install --upgrade pip
+env -u PYTHONPATH /usr/bin/python3 -m venv .venv-biped-train && touch .venv-biped-train/COLCON_IGNORE
 ```
 
 ```bash
-env -u PYTHONPATH tron1_openarm/.venv-biped/bin/python -m pip install 'jax[cuda13]' optax 'mujoco==3.5.0' onnx onnxruntime pyyaml scipy
+env -u PYTHONPATH .venv-biped-train/bin/python -m pip install --upgrade pip
 ```
-
-JAX 는 소스 빌드하지 않고 공식 wheel 을 씁니다. `jax[cuda13]` 은 cuDNN·cuBLAS·NCCL 등 CUDA 런타임 wheel 을 venv 안에 함께 받습니다(약 3.5 GB, venv 전체 약 4.6 GB). DGX OS 에는 CUDA 13.0 툴킷은 있지만 **cuDNN·NCCL 이 없어서** 필요합니다. 시스템 라이브러리를 쓰려면 `cudnn9-cuda-13`·`libnccl2` 를 설치한 뒤 `jax[cuda13-local]` 을 쓸 수 있지만, 시스템 패키지 업데이트에 따라 깨질 수 있어 권하지 않습니다.
 
 ```bash
-env -u PYTHONPATH XLA_PYTHON_CLIENT_PREALLOCATE=false tron1_openarm/.venv-biped/bin/python -c 'import jax, numpy; print("jax", jax.__version__, "numpy", numpy.__version__, jax.devices())'
+env -u PYTHONPATH .venv-biped-train/bin/python -m pip install 'jax[cuda13]' optax 'mujoco==3.5.0' 'mujoco-mjx==3.5.0' 'mujoco-warp==3.5.0.2' onnx onnxruntime pyyaml scipy
 ```
 
-이 장비에서 확인한 결과: `jax 0.12.0.1 numpy 2.5.4 [CudaDevice(id=0)]`. `CpuDevice` 만 나오면 GPU 를 못 쓰는 것이므로 `nvidia-smi` 와 설치한 JAX 변형을 확인하세요. (같은 일을 하는 스크립트: `bash tron1_openarm/scripts/setup_venv_biped.sh`)
+JAX 는 소스 빌드하지 않고 공식 wheel 을 씁니다. `jax[cuda13]` 은 cuDNN·cuBLAS·NCCL 등 CUDA 런타임 wheel 을 venv 안에 함께 받습니다(약 3.5 GB). DGX OS 에는 CUDA 13.0 툴킷은 있지만 **cuDNN·NCCL 이 없어서** 필요합니다.
+
+```bash
+env -u PYTHONPATH XLA_PYTHON_CLIENT_PREALLOCATE=false .venv-biped-train/bin/python -c 'import jax, numpy; print("jax", jax.__version__, "numpy", numpy.__version__, jax.devices())'
+```
+
+`CudaDevice` 가 나와야 합니다. `CpuDevice` 만 나오면 GPU 를 못 쓰는 것이므로 `nvidia-smi` 와 설치한 JAX 변형을 확인하세요.
 
 ### 학습 실행
 
 ```bash
-cd ~/Documents/openarms_llm_ex/tron1_openarm/rl
+bash scripts/12_train_mjx.sh 30 sf      # (tron1_openarm 폴더에서)
 ```
 
-```bash
-env -u PYTHONPATH PYTHONNOUSERSITE=1 XLA_PYTHON_CLIENT_PREALLOCATE=false ../.venv-biped/bin/python train_ppo.py --minutes 90 --init-std 0.08 --lr 2e-5 --critic-warmup 20 --out ../runs/my_run
-```
+30 분 GPU 물리 학습(MJX + MuJoCo Warp) 뒤, 배포 조건에서 지금 정책과 비교 평가합니다 (`runs/mjx_sf_<시각>/eval.json`).
 
-- `XLA_PYTHON_CLIENT_PREALLOCATE=false`: JAX 는 기본으로 GPU 메모리의 75% 를 미리 잡습니다. DGX Spark 는 **CPU 와 GPU 가 128 GB 를 함께 쓰므로** 미리 잡으면 MuJoCo rollout(CPU)이 쓸 메모리가 부족해집니다.
-- 학습 중 팔 자세는 이름 자세·무작위 자세로 계속 바뀝니다. 신경망(PPO 업데이트)은 GPU, MuJoCo 물리 rollout 은 CPU 20코어(`--threads` 기본값 = 코어 수)에서 돕니다.
-- 옵션·결과 읽기·Sole-foot 학습은 [보행 학습](../tron1/locomotion-rl.md)을 참고하세요.
+- `XLA_PYTHON_CLIENT_PREALLOCATE=false`(스크립트 기본): JAX 는 기본으로 GPU 메모리의 75% 를 미리 잡습니다. DGX Spark 는 **CPU 와 GPU 가 128 GB 를 함께 쓰므로** 미리 잡으면 다른 작업이 쓸 메모리가 부족해집니다.
+- 보상 추가 → 학습 → 이어 학습(`--init`) → 시험 → 판정까지의 흐름: [보행 학습 14-11절](../tron1/locomotion-rl.md).
 
-```bash
-env -u PYTHONPATH ../.venv-biped/bin/python eval_policy.py ../policies/limx_pf_tron1a_pretrained.npz ../runs/my_run/best.npz
-```
-
-결과가 좋으면 `cp ../runs/my_run/best.npz ../src/tron1_openarm_sim/policies/tron1_openarm_policy.npz` 로 배포 정책을 바꿉니다(npz 는 NumPy 배열이라 ROS 쪽에서 그대로 읽음). **주의:** `tron1_openarm_policy.npz` 는 **Point-foot(PF)** 정책입니다. 교육 기준인 Sole-foot(`foot:=sf`)은 `tron1sf_openarm_policy.npz` 를 쓰므로 이 복사는 SF 교육에 영향을 주지 않습니다. 덮어쓰기 전에 원본을 백업해 두세요.
+결과가 좋으면 Sole-foot 배포 정책 `../src/tron1_openarm_sim/deployed_policies/tron1sf_openarm_policy.npz` 를 바꿉니다 (npz 는 NumPy 배열이라 시뮬 쪽에서 그대로 읽음).
+바꾸기 전에 원본을 백업하고, 집기·미션 시험으로 지금 정책(v3) 이상인지 먼저 확인하세요 ([판정 기준](../tron1/locomotion-rl.md)).
 
 ## 자주 막히는 부분
 
@@ -502,7 +459,7 @@ env -u PYTHONPATH ../.venv-biped/bin/python eval_policy.py ../policies/limx_pf_t
 |---|---|
 | 재부팅 후 `nvidia-smi` 실패 | 커널·드라이버 짝이 어긋남. `uname -r` 과 `dpkg -l \| grep nvidia-driver` 를 처음 기록과 비교. 직전에 `apt upgrade` 를 했다면 NVIDIA DGX OS 복구·업데이트 안내를 따름 |
 | `apt install --simulate` 에 `linux-*`/`nvidia-*` 가 나옴 | 설치를 멈추고 어떤 패키지가 끌어오는지 `apt-cache depends` 로 확인. 필요하면 해당 패키지를 빼고 설치 |
-| `No module named 'mujoco'` | `python3` 로 직접 실행했다면 `source mobile_openarm/.venv-mobile/bin/activate`. `ros2 run` 에서 나면 5-4 의 shebang 확인 후 venv Python 으로 다시 빌드 |
+| `No module named 'mujoco'` | `python3` 로 직접 실행했다면 `source mobile_openarm/.venv-mobile/bin/activate` (TRON1 은 `tron1_openarm/.venv-biped`). `ros2 run` 에서 나면 5-4(TRON1 은 7절 ⑦)의 shebang 확인 후 venv Python 으로 다시 빌드 |
 | 그냥 `colcon build` 를 했음 | `/usr/bin/colcon` 은 시스템 Python 이라 실행 파일이 `/usr/bin/python3` 로 기록됨 → `.venv-mobile/bin/python -m colcon build ...` 로 다시 빌드 |
 | JAX 가 `CpuDevice` 만 봄 | `pip show jax-cuda13-plugin` 확인, 드라이버 580 이상인지 확인 |
 | 학습 중 메모리 부족·멈춤 | `XLA_PYTHON_CLIENT_PREALLOCATE=false` 를 붙였는지, `--envs` 를 줄여 보기 |

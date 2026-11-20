@@ -2,7 +2,7 @@
  "_설명": "보행 정책 후보 집기 시험(series_run.sh r1~r8, POLICY=후보)·미션 시험 요약. step_time.py 와 같은 계산(0.2 s 기록). doc/tron1/locomotion-rl.md 14-8",
  "_기록_원본": "/tmp/tron1_logs (재부팅하면 지워짐): series_<접두어>.txt, sfpk_<접두어>rN.log, rec_sf_<접두어>rN.jsonl, mrec_sf_<이름>.jsonl",
  "pick_v3z": {
-  "policy": "배포 v3 (src/tron1_openarm_sim/policies/tron1sf_openarm_policy.npz), 2026-11-19 같은 코드",
+  "policy": "배포 v3 (src/tron1_openarm_sim/deployed_policies/tron1sf_openarm_policy.npz), 2026-11-19 같은 코드",
   "runs": {
    "r1": {
     "placed": 1,

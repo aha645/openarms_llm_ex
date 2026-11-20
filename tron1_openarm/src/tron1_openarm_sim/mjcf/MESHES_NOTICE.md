@@ -9,4 +9,4 @@
 | `sf/meshes/tron1` | 같은 저장소 `pointfoot/SF_TRON1A/meshes/` | 같음 | 같음 |
 
 MJCF·URDF·SRDF 도 이 원본과 저장소의 생성 도구(`tools/`)로 만든 결과를 그대로 넣어 두었습니다.
-평소 설치(`10_setup_tron1.sh`)는 이 파일들을 그대로 씁니다. 원본에서 다시 만들려면 `bash tron1_openarm/scripts/13_regen_tron1_models.sh`.
+평소 설치(`setup_workspace.sh`)는 이 파일들을 그대로 씁니다. 원본에서 다시 만들려면 `bash tron1_openarm/scripts/13_regen_tron1_models.sh`.

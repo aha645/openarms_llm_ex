@@ -15,7 +15,7 @@ import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, ".."))
-sys.path.insert(0, os.path.join(HERE, "../../../../mobile_openarm/src/mobile_openarm_sim"))
+sys.path.insert(0, os.path.join(HERE, "../../mobile_openarm_sim"))
 from mobile_openarm_sim.aruco_utils import ArucoDetector  # noqa: E402
 from mobile_openarm_sim import color_boxes  # noqa: E402
 from tron1_openarm_sim.biped_core import BipedOpenArmSim  # noqa: E402

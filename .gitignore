@@ -6,6 +6,7 @@ third_party/
 # Python 가상환경
 .venv-mobile/
 .venv-biped/
+.venv-biped-train/
 __pycache__/
 *.pyc
 .DS_Store

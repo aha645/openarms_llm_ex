@@ -2,30 +2,31 @@
 
 [TRON1 목차](README.md) · [2일차](day2.md) · [휠형 교육](../wheel/README.md) · [용어집](../glossary.md)
 
-## 전제: 환경은 같지만 TRON1 빌드는 별도
+## 전제: ROS 2 Jazzy 설치 뒤 TRON1 워크스페이스만 설치
 
-Ubuntu 24.04 / ROS 2 Jazzy / 저장소 clone / 휠형 에셋·colcon 빌드(`mobile_openarm/scripts/04_setup_workspace.sh`, `.venv-mobile` 포함)까지 완료되어 있다고 가정합니다. **TRON1 교육은 추가로 TRON1 모델·정책·패키지 준비까지 완료한 상태**에서 시작합니다. 이미 완료했다면 아래 설치 명령은 반복하지 않습니다.
+Ubuntu 24.04 / ROS 2 Jazzy / 저장소 clone 까지 완료되어 있다고 가정합니다 (Mac Docker·우분투 노트북·DGX Spark·우분투 + GPU 공통, [설치 문서](../setup/)).
+**TRON1 은 휠형(`mobile_openarm/`)과 독립**이라 휠형을 설치하지 않아도 됩니다. 이미 설치했다면 아래 명령은 반복하지 않습니다.
 
 준비 담당자가 한 번 실행할 명령 (저장소 루트, Docker는 컨테이너 안):
 
 ```bash
-source /opt/ros/jazzy/setup.bash
-# 필요한 패키지: ros-jazzy-xacro liburdfdom-tools (Docker 이미지에는 포함됨)
-bash tron1_openarm/scripts/10_setup_tron1.sh
+bash tron1_openarm/scripts/setup_workspace.sh
 source tron1_openarm/install/setup.bash
 ros2 pkg prefix tron1_openarm_sim
-ros2 pkg prefix tron1_openarm_moveit_config
 ```
 
-`10`은 외부 TRON1 description을 clone하고 PF/SF 모델·월드·URDF/SRDF·Nav2 파라미터를 `mobile_openarm/.venv-mobile`의 Python으로 생성한 뒤, `mobile_openarm/install`을 underlay로 불러와 `tron1_openarm/` 워크스페이스를 빌드합니다(overlay). 휠형 패키지(`mobile_openarm_apps` 등)는 다시 빌드하지 않고 그대로 씁니다. `tron1_openarm/install/setup.bash` 하나만 source하면 휠형 underlay까지 함께 불러옵니다. 직접 다시 빌드할 때는 `cd tron1_openarm && source ../mobile_openarm/install/setup.bash && ../mobile_openarm/.venv-mobile/bin/python -m colcon build --symlink-install --base-paths src`입니다. 스크립트는 xacro·`check_urdf`(liburdfdom-tools)가 **없을 때만** 설치하며(root면 `apt-get`, 아니면 `sudo apt-get`), 설치에 실패하면 멈춥니다. 03 스크립트·DGX 3절·현재 Docker 이미지는 두 패키지를 이미 설치합니다. 이 패키지가 들어가기 전에 빌드한 예전 이미지라면 Mac 터미널에서 `docker compose build && docker compose up -d` 로 다시 만들거나, 컨테이너 안에서 아래를 실행한 뒤 `10`을 실행하세요(컨테이너를 다시 만들면 사라짐).
+`setup_workspace.sh` 가 하는 일:
 
-```bash
-# 예전 Docker 이미지에만 해당 (컨테이너 안, root)
-apt-get update
-apt-get install -y ros-jazzy-xacro liburdfdom-tools
-```
+1. 시뮬용 가상환경 `tron1_openarm/.venv-biped` 생성 (`setup_venv_biped.sh` — mujoco·openai·pydantic v2·flask, NumPy 는 ROS 버전 고정)
+2. 시뮬 자체 점검 (ROS 없이 서기·걷기·회전·팔 동작·LiDAR·카메라, `총 10개 중 실패 0개` 면 정상)
+3. `tron1_openarm/src` 의 패키지 5 개를 이 가상환경의 Python 으로 빌드
+   - TRON1: `tron1_openarm_sim`(모델·월드·브리지·launch·보행 정책), `tron1_openarm_moveit_config`
+   - 공통: `mobile_openarm_sim`(시뮬 코어·카메라 서버), `mobile_openarm_apps`(집기 앱·작업 관리자·LLM·대시보드), `mobile_openarm_moveit_config` — 휠형과 같은 코드를 TRON1 폴더에 따로 둔 것
 
-`10`의 자체 점검 실패도 무시될 수 있습니다. 빌드 성공과 보행 성공은 별도로 확인합니다. 기본 실습에는 PPO 재학습이나 CUDA/JAX 설치가 필요하지 않습니다. 정책을 직접 학습할 때만 ROS와 분리된 `tron1_openarm/.venv-biped`(JAX GPU)를 씁니다 — [Python 가상환경](../setup/python-venv.md).
+모델·메시·보행 정책(SF v3)은 저장소에 들어 있어 내려받거나 만들지 않습니다. 직접 다시 빌드할 때: `cd tron1_openarm && .venv-biped/bin/python -m colcon build --symlink-install --base-paths src`.
+
+자체 점검 실패는 빌드를 멈추지 않으므로 빌드 성공과 보행 성공은 따로 확인합니다. 기본 실습에는 PPO 재학습이나 CUDA/JAX 설치가 필요하지 않습니다.
+정책을 직접 학습할 때만 GPU PC 에서 학습용 가상환경 `tron1_openarm/.venv-biped-train`(`setup_venv_biped_train_ppo.sh`, JAX GPU)을 씁니다 — [Python 가상환경](../setup/python-venv.md).
 
 ### PF와 SF를 혼동하지 않기
 
@@ -43,8 +44,8 @@ apt-get install -y ros-jazzy-xacro liburdfdom-tools
 
 ```bash
 source /opt/ros/jazzy/setup.bash
-source tron1_openarm/install/setup.bash         # 휠형 mobile_openarm underlay 포함
-source mobile_openarm/.venv-mobile/bin/activate # python3 를 직접 실행할 때 필요 (ros2 launch/run 은 없어도 됨)
+source tron1_openarm/install/setup.bash
+source tron1_openarm/.venv-biped/bin/activate   # python3 를 직접 실행할 때 필요 (ros2 launch/run 은 없어도 됨)
 ```
 
 각 절 위의 터미널 상태표(🆕 새로 열기 · 🟢 계속 실행 · ⚪ 바로 끝남)는 [휠형 공통 규칙](../wheel/README.md#1-터미널-여러-개-쓰기)과 같은 표기입니다. T1/T2/T3는 별도 터미널입니다. 단계 전환 시 기존 launch·teleop를 Ctrl+C로 종료합니다. 휠형과 이족형, sim/slam/nav/full_system을 동시에 올리지 않습니다. 같은 노드·토픽·액션을 공유하기 때문입니다.
@@ -61,7 +62,7 @@ tron1_openarm/src/tron1_openarm_sim/
     biped_core.py                   # 다리 제어·보행·오도메트리
     bridge_biped.py                 # 공통 ROS 인터페이스에 이족 코어 연결
   launch/                           # sim, slam, nav, full_system
-  policies/                         # PF/SF 배포 정책
+  deployed_policies/                # 시뮬이 불러오는 PF/SF 보행 정책
   mjcf/                             # PF, sf/ 아래 SF 월드
 ```
 
@@ -92,7 +93,7 @@ tron1_openarm/src/tron1_openarm_sim/
 
 ```bash
 python3 tron1_openarm/src/tron1_openarm_sim/tools/selftest_tron1.py \
-  sf/world_light.xml policies/tron1sf_openarm_policy.npz
+  sf/world_light.xml deployed_policies/tron1sf_openarm_policy.npz
 ```
 
 **테스트:** 서기·걷기·회전·센서·팔 관련 항목의 결과를 확인합니다. TRON1 월드를 단순 MuJoCo viewer로만 열면 보행 정책이 제어하지 않아 주저앉을 수 있습니다. 첫 시각화는 아래 sim launch로 합니다.

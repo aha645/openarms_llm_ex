@@ -5,7 +5,7 @@
     python3 train_ppo.py --envs 512 --minutes 240      # 코어가 많은 PC
     python3 train_ppo.py --init scratch                # 사전학습 없이 처음부터 (수억 스텝 필요 — GPU 권장)
 
-시작점: LimX 가 Isaac Gym 으로 학습해 공개한 PF_TRON1A 정책(policies/limx_pf_tron1a_pretrained.npz).
+시작점: LimX 가 Isaac Gym 으로 학습해 공개한 PF_TRON1A 정책(rl/pretrained_limx/limx_pf_tron1a_pretrained.npz).
 그대로는 OpenArm 14.4 kg 를 얹으면 옆으로 미끄러지듯 흐르고(약 0.1 m/s), 잡음·팔 동작이 있으면 넘어진다.
 → 같은 네트워크 구조·관측 규약을 유지한 채 PPO 로 미세조정한다 (전이학습).
 
@@ -40,7 +40,7 @@ ROOT = os.path.dirname(HERE)
 def parse():
     ap = argparse.ArgumentParser()
     ap.add_argument("--xml", default=os.path.join(ROOT, "src/tron1_openarm_sim/mjcf/tron1_openarm_train.xml"))
-    ap.add_argument("--init", default=os.path.join(ROOT, "policies/limx_pf_tron1a_pretrained.npz"))
+    ap.add_argument("--init", default=os.path.join(ROOT, "rl/pretrained_limx/limx_pf_tron1a_pretrained.npz"))
     ap.add_argument("--out", default=os.path.join(ROOT, "runs", time.strftime("%Y%m%d_%H%M%S")))
     ap.add_argument("--envs", type=int, default=128)
     ap.add_argument("--steps", type=int, default=24, help="반복당 환경별 스텝 수")
