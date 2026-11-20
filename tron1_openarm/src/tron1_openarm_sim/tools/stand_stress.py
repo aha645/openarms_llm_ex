@@ -19,12 +19,12 @@ import sys
 import mujoco
 import numpy as np
 
-sys.path.insert(0, '.'); sys.path.insert(0, '../mobile_openarm_sim')
-sys.path.insert(0, '../mobile_openarm_apps')
+sys.path.insert(0, '.')
+sys.path.insert(0, '../tron1_openarm_apps')
 from tron1_openarm_sim.biped_core import BipedOpenArmSim  # noqa: E402
 from tron1_openarm_sim.arm_poses import POSES  # noqa: E402
-from mobile_openarm_apps.geometry import approach_rotation  # noqa: E402
-from mobile_openarm_sim.sim_core import yaw_of  # noqa: E402
+from tron1_openarm_apps.geometry import approach_rotation  # noqa: E402
+from tron1_openarm_sim.sim_core import yaw_of  # noqa: E402
 
 FWD = 0.53                  # 상자 중심 (base_footprint 앞 거리, 집기 앱 IDEAL_REACH 근처)
 BOX_Z = 0.725

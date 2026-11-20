@@ -4,6 +4,8 @@
 
 하반신을 TRON1 으로 바꾼 뒤 SLAM·Nav2·집기·LLM 미션을 **실제로 시험한 순서대로** 모은 기록입니다. 수치는 모두 이 저장소의 시뮬레이터에서 직접 잰 값입니다. 날짜가 뒤로 갈수록 최신이며, **현재 상태는 마지막 절(Sole-foot 전체 미션 완주)** 기준입니다. 한 번의 성공은 반복 성공률 보장이 아닙니다.
 
+> **패키지 이름 안내 (2026-11-20, [24절](#24-tron1-을-독립-시스템으로-tron1-전용-패키지-로봇-분기-제거)).** 23절까지의 기록은 TRON1 이 휠형 패키지를 같이 쓰던 때의 것입니다. 그 기록의 `mobile_openarm_apps`·`mobile_openarm_sim`·`bridge_biped.py`·`OPENARM_BIPED`/`OPENARM_SRDF` 는 지금 각각 `tron1_openarm_apps`·`tron1_openarm_sim`·`tron1_openarm_sim/bridge_node.py`·(환경 변수 없음, 이족 동작이 기본)입니다. 기록은 그때 상태 그대로 둡니다.
+
 | 절 | 내용 | 통합 전 문서 |
 |---|---|---|
 | [1](#1-2026-11-05-시점-상태와-전체-구조) | 2026-11-05 시점 상태표, 전체 구조, 용어 | 07장 0~1 |
@@ -1309,3 +1311,37 @@ AMCL 위치 오차 (정답 대비): 미션 21 평균 10.6 / 최대 41.8 cm, 미�
   후진 −0.2 → −0.3 m/s → 미션 586 → 365 s, 기울기 3.1°.
 - 보행 재학습 v4~v10(발 들기·옆걸음·직진·서서 작업하기·느린 미세 이동)의 판별 보상·결과·문제·소스 코드 변경은 [보행 학습 14절](locomotion-rl.md#14-빠른-걸음옆걸음서서-작업하기-재학습-v4v10).
   v9 best 는 집기 r1~r8 8/8 이고 r3~r7 은 걸음 0 s 였지만 느린 미세 이동이 부정확(0.05 m/s 전진 17 %)해 v10 을 학습했으나 서기 안정성을 잃어 버림. **배포 정책은 v3 유지** — 2026-11-20 v3·v9 best 최종 비교: 집기 둘 다 8/8 이지만 걸음 모드 v3 1.2~6.4 s / v9 best 최대 49 s, 기울기 3.1~3.4° / 5.2~6.0°, 미션 둘 다 성공(436 / 372 s, 기울기 3.1 / 6.0°) (보행 학습 14-9).
+
+## 24. TRON1 을 독립 시스템으로: TRON1 전용 패키지, 로봇 분기 제거
+
+TRON1 이 휠형에서 복사해 온 공통 패키지 3 개(`mobile_openarm_sim`·`mobile_openarm_apps`·`mobile_openarm_moveit_config`)를 TRON1 소유로 바꾸고,
+두 시스템 모두에서 상대 로봇용 분기를 걷어냈다. 이제 두 워크스페이스는 코드·패키지 이름·가상환경을 나눠 쓰지 않는다.
+앞으로 TRON1 의 팔·카메라 구성이 바뀌어도 `tron1_openarm/` 안에서만 고치면 된다.
+
+| 바뀐 것 | 전 | 후 |
+|---|---|---|
+| TRON1 패키지 | `tron1_openarm_sim`, `tron1_openarm_moveit_config` + 휠형 복사본 3 개 (5 개) | `tron1_openarm_sim`, `tron1_openarm_moveit_config`, `tron1_openarm_apps` (3 개) |
+| 시뮬 코어 | `biped_core.BipedOpenArmSim` 이 휠형 `MobileOpenArmSim` 상속 | 바퀴 부분을 걷어낸 `tron1_openarm_sim/sim_core.OpenArmSimBase` 상속 |
+| 브리지 | `bridge_biped.py` 가 휠형 `bridge_node` 를 import 하고 시뮬 클래스를 바꿔 끼움 | `tron1_openarm_sim/bridge_node.py` 하나 (실행 파일 `tron1_bridge` 그대로) |
+| 카메라 서버 | `tron1_cameras = mobile_openarm_sim.camera_server:main` | `tron1_openarm_sim.camera_server:main` |
+| 앱 | `mobile_openarm_apps` + 환경 변수 `OPENARM_BIPED=1`·`OPENARM_SRDF` | `tron1_openarm_apps` (이족 동작이 기본, 환경 변수 없음. SRDF 는 `tron1_openarm_sf.srdf`) |
+| 이족 조정값 | 생성자에서 `OPENARM_DOCK_GAP` 등으로 덮어씀 | 클래스 값, 환경 변수 `TRON1_DOCK_GAP`·`TRON1_IDEAL_REACH`·`TRON1_GRASP_DEPTH` |
+| 모델 생성 도구 | `13_regen_tron1_models.sh` 가 `--wheeled-tools` 로 휠형 도구를 부름 | `build_world.py`·`mjcf_to_urdf.py`·`wrist_cameras.py`·`make_srdf.py`·`nav2_params_base.yaml` 을 TRON1 패키지에 둠 |
+| 휠형 | `robot_skills.py` 에 `can_strafe` 분기 48 곳, 선택 import `tron1_openarm_sim.wrist_markers`, 브리지·시뮬의 이족용 연결점 | 분기·이족 전용 메서드(옆걸음·출렁임 대기·시각 제자리 유지·시각 도킹·경유 자세 등) 제거, `mission_test.sh` 가 자기 `mission_cli.py` 사용 |
+
+분기 제거 검증: 원본 `robot_skills.py` 에서 `self.can_strafe` 와 손목 마커 정의 유무를 상수로 두고 접은 구문 트리와, 손으로 고친 두 파일의 구문 트리를 비교했다.
+남은 차이는 의도한 것뿐이다 (패키지 이름, 이족 조정값을 클래스 값으로 옮김, 쓰이지 않게 된 메서드·상수 삭제).
+동작이 달라진 곳은 한 군데다: 예전 TRON1 은 상자를 놓은 뒤 휠형 Nav2 외곽(`BASE_FOOTPRINT`, 앞 0.28·옆 0.26 m)을 costmap 에 보내
+`nav2_params_tron1.yaml` 의 외곽(옆 0.45 m)을 덮어썼다. TRON1 앱에서 이 외곽 바꾸기를 뺐다.
+
+| 시험 (DGX Spark, 화면 없이 `MUJOCO_GL=egl`) | 바꾸기 전 | 바꾼 뒤 |
+|---|---|---|
+| TRON1 자체 점검 `selftest_tron1.py` (SF) | 10/10, 직진 2.92 m, 회전 −133° | 10/10, 같은 값 |
+| TRON1 생성 도구 (월드·URDF PF/SF) | — | 저장소 파일과 같은 결과 |
+| TRON1 오프라인 시험 `color_box_test`·`table_edge_test` | — | 색 33/33 놓침 0, 모서리 12/12 (거리 오차 평균 0.06 cm) |
+| TRON1 전체 미션 `mission_test.sh sf` ("빨간 상자를 왼쪽 작업대로 옮기고 돌아와") | 성공 311 s, 상자 놓기 작업대 위, 최대 기울기 3.2° | 성공 332 s, 상자 놓기 작업대 위, 최대 기울기 3.3° (휠형 경로 없는 깨끗한 환경) |
+| 휠형 자체 점검 `selftest.py` | — | 14/14 |
+| 휠형 전체 미션 `mission_test.sh` | 성공 177 s, 상자 놓기 작업대 위 | 성공 178 s, 상자 놓기 작업대 위 (깨끗한 환경) |
+
+Nav2 생성기(`make_nav2_params_tron1.py`)를 다시 돌리면 저장소의 `nav2_params_tron1.yaml` 과 주석·`threshold_to_consider`(0.2 / 0.5) 가 다르다.
+이 차이는 이번 변경 전부터 있었다 (휠형 기준 설정을 고친 뒤 TRON1 설정을 다시 만들지 않았고, 저장소 파일에 손으로 단 주석이 있다).

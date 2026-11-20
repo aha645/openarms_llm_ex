@@ -3,10 +3,10 @@
 # [2단계] TRON1 워크스페이스 설치 (가상환경 → 점검 → 빌드)
 #
 #   전제: ROS 2 Jazzy 설치 완료 (doc/setup/ — Mac Docker·우분투 노트북·DGX Spark·우분투+GPU 공통)
-#   tron1_openarm 폴더 하나로 끝난다. src/ 에 패키지 5개가 들어 있다:
-#     tron1_openarm_sim, tron1_openarm_moveit_config      : TRON1 로봇·시뮬·MoveIt
-#     mobile_openarm_sim, mobile_openarm_apps,
-#     mobile_openarm_moveit_config                         : 시뮬 코어·카메라·집기 앱·작업 관리자·LLM·대시보드
+#   tron1_openarm 폴더 하나로 끝난다 (휠형 mobile_openarm 과 코드를 나눠 쓰지 않는다). src/ 에 패키지 3개가 들어 있다:
+#     tron1_openarm_sim            : MuJoCo 시뮬레이션(보행 정책)·ROS 2 브리지·카메라 서버·launch·모델
+#     tron1_openarm_moveit_config  : MoveIt 2 설정(SRDF·컨트롤러)·SRDF 생성 도구
+#     tron1_openarm_apps           : 로봇 스킬(집기·놓기·옆걸음)·작업 관리자·LLM 계획기·웹 대시보드
 #
 #   사용법:  bash tron1_openarm/scripts/setup_workspace.sh
 #   끝나면 새 터미널마다:  source tron1_openarm/install/setup.bash

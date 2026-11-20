@@ -28,9 +28,7 @@ if [ "$V" = true ]; then   # 손목 카메라 영상 (카메라 서버 tron1_cam
   for s in left right; do (ros2 run rqt_image_view rqt_image_view /wrist_${s}_camera/image_raw/compressed > $S/${foot}_view_$s.log 2>&1 &); done
 fi
 (python3 $D/grasp_recorder.py $S/rec_${foot}${tag}.jsonl ${OBJ:-box_0} > /dev/null 2>&1 &)
-SR=tron1_openarm.srdf; [ $foot = sf ] && SR=tron1_openarm_sf.srdf
-export OPENARM_BIPED=1 OPENARM_SRDF=$(ros2 pkg prefix tron1_openarm_moveit_config)/share/tron1_openarm_moveit_config/config/$SR
-timeout 1500 ros2 run mobile_openarm_apps pick_place --ros-args -p object:=${OBJ:-box_0} > $S/${foot}pk${tag}.log 2>&1
+timeout 1500 ros2 run tron1_openarm_apps pick_place --ros-args -p object:=${OBJ:-box_0} > $S/${foot}pk${tag}.log 2>&1
 echo "=== $foot"; grep -vE "RTPS|^\s*$" $S/${foot}pk${tag}.log | grep -E "\] \[|ERROR|완료" | sed 's/.*\]: //'
 # RViz 는 먼저 정상 종료(SIGINT) — 다른 노드를 kill -9 로 먼저 지우면 남은 rviz2 가 종료하며 SIGSEGV 로 죽어 크래시 창이 뜬다
 pkill -INT -x rviz2 2>/dev/null; pkill -INT -f "rqt_image_view /wrist_" 2>/dev/null; sleep 2

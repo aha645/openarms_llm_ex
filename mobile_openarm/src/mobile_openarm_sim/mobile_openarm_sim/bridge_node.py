@@ -166,18 +166,12 @@ class MujocoBridge(Node):
                 execute_callback=lambda gh, s=side: self.exec_gripper_cmd(gh, s),
                 cancel_callback=lambda gh: CancelResponse.ACCEPT, callback_group=cb))
 
-        self._before_physics()
         self.stop_event = threading.Event()
         # SIGINT may invalidate the ROS context before main() reaches finally.
         self.context.on_shutdown(self.stop_event.set)
         self.thread = threading.Thread(target=self.physics_loop, daemon=True)
         self.thread.start()
         self.get_logger().info("MuJoCo bridge started (viewer=%s, camera=%s)" % (self.viewer_enabled, gp("camera")))
-
-    def _before_physics(self):
-        """물리 스레드를 시작하기 전에 시뮬 상태를 바꿀 일 (하위 클래스: 이족 상자 위치). 스레드가 돌기 시작한 뒤 메인 스레드에서
-        mj_forward 로 상태를 바꾸면, 물리 스레드가 뷰어를 만드는 중(launch_passive, 잠금 없이 데이터를 읽음)과 겹쳐
-        브리지가 세그멘테이션 오류(−11)로 죽었다 (이족 연속 집기 시험 box_poses, 두 번에 한 번꼴)."""
 
     # ------------------------------------------------------------ physics thread
     def physics_loop(self):
@@ -217,8 +211,8 @@ class MujocoBridge(Node):
 
     def _track_robot(self, viewer):
         """관찰 카메라가 로봇을 따라가며 화면 중앙에 두게 한다.
-        MuJoCo 추적 카메라(mjCAMERA_TRACKING)는 몸통 위치를 그대로 따라가서, 이족이 걸을 때 걸음마다 몸통이
-        위아래·앞뒤로 1~2 cm 출렁이는 것이 화면에서는 바닥·건물 전체가 흔들리는 것으로 보였다 (사용자 지적).
+        MuJoCo 추적 카메라(mjCAMERA_TRACKING)는 몸통 위치를 그대로 따라가서, 몸통이 출렁이면 화면에서는
+        바닥·건물 전체가 흔들리는 것으로 보인다.
         → 자유 카메라로 두고, 시선 중심을 몸통의 바닥 위 위치(x, y)만 부드럽게(시간 상수 TRACK_TAU) 따라가게 하며
         높이는 고정한다. 마우스로 돌리기·확대는 그대로. 뷰어에서 다른 카메라를 고르면 따라가기를 멈춘다."""
         import mujoco
@@ -250,20 +244,16 @@ class MujocoBridge(Node):
             hook(viewer)
             self.sim.view_hook = hook
             # 그림자·반사 끔(모델의 조명·재질 값 — 그리기에만 쓰이고 물리와 무관, 카메라 서버는 자기 모델을 따로 씀):
-            # 뷰어가 한 장면을 그리는 동안(sync 가 기다림) 물리가 멈춘다. TRON1 전체 메시 모델에서
-            # sync 가 10 s 중 7.8 s 를 차지해 시뮬레이션이 실시간의 0.6 배로 돌았다 (팔 이동 1 회 40 s 넘게)
+            # 뷰어가 한 장면을 그리는 동안(sync 가 기다림) 물리가 멈춘다. 메시가 많은 모델에서는
+            # sync 가 10 s 중 7.8 s 를 차지해 시뮬레이션이 실시간의 0.6 배로 돈 적이 있다
             m.light_castshadow[:] = 0
             m.mat_reflectance[:] = 0
-
-    def _state_tilt(self):
-        """카메라 서버에 넘기는 base_link → base_footprint (높이, pitch, roll). 바퀴형은 높이만 (이족은 덮어씀)."""
-        return (BASE_LINK_Z, 0.0, 0.0)
 
     def on_tick(self, sim):
         if self.stop_event.is_set() or not self.context.ok():
             return
         if self._state_writer is not None:
-            self._state_writer.write(sim.d, self._state_tilt())
+            self._state_writer.write(sim.d, (BASE_LINK_Z, 0.0, 0.0))   # base_link → base_footprint (높이, pitch, roll)
         t = sim.time
         c = Clock()
         c.clock = stamp(t)
@@ -311,7 +301,6 @@ class MujocoBridge(Node):
         (od.pose.pose.orientation.x, od.pose.pose.orientation.y,
          od.pose.pose.orientation.z, od.pose.pose.orientation.w) = q
         od.twist.twist.linear.x = float(self.sim.odom_vel[0])
-        od.twist.twist.linear.y = float(getattr(self.sim, "odom_vy", 0.0))   # 이족 옆걸음 (바퀴형은 0) — Nav2 Omni·EKF 가 씀
         od.twist.twist.angular.z = float(self.sim.odom_vel[1])
         cov = [0.0] * 36
         cov[0] = cov[7] = 0.01
@@ -367,10 +356,6 @@ class MujocoBridge(Node):
         s.ranges = [float(v) for v in r]
         self.pub_scan.publish(s)
 
-    def _base_link_to_footprint(self, p, R):
-        """base_link 좌표 → base_footprint 좌표. 바퀴형은 높이만 다르다 (이족 브리지는 몸통 기울기까지 반영하도록 바꿔 씀)."""
-        return p + np.array([0, 0, BASE_LINK_Z]), R
-
     def publish_detections(self, t, dets):
         out = []
         pa = PoseArray()
@@ -381,7 +366,7 @@ class MujocoBridge(Node):
         clear.action = Marker.DELETEALL
         ma.markers.append(clear)
         for det in dets:
-            p, R = self._base_link_to_footprint(det["position_base"], det["rotation_base"])
+            p, R = det["position_base"] + np.array([0, 0, BASE_LINK_Z]), det["rotation_base"]   # base_link → base_footprint
             qw, qx, qy, qz = mat_to_quat(R)
             # 마커 z축(면 법선)으로부터 상자 yaw 추정 (상자 윗면 마커 → 마커 x축의 수평 방향)
             yaw = math.atan2(R[1, 0], R[0, 0])

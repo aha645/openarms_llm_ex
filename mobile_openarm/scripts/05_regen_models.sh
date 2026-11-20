@@ -27,7 +27,7 @@ cp -r "$WS/third_party/openarm_mujoco/v1/meshes" "$SIM/mjcf/meshes"
 cd "$SIM"
 "$PY" tools/build_mjcf.py --src "$OA" --out mjcf/mobile_openarm.xml
 "$PY" tools/build_mjcf.py --src "$OA" --out mjcf/mobile_openarm_light.xml --light
-"$PY" tools/wrist_cameras.py mjcf/mobile_openarm.xml mjcf/mobile_openarm_light.xml   # 양손 손목 카메라 (TRON1 과 같은 정의)
+"$PY" tools/wrist_cameras.py mjcf/mobile_openarm.xml mjcf/mobile_openarm_light.xml   # 양손 손목 카메라
 "$PY" tools/build_world.py --out mjcf --config config
 "$PY" tools/mjcf_to_urdf.py --mjcf mjcf/mobile_openarm.xml --out urdf/mobile_openarm.urdf
 "$PY" tools/make_map.py --world mjcf/world.xml --out maps/world_map

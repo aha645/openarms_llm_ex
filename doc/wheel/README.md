@@ -60,11 +60,7 @@ source mobile_openarm/.venv-mobile/bin/activate                 # python3 로 �
 
 `04_setup_workspace.sh` 를 실행한 PC 와 Docker 이미지는 `~/.bashrc` 에 ROS·패키지 줄이 들어 있어 자동으로 적용됩니다. `Package 'mobile_openarm_sim' not found` 가 나오면 세 번째 줄을 다시 실행하세요. 가상환경 줄은 `python3 ...` 명령을 쓰는 터미널에서만 필요합니다. `ros2 run`/`ros2 launch` 는 빌드 때 가상환경의 Python 이 기록되어 있어 켜지 않아도 됩니다.
 
-이전에 TRON1 을 실행했던 터미널이라면 이족 설정을 지웁니다(파일을 지우는 명령이 아님).
-
-```bash
-unset OPENARM_BIPED OPENARM_SRDF
-```
+휠형과 TRON1 은 서로 독립된 시스템입니다. 패키지 이름(`mobile_openarm_*` / `tron1_openarm_*`)과 가상환경(`.venv-mobile` / `.venv-biped`)이 다르므로, TRON1 을 실행했던 터미널이라면 새 터미널을 열어 위 세 줄로 시작하세요.
 
 **명령을 읽는 규칙 두 가지**
 

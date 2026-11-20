@@ -1,16 +1,13 @@
 """TRON1(Point-foot / Sole-foot) + OpenArm 시뮬레이션 코어 (ROS 비의존).
 
-바퀴형 MobileOpenArmSim 을 상속해 '하반신'에 관계된 부분만 바꾼다.
-상반신(팔 궤적·그리퍼·파지 보조)·LiDAR·카메라·ArUco·사람 장애물 코드는 부모 클래스 것을 그대로 쓴다.
+sim_core.OpenArmSimBase(팔 궤적·그리퍼·파지 보조·LiDAR·카메라·ArUco·사람 장애물)를 상속하고, 모델 읽기·초기화와
+하반신을 이 파일이 맡는다.
 
-바뀐 것                     바퀴형 (mobile_openarm_sim)            이족 (이 파일)
--------------------------  ------------------------------------  ---------------------------------------------
-/cmd_vel → 움직임            v, w → 좌우 바퀴 속도 (기구학 공식)     v, w(, vy) → 보행 정책(신경망, 50Hz) → 다리 목표각 → PD
-                                                                    (PF 다리 6관절 / SF 8관절 = PF + 발목 2)
-명령이 없을 때               바퀴 정지 = 완전히 멈춤                  PF: 가만히 설 수 없음 → 제자리 걸음 / SF: 발을 떼지 않고 섬
-오도메트리                   바퀴 회전각 적분                        다리 기구학(디딤발 고정 가정) + IMU 자세 (SF 는 속도 추정기 적분)
-base_footprint → base_link  바퀴 반지름 0.08 m 고정                  서 있는 높이 PF 0.68 / SF 0.73 m (실제는 ±2 cm 출렁임)
-초기 자세                    바퀴 위에 놓기                          다리 편 자세로 서 있는 높이 + 0.03 m 에 놓고 정책이 받아서 섬
+/cmd_vel → 움직임            v, w, vy → 보행 정책(신경망, 50Hz) → 다리 목표각 → PD (PF 다리 6관절 / SF 8관절 = PF + 발목 2)
+명령이 없을 때               PF: 가만히 설 수 없음 → 제자리 걸음 / SF: 발을 떼지 않고 섬
+오도메트리                   다리 기구학(디딤발 고정 가정) + IMU 자세 (SF 는 속도 추정기 적분)
+base_footprint → base_link  서 있는 높이 PF 0.68 / SF 0.73 m (실제는 ±2 cm 출렁임) — 추정한 높이·기울기를 가상 관절로 발행
+초기 자세                    다리 편 자세로 서 있는 높이 + 0.03 m 에 놓고 정책이 받아서 섬
 
 발 형태는 정책 파일(npz)로 정해지며, 모델(MJCF)의 발 형태와 다르면 시작할 때 오류로 멈춘다.
 """
@@ -20,12 +17,11 @@ import os
 import mujoco
 import numpy as np
 
-from mobile_openarm_sim import sim_core as W
-from mobile_openarm_sim.aruco_utils import ArucoDetector
-from mobile_openarm_sim.sim_core import ARM_JOINTS, GRIPPER_JOINT, MIMIC_JOINT, yaw_of
-
+from . import sim_core as W
+from .aruco_utils import ArucoDetector
 from .locomotion_policy import JOINTS as LEG_JOINTS
 from .locomotion_policy import POLICY_DT, SF_BASE_HEIGHT_CMD, LocomotionPolicy
+from .sim_core import ARM_JOINTS, GRIPPER_JOINT, MIMIC_JOINT, yaw_of
 
 # 발 형태별 값. pf = Point-foot (발목 없음), sf = Sole-foot (발목 + 평발). 정책 파일로 자동 판별
 NOMINAL = {"pf": 0.68, "sf": SF_BASE_HEIGHT_CMD}       # 서 있는 base_link 높이 [m] (URDF base_footprint→base_link)
@@ -93,14 +89,14 @@ def default_policy_path():
         return os.path.join(os.path.dirname(__file__), "..", "deployed_policies", "tron1_openarm_policy.npz")
 
 
-class BipedOpenArmSim(W.MobileOpenArmSim):
+class BipedOpenArmSim(W.OpenArmSimBase):
     ROBOT_PREFIXES = ("openarm_", "base", "abad", "hip", "knee", "ankle", "foot")   # arm_contacts 에서 로봇 몸으로 볼 이름
 
     def __init__(self, xml_path, camera_width=640, camera_height=480, camera_hz=10.0,
                  enable_camera=True, lidar_rays=360, lidar_range=(0.12, 12.0), lidar_hz=10.0,
                  lidar_noise=0.005, grasp_assist=True, move_person=True, person_speed=0.4,
                  aruco_dict="DICT_4X4_50", marker_size=0.04, use_depth=True, policy_path=None):
-        # ---- 부모 __init__ 중 하반신과 무관한 부분을 그대로 재현 (부모는 바퀴 관절을 찾으므로 직접 호출 불가)
+        # ---- 모델·상반신 (OpenArmSimBase 의 메서드가 쓰는 속성)
         import threading
         self.m = W.load_model(xml_path)                   # 파지 보조 weld 구속 포함 (sim_core.load_model)
         self.d = mujoco.MjData(self.m)
@@ -156,7 +152,7 @@ class BipedOpenArmSim(W.MobileOpenArmSim):
         self._stand_fix = None
         self._hold = None
         self.cmd_ramp = np.zeros(2)
-        self.cmd_vy = 0.0                 # 옆걸음 명령 (/cmd_vel linear.y) — 바퀴형에는 없는 이족만의 동작
+        self.cmd_vy = 0.0                 # 옆걸음 명령 (/cmd_vel linear.y)
         self.vy_ramp = 0.0
         self._vi = np.zeros(3)
         self.odom_vy = 0.0
@@ -383,7 +379,7 @@ class BipedOpenArmSim(W.MobileOpenArmSim):
 
     # ------------------------------------------------------------------ 하반신 제어
     def set_cmd_vel(self, v, w, vy=0.0):
-        """바퀴형과 같은 (v, w) + 이족만 가능한 옆걸음 vy. 바퀴형 코드가 (v, w) 로 불러도 그대로 동작.
+        """전진 v, 회전 w, 옆걸음 vy (/cmd_vel 의 linear.x, angular.z, linear.y).
         잠금을 잡지 않는다: 값 대입은 원자적이고, 물리 스레드는 정책 주기(20 ms)마다 한 번 읽을 뿐이다.
         잠금을 기다리면 ROS 브리지의 MultiThreadedExecutor 가 '준비됐지만 실행 못 하는' /cmd_vel 콜백을 계속 다시 검사하며
         GIL 을 76 % 쥐고 헛돌아, 물리 스레드가 실시간의 0.1~0.4 배로 느려지고 몇 초씩 멈췄다

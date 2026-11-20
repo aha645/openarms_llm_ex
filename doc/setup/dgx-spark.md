@@ -388,7 +388,7 @@ unset AMENT_PREFIX_PATH CMAKE_PREFIX_PATH COLCON_PREFIX_PATH PYTHONPATH && sourc
 cd src/tron1_openarm_sim && MUJOCO_GL=egl ../../.venv-biped/bin/python tools/selftest_tron1.py sf/world_light.xml deployed_policies/tron1sf_openarm_policy.npz; cd ../..
 ```
 
-⑥ 빌드 — `src/` 의 패키지 5 개(TRON1 2 개 + 시뮬 코어·집기 앱·작업 관리자 등 공통 3 개). **가상환경의 python 으로 colcon 을 실행**해야 실행 파일이 이 가상환경으로 돕니다
+⑥ 빌드 — `src/` 의 TRON1 패키지 3 개(`tron1_openarm_sim`·`tron1_openarm_moveit_config`·`tron1_openarm_apps`, 휠형 코드는 쓰지 않음). **가상환경의 python 으로 colcon 을 실행**해야 실행 파일이 이 가상환경으로 돕니다
 
 ```bash
 rosdep install --from-paths src --ignore-src -r -y; .venv-biped/bin/python -m colcon build --symlink-install --base-paths src
@@ -397,7 +397,7 @@ rosdep install --from-paths src --ignore-src -r -y; .venv-biped/bin/python -m co
 ⑦ 확인
 
 ```bash
-head -n 1 install/mobile_openarm_apps/lib/mobile_openarm_apps/task_manager
+head -n 1 install/tron1_openarm_apps/lib/tron1_openarm_apps/task_manager
 ```
 
 `#!/.../tron1_openarm/.venv-biped/bin/python` 이 나와야 합니다. 이후 TRON1 터미널은 `source tron1_openarm/install/setup.bash` 하나면 됩니다. 교육은 [TRON1 1일차](../tron1/day1.md)부터입니다.

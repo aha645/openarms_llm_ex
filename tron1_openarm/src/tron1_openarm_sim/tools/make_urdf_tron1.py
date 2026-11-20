@@ -1,16 +1,15 @@
 #!/usr/bin/env python3
 """tron1_openarm.xml(MJCF) → urdf/tron1_openarm.urdf (ROS 용: robot_state_publisher·RViz·MoveIt).
 
-바퀴형의 tools/mjcf_to_urdf.py 를 그대로 재사용하고 두 값만 바꾼다.
-  * 메시 경로 package://tron1_openarm_sim/mjcf/
-  * base_footprint → base_link 높이: 바퀴 반지름 0.08 → 서 있는 높이 0.68 (NOMINAL_BASE_HEIGHT)
+tools/mjcf_to_urdf.py 로 변환한 뒤 다음을 바꾼다.
+  * 메시 경로 (--mesh-prefix), base_footprint → base_link 높이: 서 있는 높이 PF 0.68 / SF 0.73 (--base-height)
   * 그 고정 관절을 가상 관절 3개(높이·pitch·roll)로 바꿈 (tools/base_tilt_urdf.py — 이족 몸통 기울기를 TF·MoveIt 에 반영)
   * URDF 전용 기구 정리 (tools/mech_fix.py fix_urdf): TRON1 하체 STL 메시 visual 등 — MJCF 변환에는 시각 메시가 안 들어가
     RViz 에서 하체가 투명했다. 예전에는 생성 뒤 손으로 mech_fix 를 돌려 저장소의 URDF 와 다시 생성한 URDF 가 달랐다
 왜 xacro 결과(URDF)를 바로 쓰지 않나: ROS 쪽 URDF 에는 OpenArm 팔·그리퍼·카메라·LiDAR 프레임까지 들어가야 하고,
-시뮬레이터(MJCF)와 기구학이 1:1 로 같아야 하므로, 최종 MJCF 를 정본으로 두고 다시 뽑는다 (바퀴형과 같은 원칙).
+시뮬레이터(MJCF)와 기구학이 1:1 로 같아야 하므로, 최종 MJCF 를 정본으로 두고 다시 뽑는다.
 
-    python3 make_urdf_tron1.py --wheeled-tools <mobile_openarm_sim>/tools --mjcf ../mjcf/tron1_openarm.xml --out ../urdf/tron1_openarm.urdf
+    python3 make_urdf_tron1.py --mjcf ../mjcf/tron1_openarm.xml --out ../urdf/tron1_openarm.urdf
 """
 import argparse
 import os
@@ -18,26 +17,21 @@ import re
 import sys
 
 ap = argparse.ArgumentParser()
-ap.add_argument("--wheeled-tools", required=True)
 ap.add_argument("--mjcf", required=True)
 ap.add_argument("--out", required=True)
 ap.add_argument("--base-height", type=float, default=0.68, help="pf 0.68, sf 0.73")
 ap.add_argument("--mesh-prefix", default="package://tron1_openarm_sim/mjcf/", help="sf: package://tron1_openarm_sim/mjcf/sf/")
 a = ap.parse_args()
-sys.path.insert(0, os.path.abspath(a.wheeled_tools))
-import mjcf_to_urdf as M  # noqa: E402
-
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import mjcf_to_urdf as M  # noqa: E402
 from base_tilt_urdf import add_base_tilt_joints  # noqa: E402
 from mech_fix import fix_urdf  # noqa: E402
 
 M.PKG = a.mesh_prefix
-M.WHEEL_RADIUS = a.base_height
+M.BASE_HEIGHT = a.base_height
+M.HEADER = "자동 생성: tron1_openarm_sim/tools/make_urdf_tron1.py (원본 MJCF: mjcf/tron1_openarm.xml, 하반신 xacro: LimX TRON1)"
 M.convert(a.mjcf, a.out)
 s = open(a.out, encoding="utf-8").read()
-s = s.replace('<robot name="mobile_openarm">', '<robot name="tron1_openarm">')
-s = s.replace("자동 생성: tools/mjcf_to_urdf.py (원본 MJCF: mjcf/mobile_openarm.xml)",
-              "자동 생성: tron1_openarm_sim/tools/make_urdf_tron1.py (원본 MJCF: mjcf/tron1_openarm.xml, 하반신 xacro: LimX TRON1)")
 s = add_base_tilt_joints(s)
 s, notes = fix_urdf(s, mesh_dir=a.mesh_prefix + "meshes/tron1/")
 if notes:

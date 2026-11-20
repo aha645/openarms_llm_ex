@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """TRON1 용 SRDF 의 이름 자세(home·ready·carry·hands_up)를 이족용 값(tron1_openarm_sim/arm_poses.py)으로 바꾼다.
-(+ 바퀴형 SRDF 생성기에서 넘어온 바퀴 passive 관절 제거)
+(+ 바퀴 passive 관절이 남아 있으면 제거 — 예전 생성기로 만든 SRDF 호환)
 
     python3 patch_srdf_home.py ../../tron1_openarm_moveit_config/config/tron1_openarm.srdf
 

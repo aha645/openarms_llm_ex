@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""바퀴형 nav2_params.yaml → TRON1(이족) 용으로 바꿔 저장.
+"""기준 Nav2 설정(tools/nav2_params_base.yaml — 차동구동 바퀴 로봇용으로 맞춰 둔 값) → TRON1(이족) 용으로 바꿔 저장.
 
-    python3 make_nav2_params_tron1.py --src <mobile_openarm_sim>/config/nav2_params.yaml --out ../config/nav2_params_tron1.yaml
+    python3 make_nav2_params_tron1.py --src nav2_params_base.yaml --out ../config/nav2_params_tron1.yaml
 
-바퀴형과 달라지는 것 (이유)
+기준 설정과 달라지는 것 (이유)
   * 속도 한계  vx 0.40→0.5, 후진 -0.25→-0.30, wz 1.2→0.8 : 보행 정책이 안정적으로 따라가는 범위 (rl/eval_policy.py 결과)
   * 가속 한계  ax 2.0→0.8, az 2.5→1.5 : 보행은 발을 디딜 때만 힘을 낼 수 있어 급가속을 못 따라감
   * 도착 허용  xy 0.12→0.15 m, yaw 0.15→0.20 rad : 제자리 걸음 중에도 몸통이 좌우로 ±2~3 cm 흔들림
@@ -78,6 +78,6 @@ vs["max_decel"] = [-1.0, -0.5, -1.5]
 bs = p["behavior_server"]["ros__parameters"]
 bs["max_rotational_vel"] = 0.8
 with open(a.out, "w") as fp:
-    fp.write("# 자동 생성: tools/make_nav2_params_tron1.py (원본: mobile_openarm_sim/config/nav2_params.yaml)\n")
+    fp.write("# 자동 생성: tools/make_nav2_params_tron1.py (원본: tools/nav2_params_base.yaml)\n")
     yaml.safe_dump(p, fp, sort_keys=False)
 print("wrote", a.out)

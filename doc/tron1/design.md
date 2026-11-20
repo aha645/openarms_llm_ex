@@ -2,7 +2,7 @@
 
 [TRON1 목차](README.md) · [보행 학습](locomotion-rl.md) · [검증 기록](validation-log.md) · [용어집](../glossary.md)
 
-바퀴형 실습 환경(저장소의 `mobile_openarm/`)은 **그대로 두고**, 하반신만 LimX TRON1(이족 보행)로 바꾼 두 번째 로봇을 `tron1_openarm/` 폴더에 따로 만들었습니다. 상반신은 OpenArm v1 양팔을 그대로 쓰고, SLAM·Nav2·MoveIt·ArUco·LLM 미션·웹 대시보드도 바퀴형과 같은 것을 씁니다.
+바퀴형 실습 환경(저장소의 `mobile_openarm/`)은 **그대로 두고**, 하반신만 LimX TRON1(이족 보행)로 바꾼 두 번째 로봇을 `tron1_openarm/` 폴더에 따로 만들었습니다. 상반신은 OpenArm v1 양팔을 그대로 쓰고, SLAM·Nav2·MoveIt·ArUco·LLM 미션·웹 대시보드도 바퀴형과 같은 구성입니다. 코드는 휠형과 나눠 쓰지 않고 `tron1_openarm/src` 의 TRON1 전용 패키지에 따로 있습니다.
 
 > **현재 상반신 장착 설계는 [몸체 설계 변경 이력](#몸체-설계-변경-이력-왜-바꿨나)의 ⑦(어깨 = 서 있는 base + 0.10 m, 기둥 0.13 m)입니다.** 아래 '모델 만들기'의 어깨 1.08 m·기둥 0.43 m 수치는 그 직전(③~⑥) 설계 기준 설명이며, 바꾼 이유를 이해하는 데 필요해 남겨 두었습니다. 예전 설계 재현: `build_tron1_openarm.py --shoulder 1.08`.
 
@@ -27,9 +27,9 @@
 
 ```mermaid
 flowchart TB
-  subgraph SAME["그대로 사용 (robot_skills 에 이족용 선택 기능만 추가)"]
-    APPS["mobile_openarm_apps<br/>robot_skills · task_manager · llm_planner · dashboard"]
-    WBR["mobile_openarm_sim<br/>bridge_node.py · sim_core.py(팔·LiDAR·카메라·ArUco·파지)"]
+  subgraph SAME["휠형과 같은 구성 (코드는 tron1_openarm/src 에 따로 둠)"]
+    APPS["tron1_openarm_apps<br/>robot_skills(이족 전용) · task_manager · llm_planner · dashboard"]
+    WBR["tron1_openarm_sim<br/>sim_core.py(팔·LiDAR·카메라·ArUco·파지) · camera_server.py"]
     WORLD["월드: 방·작업대·ArUco 상자·사람<br/>locations.yaml · 정답 지도"]
     ROS["ROS 2 표준: slam_toolbox · Nav2 · MoveIt 2"]
     OA["OpenArm v1 양팔 모델 (팔·그리퍼·관절 이름·이름 자세)"]
@@ -39,14 +39,14 @@ flowchart TB
     B["tools/build_tron1_openarm.py<br/>xacro→URDF→MJCF, OpenArm 접목"]
     P["locomotion_policy.py<br/>보행 정책 실행기 (numpy)"]
     C["biped_core.py<br/>/cmd_vel→정책, 다리 오도메트리"]
-    BR["bridge_biped.py<br/>(바퀴형 브리지 재사용 + 코어 교체)"]
+    BR["bridge_node.py<br/>(ROS 2 브리지, 실행 파일 tron1_bridge)"]
     RL["rl/ tron1_env.py · train_ppo.py<br/>PPO 미세조정"]
     CFG["Nav2 파라미터 · MoveIt(SRDF·URDF) · launch"]
   end
   X --> B --> C
   RL --> P --> C --> BR
   BR --> ROS
-  WBR -. 상속·재사용 .-> BR
+  WBR -. 상속 .-> C
   ROS --> APPS
   OA --> B
   WORLD --> B
@@ -62,33 +62,35 @@ flowchart TB
 | ④ 상반신 기둥 교체·위치 | 같은 파일 (`SHOULDER_HEIGHT`, `MOUNT_X`) | OpenArm 의 75 cm 기둥을 약 43 cm 로 바꿔 **어깨 1.08 m, 몸통 중심보다 8 cm 앞** | 작업대(0.70 m) 상자가 팔 도달거리 안에 들어와 DAY 2 조작 코드를 고치지 않아도 되고, 내린 손이 TRON1 엉덩이 모터와 6 cm 떨어진다. 원본 기둥(어깨 1.40 m)보다 무게중심이 낮다 |
 | ⑤ 보행 정책 | `deployed_policies/tron1_openarm_policy.npz`, `locomotion_policy.py` | /cmd_vel(속도 명령)을 다리 6관절 목표각으로 바꾸는 신경망 실행기 | 바퀴는 "바퀴 속도 = 공식"으로 끝나지만, 두 발은 **넘어지지 않게 발을 어디에 언제 디딜지** 매 순간 정해야 한다. 공식으로 풀기 어려워 RL 로 배운 정책을 쓴다. SF 배포 정책 `tron1sf_openarm_policy.npz` 는 서기 기울기 벌점으로 다시 학습한 v3 (서 있을 때 2.3°, [보행 학습 13-5](locomotion-rl.md#13-5-서-있을-때-기울기-줄이기-v3-처음엔-배포-안-함--파지-보조-수정-뒤-채택)) |
 | ⑥ PPO 미세조정 | `rl/tron1_env.py`, `rl/train_ppo.py` | LimX 사전학습 정책을 출발점으로, 상반신 14.4 kg·팔 동작·잡음 조건에서 추가 학습 | 사전학습 정책은 TRON1 **단독**(18.5 kg)용이다. 상반신을 얹으면 옆으로 흐르고(0.1 m/s), 팔을 움직이면 넘어졌다 → [보행 학습](locomotion-rl.md) |
-| ⑦ 이족 시뮬레이션 코어 | `biped_core.py` | 바퀴형 `MobileOpenArmSim` 을 상속해 하반신 부분만 교체: 명령→정책, 다리 오도메트리, 서 있는 자세 초기화 | 팔·LiDAR·카메라·ArUco·파지 보조 코드는 부모 것을 그대로 쓰고 다른 부분만 바꾸면 차이가 분명하고 버그가 적다 |
+| ⑦ 이족 시뮬레이션 코어 | `biped_core.py` | `sim_core.OpenArmSimBase`(팔·LiDAR·카메라·ArUco·파지 보조)를 상속하고, 모델 읽기·초기화와 하반신(명령→정책, 다리 오도메트리, 서 있는 자세 초기화)을 맡음 | 처음에는 바퀴형 시뮬 클래스를 상속해 하반신만 바꿨다. TRON1 을 독립 시스템으로 나누며 바퀴 부분을 걷어낸 기반 클래스를 TRON1 패키지에 두었다 |
 | ⑧ 다리 오도메트리 | 같은 파일 `_update_odom()` | "디딘 발은 미끄러지지 않는다"고 보고 관절각(기구학)+IMU 자세로 몸통 이동 계산. 공 모양 발이 **굴러가는 만큼** 보정, 속도는 보행 한 주기(0.5 s) 평균 | 바퀴가 없으니 바퀴 엔코더 오도메트리를 못 쓴다. 굴림 보정 전에는 거리가 10% 짧게 나왔다 (6 m 에 30~40 cm → 보정 후 2~5 cm) |
 | ⑧-2 제자리 유지 · 속도 외곽 루프 | 같은 파일 `_apply_base()` | 명령 0: 멈춘 자리로 되돌아가는 작은 속도. 명령 있음: 측정 속도와의 차이를 PI 로 보정(느림·옆 흐름·회전 흐름) | 정책만으로는 제자리에서 60 s 에 3.1 m 흘렀고(→ 0.12 m), Nav2 MPPI 의 작은 시작 명령(0.04 m/s)을 못 따라가 **주행이 시작되지 않는 교착**이 있었다 ([검증 기록 2-3](validation-log.md#2-3-nav2-시험--어떻게-했나)) |
-| ⑨ 브리지 | `bridge_biped.py` | 바퀴형 브리지를 import 해 코어만 바꿔 끼움 + `/biped/status` | 토픽·액션·서비스 이름이 바퀴형과 100% 같으므로 SLAM·Nav2·MoveIt·앱이 그대로 동작 |
+| ⑨ 브리지 | `bridge_node.py` (실행 파일 `tron1_bridge`) | 이족 코어를 ROS 2 로 노출 + `/biped/status`, 상자 위치 바꾸기(`box_poses`), 옆걸음 `linear.y` | 토픽·액션·서비스 이름을 바퀴형과 똑같이 두어 SLAM·Nav2·MoveIt·앱 구성이 같다. 예전에는 바퀴형 브리지를 import 해 코어만 바꿔 끼웠다(`bridge_biped.py`) |
 | ⑩ Nav2 파라미터 | `config/nav2_params_tron1.yaml` (`tools/make_nav2_params_tron1.py`) | 속도·가속 한계, 도착 허용오차, footprint, AMCL 잡음 변경 | 보행은 바퀴보다 느리고, 급가속을 못 하고, 제자리에서도 몸이 흔들린다 |
 | ⑪ ROS 용 URDF·SRDF | `urdf/tron1_openarm.urdf`, `tron1_openarm_moveit_config/` | 다리 링크가 들어간 URDF, 다리–팔 충돌 쌍을 새로 계산한 SRDF | MoveIt 이 팔 경로를 짤 때 다리·TRON1 몸통과 부딪히는지 검사해야 한다. 팔 그룹·이름 자세·컨트롤러 이름은 바퀴형과 같다 |
-| ⑫ launch | `launch/sim·slam·nav·full_system.launch.py` | 바퀴형 launch 와 같은 인자, 패키지 이름만 다름 + `policy:=` 인자 | 실습 명령이 `mobile_openarm_sim` → `tron1_openarm_sim` 으로만 바뀌도록 |
+| ⑫ launch | `launch/sim·slam·nav·full_system.launch.py` | 바퀴형 launch 와 같은 인자 + `foot:=`·`policy:=` 인자. full_system 은 `tron1_openarm_apps` 의 task_manager·dashboard 를 띄움 | 실습 명령이 `mobile_openarm_sim` → `tron1_openarm_sim` 으로만 바뀌도록 |
 | ⑬ 이족용 팔 `home` 자세 | `tools/patch_srdf_home.py`, `biped_core.py` `HOME_ARM` | 팔을 내린 `home` 에서 joint2 를 왼쪽 −0.2, 오른쪽 +0.2 rad 벌림 (손이 몸통 바깥으로 4.5 cm) | TRON1 몸통 상자(base_link)가 바퀴형 기둥보다 넓어, 팔을 그냥 내리면 손이 몸통과 겹쳐 MoveIt 이 `START_STATE_IN_COLLISION` 으로 계획을 거부했다 |
-| ⑭ 앱의 SRDF 경로 (기존 코드 수정 ①) | `mobile_openarm/src/mobile_openarm_apps/.../robot_skills.py` | 이름 자세를 읽을 SRDF 를 환경변수 `OPENARM_SRDF` 로 바꿀 수 있게 함. 없으면 예전과 같은 바퀴형 SRDF | 이족 `home` 자세가 바퀴형과 달라졌기 때문. TRON1 `full_system.launch.py` 가 이 변수를 자동으로 넣는다. 바퀴형 동작은 그대로 |
+| ⑭ 앱의 SRDF | `tron1_openarm_apps/robot_skills.py` | 이름 자세를 `tron1_openarm_moveit_config/config/tron1_openarm_sf.srdf` 에서 읽음 (PF·SF SRDF 의 이름 자세는 같은 값) | 이족 `home` 자세가 바퀴형과 다르기 때문. 예전에는 공통 앱이 환경 변수 `OPENARM_SRDF` 로 SRDF 를 바꿨다 |
 | ⑮ 머리 카메라 해상도 | `launch/sim.launch.py` | 640×480 → **960×720** | 어깨를 1.08 m 로 올리며 카메라도 높아져 작업대 상자의 ArUco 마커가 작게 보였고, 검출이 실패했다 |
-| ⑯ 옆걸음 (기존 코드 수정 ②, 이족만) | `biped_core.py` `set_cmd_vel(v, w, vy)`, `bridge_biped.py`, `robot_skills.strafe_base()` | `/cmd_vel` 의 `linear.y` 를 정책의 옆 속도 명령으로 전달. 집기 직전 상자가 옆으로 0.18 m 넘게 치우쳐 있으면 옆걸음으로 0.12 m 에 맞춤 (`OPENARM_BIPED=1` 일 때만) | 이족은 AMCL 위치 오차와 제자리 걸음 흐름 때문에 작업대 앞에서 옆으로 0.15 m 가까이 어긋나 서는 일이 있었고, 그러면 오른팔 직선 접근이 64% 에서 막혀 미션이 실패했다. 바퀴형(차동 구동)은 옆으로 못 가므로 이 단계를 건너뛴다 |
+| ⑯ 옆걸음 | `biped_core.py` `set_cmd_vel(v, w, vy)`, `bridge_node.py`, `robot_skills.strafe_base()` | `/cmd_vel` 의 `linear.y` 를 정책의 옆 속도 명령으로 전달. 집기 직전 상자가 옆으로 0.18 m 넘게 치우쳐 있으면 옆걸음으로 0.12 m 에 맞춤 (예전 공통 앱에서는 `OPENARM_BIPED=1` 일 때만) | 이족은 AMCL 위치 오차와 제자리 걸음 흐름 때문에 작업대 앞에서 옆으로 0.15 m 가까이 어긋나 서는 일이 있었고, 그러면 오른팔 직선 접근이 64% 에서 막혀 미션이 실패했다. 바퀴형(차동 구동)은 옆으로 못 가므로 이 단계를 건너뛴다 |
 | ⑰ 팔 중력 보상 (이족만) | `biped_core.py` `_apply_arm_gravcomp()` | 물리 스텝마다 팔 14관절에 "지금 자세에서 팔 무게를 버티는 토크"를 피드포워드로 더함 (`TRON1_ARM_GRAVCOMP=0` 으로 끔) | 위치 제어만으로는 팔이 중력에 처져 손끝이 2~3 cm 덜 갔다 (몸통을 고정해도 남음). MuJoCo body `gravcomp` 는 떠 있는 몸통에도 위로 미는 가짜 힘을 넣어 쓰지 않고, 팔 관절 토크로만 넣는다 ([검증 기록 8절](validation-log.md#8-팔-중력-보상과-몸통-기울기-tf)) |
-| ⑱ 몸통 높이·기울기 TF (이족만) | `tools/base_tilt_urdf.py`, `biped_core.py` `_update_tilt()`, `bridge_biped.py` | URDF 의 고정 `base_footprint→base_link`(높이 0.68/0.73 m) 를 가상 관절 3개(`base_height/pitch/roll_joint`)로 바꾸고, 브리지가 IMU 자세 + 디딘 발 기구학 높이를 `/joint_states` 로 발행. ArUco 위치도 같은 변환으로 `base_footprint` 에 옮김 | 팔을 뻗으면 몸통이 최대 7° 숙여지는데 TF·MoveIt 은 기울기 0 으로 알아, 0.5 m 앞 손끝·상자·상판 높이가 수 cm 어긋났다 |
-| ⑲ 색 상자 인식 | `mobile_openarm_sim/color_boxes.py`, `camera_server.py` (바퀴형과 공통) (`box_source:=color`) | 상자 마커 없이 빨강·초록·파랑 영역 + 깊이 → 윗면 중심·방향. 마커와 같은 id·형식으로 발행 | 마커는 원래 작업대(위치)를 찾으려던 것이고, 상자는 색으로 충분하다 (사용자 제안). 오프라인 정확도 마커와 같음(최대 0.15 cm, 0.5°) — [검증 기록 15절](validation-log.md#15-마커-없는-인식-색-상자-작업대는-지도--깊이-모서리-출발점-기준-왼쪽오른쪽) |
-| ⑳ 작업대 앞 모서리·점유 칸 | `mobile_openarm_sim/table_edge.py` → `/table/edge` | 머리 카메라 깊이(자기 몸은 분할 영상으로 뺌)에서 상판 높이, 앞 모서리 거리·방향(RANSAC), 상판 위 물체 2 cm 칸 | 작업대 마커는 다가가야 읽혀 '어느 작업대인지' 정하는 데 맞지 않음 (사용자 지적) → 어느 작업대는 지도, 도착 뒤 정렬·놓을 빈자리는 깊이로 |
+| ⑱ 몸통 높이·기울기 TF | `tools/base_tilt_urdf.py`, `biped_core.py` `_update_tilt()`, `bridge_node.py` | URDF 의 고정 `base_footprint→base_link`(높이 0.68/0.73 m) 를 가상 관절 3개(`base_height/pitch/roll_joint`)로 바꾸고, 브리지가 IMU 자세 + 디딘 발 기구학 높이를 `/joint_states` 로 발행. ArUco 위치도 같은 변환으로 `base_footprint` 에 옮김 | 팔을 뻗으면 몸통이 최대 7° 숙여지는데 TF·MoveIt 은 기울기 0 으로 알아, 0.5 m 앞 손끝·상자·상판 높이가 수 cm 어긋났다 |
+| ⑲ 색 상자 인식 | `tron1_openarm_sim/color_boxes.py`, `camera_server.py` (`box_source:=color`) | 상자 마커 없이 빨강·초록·파랑 영역 + 깊이 → 윗면 중심·방향. 마커와 같은 id·형식으로 발행 | 마커는 원래 작업대(위치)를 찾으려던 것이고, 상자는 색으로 충분하다 (사용자 제안). 오프라인 정확도 마커와 같음(최대 0.15 cm, 0.5°) — [검증 기록 15절](validation-log.md#15-마커-없는-인식-색-상자-작업대는-지도--깊이-모서리-출발점-기준-왼쪽오른쪽) |
+| ⑳ 작업대 앞 모서리·점유 칸 | `tron1_openarm_sim/table_edge.py` → `/table/edge` | 머리 카메라 깊이(자기 몸은 분할 영상으로 뺌)에서 상판 높이, 앞 모서리 거리·방향(RANSAC), 상판 위 물체 2 cm 칸 | 작업대 마커는 다가가야 읽혀 '어느 작업대인지' 정하는 데 맞지 않음 (사용자 지적) → 어느 작업대는 지도, 도착 뒤 정렬·놓을 빈자리는 깊이로 |
 | ㉑ 출발점 기준 왼쪽/오른쪽 | `llm_planner.table_sides`, `task_manager.py` | 출발 지점에서 작업대들 쪽을 바라볼 때의 옆 방향으로 '왼쪽/오른쪽 작업대' 해석 | 예전에는 '왼쪽 = 서쪽' 고정 (사용자 제안) |
 | ㉒ 놓을 빈자리 찾기 | `robot_skills._place_*` | 깊이 점유 칸 + 색 상자를 피해 상자 자리와 손이 지나가는 띠까지 빈 곳을 2D 로, 쥘 때와 같은 손 기울기, 내려놓기 직전 다시 확인 | 다른 상자가 있는 곳에 놓았다 (사용자 지적) — [검증 기록 15·17절](validation-log.md) |
-| ㉓ 파지 보조 weld (기존 코드 수정 ③) | `mobile_openarm_sim/sim_core.py` `load_model`, `_update_attached` | 두 손가락이 모두 닿으면 손끝↔상자 weld 구속을 켜고, 열면 끔 | 예전 '상자 위치 덮어쓰기' 부착은 쥐고 놓을 때마다 몸통을 밀어 하체가 떨리고 발을 디뎠다 (사용자 지적, 1 cm 비키면 넘어짐) — [검증 기록 16절](validation-log.md#16-쥐고-놓을-때마다-하체가-떨리고-발을-디딤--파지-보조-구현-문제) |
+| ㉓ 파지 보조 weld | `tron1_openarm_sim/sim_core.py` `load_model`, `_update_attached` | 두 손가락이 모두 닿으면 손끝↔상자 weld 구속을 켜고, 열면 끔 | 예전 '상자 위치 덮어쓰기' 부착은 쥐고 놓을 때마다 몸통을 밀어 하체가 떨리고 발을 디뎠다 (사용자 지적, 1 cm 비키면 넘어짐) — [검증 기록 16절](validation-log.md#16-쥐고-놓을-때마다-하체가-떨리고-발을-디딤--파지-보조-구현-문제) |
 | ㉔ 도착 뒤 옆 위치, AMCL Omni | `robot_skills.dock`, `config/nav2_params_tron1.yaml` | 지도 위 옆 오차를 한 번 재서 옆걸음, AMCL 운동 모델 Omni | Nav2 도착이 35 cm 옆이라 상자가 시야 밖, 차동 운동 모델이 옆걸음을 잘못 추정 (오차 0.78 m) |
 
-## 그대로 쓰는 부분과 이유
+## 휠형과 같은 구성으로 둔 부분과 이유
 
-| 그대로 쓰는 것 | 왜 바꾸지 않아도 되나 |
+TRON1 은 휠형과 코드를 나눠 쓰지 않는 독립 시스템입니다. 아래는 휠형과 **같은 구성·인터페이스**로 둔 부분이며, 코드는 `tron1_openarm/src` 에 따로 있습니다. 처음에는 휠형 패키지를 그대로 불러 썼고, 지금은 TRON1 전용 패키지(`tron1_openarm_sim`·`tron1_openarm_moveit_config`·`tron1_openarm_apps`)로 옮기며 휠형용 분기를 걷어냈습니다.
+
+| 같은 구성으로 둔 것 | 왜 그렇게 해도 되나 |
 |---|---|
 | OpenArm 양팔·그리퍼 모델, 관절 이름, 팔 컨트롤러 이름 | 상반신은 같은 로봇. MoveIt 설정(kinematics·joint_limits·controllers·OMPL)도 복사해서 그대로 씀 |
-| `mobile_openarm_apps` 전체 (robot_skills, pick/place, task_manager, llm_planner, dashboard) — ⑭·⑯ 의 환경변수로 켜는 이족용 기능 제외. 변수가 없으면 바퀴형 동작 그대로 | 앱은 `/cmd_vel`, `/odom`, TF `map→base_footprint`, `/aruco/detections`(base_footprint 기준), MoveIt 액션만 쓴다. 이 인터페이스를 이족 브리지가 똑같이 제공한다. 어깨 높이를 맞췄으므로 작업대 접근 수치(`DOCK_GAP 0.40`, `IDEAL_REACH 0.52`)도 그대로 유효 |
-| 월드 (방·작업대·상자·사람), `locations.yaml`, 정답 지도 | `build_world_tron1.py` 가 바퀴형 `build_world.py` 를 그대로 불러 같은 월드를 만들고 로봇만 바꿈 |
+| 앱 구성 (`tron1_openarm_apps`: robot_skills, pick/place, task_manager, llm_planner, dashboard) — robot_skills 는 이족 전용 동작(옆걸음·출렁임 대기·시각 도킹)이 기본 | 앱은 `/cmd_vel`, `/odom`, TF `map→base_footprint`, `/aruco/detections`(base_footprint 기준), MoveIt 액션만 쓴다. 이 인터페이스를 이족 브리지가 바퀴형과 똑같이 제공한다. 작업대 접근 수치는 이족 값(`DOCK_GAP 0.42`, `IDEAL_REACH 0.52`) |
+| 월드 (방·작업대·상자·사람), `locations.yaml`, 정답 지도 | `tools/build_world.py`(바퀴형과 같은 월드 정의)로 같은 월드를 만들고 로봇 include 만 TRON1 |
 | slam_toolbox 설정 | LiDAR 토픽·프레임 이름이 같고, 2D 스캔 성질도 같음 |
 | LLM 계획기·안전 검증 | 행동(navigate/pick/place…)과 위치 이름이 같으므로 |
 
@@ -308,7 +310,7 @@ ROS 쪽 URDF 에는 TRON1 다리뿐 아니라 OpenArm 팔·그리퍼, 카메라�
 
 **월드·URDF 생성 확인 (구현 기록에서)**
 
-- `build_world_tron1.py` 는 바퀴형 `build_world.py` 를 그대로 불러 같은 방·작업대·상자를 만들고 로봇 include 만 바꿉니다. 그래서 지도·위치(`locations.yaml`)가 바퀴형과 1:1 로 같습니다.
+- `build_world_tron1.py` 는 `tools/build_world.py`(바퀴형과 같은 월드 정의를 TRON1 패키지에 둔 것)로 같은 방·작업대·상자를 만들고, 로봇 include 는 TRON1 모델입니다. 그래서 지도·위치(`locations.yaml`)가 바퀴형과 1:1 로 같습니다.
 - `make_urdf_tron1.py` 는 최종 MJCF 를 정본으로 ROS 용 URDF 를 다시 뽑습니다. 시뮬과 MoveIt 의 기구학이 같아야 하기 때문입니다. `base_footprint → base_link` 는 고정 높이(PF 0.68, SF 0.73)입니다.
 - 확인: 아래 표처럼 MJCF 와 URDF 로 각각 FK(Forward Kinematics, 정기구학)를 계산해 비교했고 1 mm 단위까지 같았습니다.
 

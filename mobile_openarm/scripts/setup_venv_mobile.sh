@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # mobile_openarm 용 Python 가상환경(.venv-mobile) 생성 + 의존성 설치
 #   용도: MuJoCo 시뮬·ROS 브리지, SLAM/Nav2/MoveIt 연동 노드, LLM 계획기(OpenAI), Flask 웹 대시보드
-#         (휠형과 TRON1 의 ROS 실행이 함께 쓴다. TRON1 PPO 학습은 별도 .venv-biped)
+#         (휠형 전용. TRON1 은 tron1_openarm/.venv-biped 를 따로 쓴다)
 #   사용: bash mobile_openarm/scripts/setup_venv_mobile.sh      (04_setup_workspace.sh 가 자동 호출)
 #   - --system-site-packages: apt 로 설치된 rclpy·cv_bridge·OpenCV·NumPy·colcon 을 그대로 쓴다
 #   - numpy 는 apt(ROS) 버전으로 고정: pip 가 numpy 2.x 를 들이면 numpy 1.x 로 빌드된 cv_bridge 등이 깨진다

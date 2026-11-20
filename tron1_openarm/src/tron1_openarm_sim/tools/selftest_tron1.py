@@ -13,9 +13,7 @@ import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PKG = os.path.dirname(HERE)
-REPO = os.path.dirname(os.path.dirname(os.path.dirname(PKG)))
 sys.path.insert(0, PKG)
-sys.path.insert(0, os.path.join(REPO, "tron1_openarm", "src", "mobile_openarm_sim"))
 
 import numpy as np  # noqa: E402
 

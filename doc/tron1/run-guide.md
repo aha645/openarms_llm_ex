@@ -14,7 +14,7 @@
 | 보행 정책 (Sole-foot, 교육 기준) | `tron1_openarm/src/tron1_openarm_sim/deployed_policies/tron1sf_openarm_policy.npz` | v3 = `runs/upright/seed1/final.npz`, 서 있을 때 기울기 2.3° ([보행 학습 13-5](locomotion-rl.md)) |
 | 보행 정책 (Point-foot, 비교용) | `.../deployed_policies/tron1_openarm_policy.npz` | `foot:=pf` |
 | 로봇·월드 모델 (MJCF) | `.../mjcf/`, `.../mjcf/sf/` | 생성 도구로 만든 결과 그대로 |
-| 메시 (OpenArm·TRON1) | `.../mjcf/meshes/`, `.../mjcf/sf/meshes/`, `mobile_openarm/src/mobile_openarm_sim/mjcf/meshes/` | Apache-2.0, 출처: 각 `mjcf/MESHES_NOTICE.md` |
+| 메시 (OpenArm·TRON1) | `.../mjcf/meshes/`, `.../mjcf/sf/meshes/` | Apache-2.0, 출처: 각 `mjcf/MESHES_NOTICE.md` |
 | ROS 용 URDF·SRDF | `.../urdf/`, `tron1_openarm_moveit_config/config/` | |
 | 지도·Nav2 설정·위치 | `.../maps/`, `.../config/` | |
 | 정책 평가 기록 | `tron1_openarm/rl/eval_records/eval_results.json` | 배포 SF·PF 정책의 오프라인 평가 (`rl/eval_policy.py`). 학습 시작점인 LimX 원본 정책은 `tron1_openarm/rl/pretrained_limx/` (실행에 쓰이지 않음) |
@@ -138,11 +138,10 @@ git checkout tron1_openarm/src/tron1_openarm_sim/deployed_policies/tron1sf_opena
 
 ## 8. (선택) 원본에서 모델 다시 만들기
 
-평소에는 필요 없습니다. OpenArm·LimX TRON1 원본을 새 버전으로 바꾸거나 생성 도구(`tools/*.py`)를 고쳤을 때만 씁니다.
+평소에는 필요 없습니다. OpenArm·LimX TRON1 원본을 새 버전으로 바꾸거나 생성 도구(`tron1_openarm_sim/tools/*.py`, `tron1_openarm_moveit_config/tools/make_srdf.py`)를 고쳤을 때만 씁니다. 생성 도구는 모두 TRON1 패키지 안에 있어 휠형 폴더가 필요 없습니다.
 원본은 `third_party/` 에 받고(git 에 안 올라감), 생성 파일을 덮어씁니다.
 
 ```bash
-bash mobile_openarm/scripts/05_regen_models.sh          # 바퀴형: enactic/openarm_mujoco → MJCF·URDF·SRDF·지도
 bash tron1_openarm/scripts/13_regen_tron1_models.sh     # TRON1: limxdynamics/tron1-robot-description + openarm_mujoco
 git diff --stat                                          # 바뀐 생성 파일 확인
 # 특정 원본 커밋으로: TRON1_DESC_REF=<커밋> OPENARM_MUJOCO_REF=<커밋> bash tron1_openarm/scripts/13_regen_tron1_models.sh

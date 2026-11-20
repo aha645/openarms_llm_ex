@@ -796,7 +796,7 @@ TRON1_STAND_TILT=4 TRON1_EP_S=60 TRON1_STAND_LONG_MAX_S=50 \
 **학습 밖에서 같이 고친 것**
 - `tron1_openarm_sim/config/nav2_params_tron1.yaml`, `tools/make_nav2_params_tron1.py`: 전진 0.35 → 0.5, 후진 −0.2 → −0.3 m/s, `vx_std` 0.2 (46a67ee)
 - `mobile_openarm_sim/bridge_node.py`: `_before_physics()` 훅(물리 스레드 시작 전 상태 변경), 뷰어 생성을 시뮬 잠금 안에서 /
-  `tron1_openarm_sim/bridge_biped.py`: 상자 위치(`box_poses`) 설정을 `_before_physics()` 로 — 상자 위치를 준 집기 시험에서 두 번에 한 번꼴 세그멘테이션 오류 (a589995)
+  `tron1_openarm_sim/bridge_biped.py`: 상자 위치(`box_poses`) 설정을 `_before_physics()` 로 — 상자 위치를 준 집기 시험에서 두 번에 한 번꼴 세그멘테이션 오류 (a589995). 지금은 TRON1 전용 `tron1_openarm_sim/bridge_node.py` 하나로 합쳐짐
 - `tools/validation/pick_test.sh`·`mission_test.sh`: `POLICY=` 로 후보 보행 정책 시험 (a589995)
 
 ### 14-5. 판별 학습 명령

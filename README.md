@@ -1,6 +1,6 @@
 # OpenArm 이동 조작 실습 — MuJoCo + ROS 2 Jazzy
 
-**Ubuntu 24.04 + ROS 2 Jazzy**에서 하반신(차동구동 휠 또는 TRON1 이족)과 OpenArm v1 양팔 상반신을 결합해, 주행·팔 제어·물체 운반·자연어 미션을 실습하는 저장소입니다. 저장소 아래 `mobile_openarm/`(휠형)과 `tron1_openarm/`(TRON1 이족)이 각각 colcon 워크스페이스이며, TRON1은 휠형 위에 겹쳐(overlay) 빌드합니다.
+**Ubuntu 24.04 + ROS 2 Jazzy**에서 하반신(차동구동 휠 또는 TRON1 이족)과 OpenArm v1 양팔 상반신을 결합해, 주행·팔 제어·물체 운반·자연어 미션을 실습하는 저장소입니다. 저장소 아래 `mobile_openarm/`(휠형)과 `tron1_openarm/`(TRON1 이족)은 서로 독립된 로봇 시스템입니다. 각자 자기 colcon 워크스페이스·가상환경·패키지(`mobile_openarm_*` / `tron1_openarm_*`)를 갖고, 코드를 나눠 쓰지 않습니다.
 
 > `planner:=offline`은 LLM이 아니라 **키워드 규칙 기반 계획기**입니다. 실제 LLM API 연결은 2일차의 선택 실습입니다. 실로봇이 아닌 **MuJoCo 시뮬레이션**을 대상으로 합니다.
 
@@ -35,7 +35,7 @@ Python 의존성은 가상환경 세 개로 나눕니다. 휠형과 TRON1 은 �
 | 차동구동 휠 + OpenArm ([목차·공통 규칙](doc/wheel/README.md)) | [01 MuJoCo](doc/wheel/day1-01-mujoco-basics.md) · [02 브리지](doc/wheel/day1-02-bridge.md) · [03 TF](doc/wheel/day1-03-description-tf.md) · [04 SLAM](doc/wheel/day1-04-slam-rviz.md) · [05 Nav2](doc/wheel/day1-05-nav2.md) · [06 순찰](doc/wheel/day1-06-patrol.md) | [01 MoveIt](doc/wheel/day2-01-moveit.md) · [02 ArUco 집기](doc/wheel/day2-02-aruco-pick-place.md) · [03 운반](doc/wheel/day2-03-nav-pick-place.md) · [04 LLM](doc/wheel/day2-04-llm-planner.md) · [05 Task Manager](doc/wheel/day2-05-task-manager.md) · [06 대시보드](doc/wheel/day2-06-dashboard.md) |
 | TRON1 + OpenArm ([목차](doc/tron1/README.md)) | **[보행·브리지·TF·SLAM·Nav2·순찰](doc/tron1/day1.md)** | **[이족 팔 제어·집기·운반·통합 미션](doc/tron1/day2.md)** |
 
-**TRON1 은 휠형과 독립적으로 설치합니다.** 휠형(`mobile_openarm/`)을 설치하지 않아도 되며, ROS 2 Jazzy 설치 뒤 `bash tron1_openarm/scripts/setup_workspace.sh` 한 번으로 가상환경(`.venv-biped`)·자체 점검·빌드가 끝납니다. 보행 정책을 직접 학습할 때만 GPU PC 에서 `setup_venv_biped_train_ppo.sh` → `12_train_mjx.sh` 를 씁니다. [TRON1 1일차의 사전 준비 확인](doc/tron1/day1.md)을 먼저 읽으세요. 교육은 완주 기록이 있는 **Sole-foot(SF)** 기준이며, TRON1 launch 의 기본값도 SF(`foot:=sf`)입니다. Point-foot 은 `foot:=pf` 로 비교합니다. 기존 SF 성공 기록도 1회이며 반복 성공률을 보장하지 않습니다.
+**TRON1 은 휠형과 독립적으로 설치합니다.** 휠형(`mobile_openarm/`)을 설치하지 않아도 되고 휠형 코드도 쓰지 않으며, ROS 2 Jazzy 설치 뒤 `bash tron1_openarm/scripts/setup_workspace.sh` 한 번으로 가상환경(`.venv-biped`)·자체 점검·빌드가 끝납니다. 보행 정책을 직접 학습할 때만 GPU PC 에서 `setup_venv_biped_train_ppo.sh` → `12_train_mjx.sh` 를 씁니다. [TRON1 1일차의 사전 준비 확인](doc/tron1/day1.md)을 먼저 읽으세요. 교육은 완주 기록이 있는 **Sole-foot(SF)** 기준이며, TRON1 launch 의 기본값도 SF(`foot:=sf`)입니다. Point-foot 은 `foot:=pf` 로 비교합니다. 기존 SF 성공 기록도 1회이며 반복 성공률을 보장하지 않습니다.
 
 ## 3. 소스 위치
 
@@ -47,15 +47,15 @@ mobile_openarm/                       # 휠형 colcon 워크스페이스
   src/
     mobile_openarm_sim/               # 휠 모델, 센서·물리, ROS 브리지, SLAM/Nav2 launch
     mobile_openarm_moveit_config/     # 휠형 URDF/SRDF 기반 MoveIt 설정
-    mobile_openarm_apps/              # 공통 주행/팔 스킬, LLM 계획, 작업 관리자, 웹
+    mobile_openarm_apps/              # 휠형 주행/팔 스킬, LLM 계획, 작업 관리자, 웹
   third_party/openarm_mujoco/         # (05 재생성 때만 clone, git 제외) OpenArm 원본 — 메시·모델은 src/ 에 포함
   .venv-mobile/  build/ install/ log/ # (생성물, git 제외)
 tron1_openarm/                        # TRON1 colcon 워크스페이스 (휠형과 독립 — 이 폴더만으로 설치·실행)
   scripts/                            # setup_venv_biped.sh(시뮬 venv) · setup_workspace.sh(설치·빌드) · setup_venv_biped_train_ppo.sh(학습 venv)
                                       # PPO 학습(11·12), 모델 재생성(13, 선택)
-  src/tron1_openarm_sim/              # 이족 모델, 정책 추론·물리·브리지, launch
-  src/tron1_openarm_moveit_config/    # 이족용 MoveIt 설정
-  src/mobile_openarm_sim·apps·moveit_config/  # 시뮬 코어·카메라·집기 앱·작업 관리자·LLM·대시보드 (휠형에서 가져온 공통 코드, 바퀴형 모델 제외)
+  src/tron1_openarm_sim/              # 이족 모델, 정책 추론·물리·브리지, 카메라 서버, launch
+  src/tron1_openarm_moveit_config/    # 이족용 MoveIt 설정, SRDF 생성 도구
+  src/tron1_openarm_apps/             # 이족 주행/팔 스킬(옆걸음·시각 도킹), LLM 계획, 작업 관리자, 웹
   rl/                                 # 선택적 PPO 학습 (기본 교육 범위 밖)
   rl/pretrained_limx/ rl/eval_records/  # 학습 시작점(LimX 원본 정책)·평가 기록
   runs/                               # 학습 로그 (생성물, git 제외)

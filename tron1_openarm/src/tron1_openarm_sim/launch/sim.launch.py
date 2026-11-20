@@ -5,7 +5,7 @@
     ros2 launch tron1_openarm_sim sim.launch.py camera_process:=false  # 예전 방식: 브리지의 물리 스레드가 머리 카메라만 렌더링
     ros2 launch tron1_openarm_sim sim.launch.py ekf:=true          # odom→base_footprint 를 EKF(다리 오도메트리 + IMU, config/ekf_tron1.yaml)가 냄
   policy:= 로 정책을 바꿀 때는 그 정책의 발 형태와 foot 를 맞춘다 (다르면 브리지가 오류로 멈춤)
-바퀴형 mobile_openarm_sim/sim.launch.py 와 인자·토픽이 같다. 다른 점: 브리지 실행파일(tron1_bridge), URDF, 보행 정책 파일(policy).
+브리지(tron1_bridge, 보행 정책 policy)·카메라 서버(tron1_cameras)·robot_state_publisher(URDF)·RViz 를 띄운다.
 """
 import os
 
@@ -52,7 +52,7 @@ def _setup(context):
             "move_person": lc("move_person"), "grasp_assist": lc("grasp_assist"),
             "rate_factor": lc("rate_factor"), "lidar_rays": lc("lidar_rays"),
             "camera_hz": lc("camera_hz"), "image_hz": lc("image_hz"),
-            # 머리 카메라가 바퀴형보다 8 cm 높아(1.24 m) 4 cm 마커가 640x480 에서 너무 작게 보임 → 960x720
+            # 머리 카메라가 높아(1.24 m) 4 cm 마커가 640x480 에서 너무 작게 보임 → 960x720
             "camera_width": 960, "camera_height": 720,
             "start_x": lc("start_x"), "start_y": lc("start_y"), "start_yaw": lc("start_yaw"),
             "box_poses": lc("box_poses").perform(context),

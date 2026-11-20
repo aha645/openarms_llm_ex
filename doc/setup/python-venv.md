@@ -110,13 +110,12 @@ bash tron1_openarm/scripts/setup_workspace.sh
 2. apt NumPy 버전을 `ros-constraints.txt` 에 기록하고 고정한 채 `mujoco==3.5.0`, `openai>=1.60`, `pydantic>=2.5`, `flask` 설치
 3. NumPy 가 apt 버전 그대로인지 확인
 
-`setup_workspace.sh` 는 이어서 `src/` 의 패키지 5 개를 이 venv 의 Python 으로 빌드합니다.
-TRON1 패키지 2 개(`tron1_openarm_sim`, `tron1_openarm_moveit_config`)와, 시뮬 코어·카메라 서버·집기 앱·작업 관리자·LLM·대시보드가 든 공통 패키지 3 개
-(`mobile_openarm_sim`, `mobile_openarm_apps`, `mobile_openarm_moveit_config` — 휠형에서 가져온 코드, 휠형 로봇 모델은 뺐음)입니다.
+`setup_workspace.sh` 는 이어서 `src/` 의 TRON1 패키지 3 개를 이 venv 의 Python 으로 빌드합니다.
+`tron1_openarm_sim`(시뮬·브리지·카메라 서버·launch), `tron1_openarm_moveit_config`(MoveIt), `tron1_openarm_apps`(집기 스킬·작업 관리자·LLM·대시보드)이며, 휠형 코드는 쓰지 않습니다.
 그래서 **TRON1 의 모든 `ros2 run`/`ros2 launch` 실행 파일이 `.venv-biped` 로 돕니다**. 확인:
 
 ```bash
-head -n 1 tron1_openarm/install/mobile_openarm_apps/lib/mobile_openarm_apps/task_manager
+head -n 1 tron1_openarm/install/tron1_openarm_apps/lib/tron1_openarm_apps/task_manager
 # #!/.../tron1_openarm/.venv-biped/bin/python
 ```
 
@@ -128,8 +127,8 @@ source tron1_openarm/.venv-biped/bin/activate
 source tron1_openarm/install/setup.bash
 ```
 
-> 공통 패키지 3 개는 휠형(`mobile_openarm/src`)과 TRON1(`tron1_openarm/src`)에 각각 따로 있습니다. 한쪽에서 고친 공통 코드(집기 앱 등)는
-> 다른 쪽에 저절로 반영되지 않으므로, 양쪽에 필요한 수정이면 두 곳 모두 고칩니다.
+> 휠형(`mobile_openarm_*`)과 TRON1(`tron1_openarm_*`)은 서로 독립된 시스템이라 코드를 나눠 쓰지 않습니다. 두 시스템은 같은 구조에서 출발했으므로
+> 한쪽에서 고친 버그가 다른 쪽에도 필요할 수 있습니다. 그때는 두 곳을 각각 고칩니다 (예: 집기 흐름은 `robot_skills.py`).
 
 ## 4. `.venv-biped-train` — TRON1 보행 PPO 학습용 (GPU)
 
